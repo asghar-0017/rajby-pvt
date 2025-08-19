@@ -3,14 +3,14 @@ import dotenv from "dotenv";
 import helmet from "helmet";
 import cors from "cors";
 import path from "path";
-import fs from "fs";
-import os from "os";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
 import ejs from "ejs";
 
 // Import MySQL connector instead of MongoDB
 import mysqlConnector from "./dbConnector/mysqlConnector.js";
+
+
 
 // Import new MySQL routes
 import authRoutes from "./routes/authRoutes.js";
@@ -48,7 +48,7 @@ app.use(
           "https://central-timber.inplsoftwares.online",
         ],
         scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         imgSrc: ["'self'", "data:", "https:"],
         fontSrc: ["'self'", "https:"],
       },
@@ -87,6 +87,7 @@ app.use("/api", hsCodeRoutes);
 // Public Invoice Routes
 app.use("/api", publicInvoiceRoutes);
 
+
 // Catch-all route for SPA - must be last
 app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "dist", "index.html"));
@@ -103,12 +104,16 @@ const startServer = async () => {
     await mysqlConnector({}, logger);
     console.log("✅ Connected to MySQL multi-tenant database system");
 
+    // Start the server first
     const port = process.env.PORT || 5150;
-    app.listen(port, () => {
+    const server = app.listen(port, () => {
       console.log("🚀 Server is running on port", port);
       console.log("📋 MySQL Multi-Tenant System Ready!");
       console.log("🔗 API Endpoints:");
     });
+
+
+
   } catch (error) {
     console.log("❌ Error starting server", error);
     process.exit(1);

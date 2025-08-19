@@ -660,7 +660,7 @@ const InvoiceViewModal = ({ open, onClose, invoice, onPrint }) => {
                       {item.advanceIncomeTax === null ||
                       item.advanceIncomeTax === undefined ||
                       item.advanceIncomeTax === ""
-                        ? "N/A"
+                        ? "0"
                         : formatNumberWithCommas(
                             parseFloat(item.advanceIncomeTax)
                           )}

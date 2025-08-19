@@ -8,7 +8,12 @@
     "start": "nodemon index.js",
     "dev": "nodemon index.js",
     "build": "echo 'Backend build completed'",
-    "clean": "echo 'Backend clean completed'"
+    "clean": "echo 'Backend clean completed'",
+    "check-schema": "node check-missing-columns.js",
+    "auto-schema": "node auto-run-schema-check.js",
+    "schema-check": "node check-missing-columns.js",
+    "test-schema": "node test-auto-schema.js",
+    "test-fix": "node test-schema-fix.js"
   },
   "keywords": [],
   "author": "",

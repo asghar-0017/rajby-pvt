@@ -65,43 +65,56 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${adminToken}`;
     }
 
-    // For admin users, use selected tenant ID if available
-    let tenantIdToUse = null;
+    // Skip tenant ID for authentication endpoints
+    const isAuthEndpoint = config.url.includes('/auth/') || 
+                          config.url.includes('/tenant-auth/') ||
+                          config.url === '/auth/login' ||
+                          config.url === '/auth/forgot-password' ||
+                          config.url === '/auth/verify-reset-code' ||
+                          config.url === '/auth/reset-password' ||
+                          config.url === '/auth/refresh-token';
 
-    if (selectedTenant) {
-      try {
-        const tenant = JSON.parse(selectedTenant);
-        tenantIdToUse = tenant.tenant_id;
-        console.log(
-          "Using tenant ID from selectedTenant localStorage:",
-          tenantIdToUse
-        );
-      } catch (error) {
-        console.error(
-          "Error parsing selected Company from localStorage:",
-          error
-        );
+    if (!isAuthEndpoint) {
+      // For admin users, use selected tenant ID if available
+      let tenantIdToUse = null;
+
+      if (selectedTenant) {
+        try {
+          const tenant = JSON.parse(selectedTenant);
+          tenantIdToUse = tenant.tenant_id;
+          console.log(
+            "Using tenant ID from selectedTenant localStorage:",
+            tenantIdToUse
+          );
+        } catch (error) {
+          console.error(
+            "Error parsing selected Company from localStorage:",
+            error
+          );
+        }
+      } else if (tenantId) {
+        tenantIdToUse = tenantId;
+        console.log("Using tenant ID from tenantId localStorage:", tenantIdToUse);
       }
-    } else if (tenantId) {
-      tenantIdToUse = tenantId;
-      console.log("Using tenant ID from tenantId localStorage:", tenantIdToUse);
-    }
 
-    // Fallback: Try to extract tenant ID from URL if not found in localStorage
-    if (!tenantIdToUse && config.url.includes("/tenant/")) {
-      const urlMatch = config.url.match(/\/tenant\/([^\/]+)/);
-      if (urlMatch && urlMatch[1]) {
-        tenantIdToUse = urlMatch[1];
-        console.log("Extracted tenant ID from URL as fallback:", tenantIdToUse);
+      // Fallback: Try to extract tenant ID from URL if not found in localStorage
+      if (!tenantIdToUse && config.url.includes("/tenant/")) {
+        const urlMatch = config.url.match(/\/tenant\/([^\/]+)/);
+        if (urlMatch && urlMatch[1]) {
+          tenantIdToUse = urlMatch[1];
+          console.log("Extracted tenant ID from URL as fallback:", tenantIdToUse);
+        }
       }
-    }
 
-    // Set the tenant ID header if we have one
-    if (tenantIdToUse) {
-      config.headers["X-Tenant-ID"] = tenantIdToUse;
-      console.log("Set X-Tenant-ID header:", tenantIdToUse);
+      // Set the tenant ID header if we have one
+      if (tenantIdToUse) {
+        config.headers["X-Tenant-ID"] = tenantIdToUse;
+        console.log("Set X-Tenant-ID header:", tenantIdToUse);
+      } else {
+        console.warn("No tenant ID available for request:", config.url);
+      }
     } else {
-      console.warn("No tenant ID available for request:", config.url);
+      console.log("Skipping tenant ID for auth endpoint:", config.url);
     }
 
     // Debug logging for important requests
