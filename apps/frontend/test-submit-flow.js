@@ -87,7 +87,7 @@ const testSubmitFlow = async () => {
     // Step 2: Backend API call
     console.log("\n📋 Step 2: Backend API Call");
     console.log(
-      "   - Endpoint: POST https://signs-now.inplsoftwares.online/api/tenant/{tenant_id}/invoices"
+      "   - Endpoint: POST https://central-timber.inplsoftwares.online/api/tenant/{tenant_id}/invoices"
     );
     console.log("   - Status:", mockBackendResponse.status);
     console.log("   - Invoice ID:", mockBackendResponse.data.data.invoice_id);
