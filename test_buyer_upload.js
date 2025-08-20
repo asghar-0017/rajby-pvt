@@ -34,7 +34,7 @@ async function testCheckExistingBuyers() {
     const token = "your-auth-token"; // Replace with actual auth token
 
     const response = await axios.post(
-      `https://anjum-parts.inplsoftwares.online/api/tenant/${tenantId}/buyers/check-existing`,
+      `https://anjum-marketing.inplsoftwares.online/api/tenant/${tenantId}/buyers/check-existing`,
       { buyers: testBuyers },
       {
         headers: {
@@ -85,7 +85,7 @@ async function testBuyerUpload() {
     const token = "your-auth-token"; // Replace with actual auth token
 
     const response = await axios.post(
-      `https://anjum-parts.inplsoftwares.online/api/tenant/${tenantId}/buyers/bulk`,
+      `https://anjum-marketing.inplsoftwares.online/api/tenant/${tenantId}/buyers/bulk`,
       { buyers: testBuyers },
       {
         headers: {
