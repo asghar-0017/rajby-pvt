@@ -34,7 +34,7 @@ async function testCheckExistingBuyers() {
     const token = "your-auth-token"; // Replace with actual auth token
 
     const response = await axios.post(
-      `https://machinery-zone.inplsoftwares.online/api/tenant/${tenantId}/buyers/check-existing`,
+      `https://signs-now.inplsoftwares.online/api/tenant/${tenantId}/buyers/check-existing`,
       { buyers: testBuyers },
       {
         headers: {
@@ -85,7 +85,7 @@ async function testBuyerUpload() {
     const token = "your-auth-token"; // Replace with actual auth token
 
     const response = await axios.post(
-      `https://machinery-zone.inplsoftwares.online/api/tenant/${tenantId}/buyers/bulk`,
+      `https://signs-now.inplsoftwares.online/api/tenant/${tenantId}/buyers/bulk`,
       { buyers: testBuyers },
       {
         headers: {
