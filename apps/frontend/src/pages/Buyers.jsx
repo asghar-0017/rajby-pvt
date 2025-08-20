@@ -21,7 +21,7 @@ const Buyers = () => {
   const openModal = (buyer = null) => {
     setSelectedBuyer(buyer);
     setIsModalOpen(true);
-  };
+  }
 
   const closeModal = () => {
     setSelectedBuyer(null);
