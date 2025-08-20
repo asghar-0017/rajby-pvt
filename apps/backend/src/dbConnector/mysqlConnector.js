@@ -34,18 +34,18 @@ const mysqlConnector = async (dbConfig, logger) => {
 const initializeAdminUser = async () => {
   try {
     const adminExists = await AdminUser.findOne({
-      where: { email: 'tuliptowel@inpl.com' }
+      where: { email: 'paramountcorp@inpl.com' }
     });
 
     if (!adminExists) {
       const bcrypt = await import('bcryptjs');
-      const hashedPassword = await bcrypt.hash('r_tuliptowelpasJK76^h', 10);
+      const hashedPassword = await bcrypt.hash('r_paramountcorpepasJK76^h', 10);
       
       await AdminUser.create({
-        email: 'tuliptowel@inpl.com',
+        email: 'paramountcorp@inpl.com',
         password: hashedPassword,
-        is_verify: true,
-        role: "admin",
+        is_verify: true,  
+        role: 'admin'
       });
 
       console.log("✅ Default admin user created");
@@ -63,10 +63,11 @@ const gracefulShutdown = async () => {
   } catch (error) {
     console.error("Error during graceful shutdown:", error);
   }
-}
+};
 
 // Handle process termination
 process.on("SIGINT", gracefulShutdown);
 process.on("SIGTERM", gracefulShutdown);
+
 
 export default mysqlConnector;
