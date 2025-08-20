@@ -41,8 +41,4 @@ jobs:
           cd ${{ github.workspace }}/apps/backend
 
           /usr/bin/pm2 start index.js --name paramount-corp || /usr/bin/pm2 restart paramount-corp
-<<<<<<< HEAD
  
-=======
- 
->>>>>>> c45f6d53514ad441b9b79ee75ee0b721a7035661
