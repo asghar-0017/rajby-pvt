@@ -8,7 +8,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "https://pakistan-gum.inplsoftwares.online",
+        target: "https://tulip-towel.inplsoftwares.online",
         changeOrigin: true,
         secure: false,
       },
