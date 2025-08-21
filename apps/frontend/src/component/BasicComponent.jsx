@@ -499,7 +499,7 @@ export default function BasicTable() {
             >
               Your Invoices
             </Typography>
-            <Button
+            {/* <Button
               variant="contained"
               startIcon={<UploadIcon />}
               onClick={() => setUploadModalOpen(true)}
@@ -517,7 +517,7 @@ export default function BasicTable() {
               }}
             >
               Upload Invoice
-            </Button>
+            </Button> */}
           </Box>
           {/* Search and Filter Controls */}
           <Box sx={{ display: "flex", gap: 2, mb: 2, flexWrap: "wrap" }}>
