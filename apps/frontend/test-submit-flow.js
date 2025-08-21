@@ -87,7 +87,7 @@ const testSubmitFlow = async () => {
     // Step 2: Backend API call
     console.log("\n📋 Step 2: Backend API Call");
     console.log(
-      "   - Endpoint: POST http://localhost:5150/api/tenant/{tenant_id}/invoices"
+      "   - Endpoint: POST https://china-youncheng.inplsoftwares.online/api/tenant/{tenant_id}/invoices"
     );
     console.log("   - Status:", mockBackendResponse.status);
     console.log("   - Invoice ID:", mockBackendResponse.data.data.invoice_id);
