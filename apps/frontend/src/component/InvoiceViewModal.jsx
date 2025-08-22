@@ -144,6 +144,48 @@ const InvoiceViewModal = ({ open, onClose, invoice, onPrint }) => {
         );
     };
 
+    // Helper function for converting numbers without adding "Rupees"
+    const convertNumberToWords = (num) => {
+      if (num === 0) return "";
+      
+      const numStr = num.toString();
+      
+      if (numStr.length <= 3) {
+        return convertLessThanOneThousand(parseInt(numStr));
+      } else if (numStr.length <= 6) {
+        // Thousands (1,000 to 999,999)
+        const thousands = parseInt(numStr.slice(0, -3));
+        const remainder = parseInt(numStr.slice(-3));
+        return convertLessThanOneThousand(thousands) +
+               " Thousand" +
+               (remainder !== 0 ? " " + convertLessThanOneThousand(remainder) : "");
+      } else if (numStr.length <= 9) {
+        // Millions (1,000,000 to 999,999,999)
+        const millions = parseInt(numStr.slice(0, -6));
+        const remainder = parseInt(numStr.slice(-6));
+        return convertLessThanOneThousand(millions) +
+               " Million" +
+               (millions !== 1 ? "s" : "") +
+               (remainder !== 0 ? " " + convertNumberToWords(remainder) : "");
+      } else if (numStr.length <= 12) {
+        // Billions (1,000,000,000 to 999,999,999,999)
+        const billions = parseInt(numStr.slice(0, -9));
+        const remainder = parseInt(numStr.slice(-9));
+        return convertLessThanOneThousand(billions) +
+               " Billion" +
+               (billions !== 1 ? "s" : "") +
+               (remainder !== 0 ? " " + convertNumberToWords(remainder) : "");
+      } else {
+        // Trillions and beyond
+        const trillions = parseInt(numStr.slice(0, -12));
+        const remainder = parseInt(numStr.slice(-12));
+        return convertLessThanOneThousand(trillions) +
+               " Trillion" +
+               (trillions !== 1 ? "s" : "") +
+               (remainder !== 0 ? " " + convertNumberToWords(remainder) : "");
+      }
+    };
+
     // Handle decimal amounts
     const rupees = Math.floor(num);
     const paisa = Math.round((num - rupees) * 100);
@@ -153,44 +195,8 @@ const InvoiceViewModal = ({ open, onClose, invoice, onPrint }) => {
     if (rupees === 0 && paisa === 0) return "Zero";
     
     if (rupees > 0) {
-      const numStr = rupees.toString();
-      
-      if (numStr.length <= 3) {
-        result = convertLessThanOneThousand(parseInt(numStr));
-      } else if (numStr.length <= 6) {
-        // Thousands (1,000 to 999,999)
-        const thousands = parseInt(numStr.slice(0, -3));
-        const remainder = parseInt(numStr.slice(-3));
-        result = convertLessThanOneThousand(thousands) +
-                " Thousand" +
-                (remainder !== 0 ? " " + convertLessThanOneThousand(remainder) : "");
-      } else if (numStr.length <= 9) {
-        // Millions (1,000,000 to 999,999,999)
-        const millions = parseInt(numStr.slice(0, -6));
-        const remainder = parseInt(numStr.slice(-6));
-        result = convertLessThanOneThousand(millions) +
-                " Million" +
-                (millions !== 1 ? "s" : "") +
-                (remainder !== 0 ? " " + convertToWords(remainder) : "");
-      } else if (numStr.length <= 12) {
-        // Billions (1,000,000,000 to 999,999,999,999)
-        const billions = parseInt(numStr.slice(0, -9));
-        const remainder = parseInt(numStr.slice(-9));
-        result = convertLessThanOneThousand(billions) +
-                " Billion" +
-                (billions !== 1 ? "s" : "") +
-                (remainder !== 0 ? " " + convertToWords(remainder) : "");
-      } else {
-        // Trillions and beyond
-        const trillions = parseInt(numStr.slice(0, -12));
-        const remainder = parseInt(numStr.slice(-12));
-        result = convertLessThanOneThousand(trillions) +
-                " Trillion" +
-                (trillions !== 1 ? "s" : "") +
-                (remainder !== 0 ? " " + convertToWords(remainder) : "");
-      }
-      
-      // Add "Rupees" for the whole number part
+      result = convertNumberToWords(rupees);
+      // Add "Rupees" only once at the end
       result += " Rupees";
     }
     
