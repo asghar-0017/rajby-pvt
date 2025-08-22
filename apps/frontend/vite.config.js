@@ -8,7 +8,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "https://biomedics.inplsoftwares.online",
+        target: "https://syahimpex.inplsoftwares.online",
         changeOrigin: true,
         secure: false,
       },

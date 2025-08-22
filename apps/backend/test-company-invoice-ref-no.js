@@ -9,7 +9,7 @@
 
 import axios from "axios";
 
-const BASE_URL = "https://biomedics.inplsoftwares.online";
+const BASE_URL = "https://syahimpex.inplsoftwares.online";
 
 async function testCompanyInvoiceRefNo() {
   try {
