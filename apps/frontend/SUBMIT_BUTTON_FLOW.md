@@ -15,6 +15,7 @@ The submit button now follows a two-step process to ensure data integrity and pr
 ### Step 2: Backend API Call
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 - **Endpoint**: `POST https://adnan-power.inplsoftwares.online/api/tenant/{tenant_id}/invoices`
 =======
 <<<<<<< HEAD
@@ -23,11 +24,15 @@ The submit button now follows a two-step process to ensure data integrity and pr
 - **Endpoint**: `POST https://adnan-power.inplsoftwares.online/api/tenant/{tenant_id}/invoices`
 >>>>>>> ed27ec320cc08b4f6b1607f888a2e7b45bf59649
 >>>>>>> 38b4dc80059745d289b9f1bb9282b8ebd5038409
+=======
+- **Endpoint**: `POST https://adnan-power.inplsoftwares.online/api/tenant/{tenant_id}/invoices`
+>>>>>>> e18af1615594c8f670b745b1ac1c2fcfded1c00b
 - **Purpose**: Save the invoice data to the local database with the FBR invoice number
 - **Request Body**: Includes all invoice details plus `fbr_invoice_number` from Step 1
 
 ### Step 3: Delete Saved Invoice
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 - **Endpoint**: `DELETE https://adnan-power.inplsoftwares.online/api/tenant/{tenant_id}/invoices/{saved_invoice_id}`
 =======
@@ -37,6 +42,9 @@ The submit button now follows a two-step process to ensure data integrity and pr
 - **Endpoint**: `DELETE https://adnan-power.inplsoftwares.online/api/tenant/{tenant_id}/invoices/{saved_invoice_id}`
 >>>>>>> ed27ec320cc08b4f6b1607f888a2e7b45bf59649
 >>>>>>> 38b4dc80059745d289b9f1bb9282b8ebd5038409
+=======
+- **Endpoint**: `DELETE https://adnan-power.inplsoftwares.online/api/tenant/{tenant_id}/invoices/{saved_invoice_id}`
+>>>>>>> e18af1615594c8f670b745b1ac1c2fcfded1c00b
 - **Purpose**: Remove the temporary saved invoice from the system after successful submission
 - **Condition**: Only executed if there was a previously saved invoice (editingId exists)
 
