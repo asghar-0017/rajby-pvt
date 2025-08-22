@@ -1,7 +1,7 @@
 // Shared utilities and constants
 export const API_BASE_URL =
   process.env.NODE_ENV === "production"
-    ? "https://anjum-chemical.inplsoftwares.online"
+    ? "http://siyahimpex.inplsoftwares.com"
     : "http://localhost:3004";
 
 export const FBR_API_URL = "https://gw.fbr.gov.pk";
