@@ -327,8 +327,30 @@ export const AuthProvider = ({ children }) => {
       console.error("Forgot password error:", err);
 
       let errorMessage = "Failed to send reset code";
-      if (err.response && err.response.data && err.response.data.message) {
-        errorMessage = err.response.data.message;
+      
+      if (err.response) {
+        const { data, status } = err.response;
+        
+        if (data && data.message) {
+          errorMessage = data.message;
+        } else if (status === 500) {
+          if (data && data.message && data.message.includes("configuration")) {
+            errorMessage = "Email service is not configured. Please contact support.";
+          } else if (data && data.message && data.message.includes("unavailable")) {
+            errorMessage = "Email service is temporarily unavailable. Please try again later.";
+          } else {
+            errorMessage = "Server error occurred. Please try again later.";
+          }
+        } else if (status === 400) {
+          errorMessage = "Invalid email address. Please check and try again.";
+        } else if (status === 429) {
+          errorMessage = "Too many attempts. Please wait before trying again.";
+        }
+      } else if (err.request) {
+        // Network error
+        errorMessage = "Network error. Please check your connection and try again.";
+      } else if (err.message) {
+        errorMessage = err.message;
       }
 
       Swal.fire({
