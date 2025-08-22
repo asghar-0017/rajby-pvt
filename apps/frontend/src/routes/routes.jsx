@@ -1,6 +1,8 @@
 // AppRouter.js
 import React from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
+// Alternative import for production if server routing doesn't work:
+// import { HashRouter as BrowserRouter, Route, Routes } from "react-router-dom";
 import Sidebar from "../component/Sidebar";
 import Login from "../pages/login";
 import TenantLogin from "../pages/TenantLogin";
