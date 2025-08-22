@@ -63,7 +63,7 @@ npm run test-schema     # Test the schema checker
 ### **Option 3: API Endpoint**
 Trigger schema check via HTTP API:
 ```bash
-curl -X POST https://adnan-textile.inplsoftwares.online/api/admin/check-schema
+curl -X POST https://aferoz.inplsoftwares.online/api/admin/check-schema
 ```
 
 ### **Option 4: Windows Batch File**

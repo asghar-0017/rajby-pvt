@@ -14,6 +14,7 @@ import YourInvoices from "../pages/YourInvoices";
 import EmailVerification from "../pages/EmailVerification";
 import OTP from "../pages/OTP";
 import ResetPassword from "../pages/ResetPassword";
+import ForgotPassword from "../pages/ForgotPassword";
 import RegisterUser from "../pages/RegisterUser";
 import { RegisteredUsers } from "../pages/RegisteredUsers";
 import Buyers from "../pages/Buyers";
@@ -40,6 +41,7 @@ const AppRouter = () => {
                 element={<EmailVerification />}
               />
               <Route path="/otp" element={<OTP />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route
                 path="/"
