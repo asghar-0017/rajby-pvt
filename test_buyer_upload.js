@@ -34,7 +34,7 @@ async function testCheckExistingBuyers() {
     const token = "your-auth-token"; // Replace with actual auth token
 
     const response = await axios.post(
-      `http://siyahimpex.inplsoftwares.com/api/tenant/${tenantId}/buyers/check-existing`,
+      `https://siyahimpex.inplsoftwares.com/api/tenant/${tenantId}/buyers/check-existing`,
       { buyers: testBuyers },
       {
         headers: {
@@ -85,7 +85,7 @@ async function testBuyerUpload() {
     const token = "your-auth-token"; // Replace with actual auth token
 
     const response = await axios.post(
-      `http://siyahimpex.inplsoftwares.com/api/tenant/${tenantId}/buyers/bulk`,
+      `https://siyahimpex.inplsoftwares.com/api/tenant/${tenantId}/buyers/bulk`,
       { buyers: testBuyers },
       {
         headers: {
