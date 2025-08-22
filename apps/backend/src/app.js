@@ -3,8 +3,6 @@ import dotenv from "dotenv";
 import helmet from "helmet";
 import cors from "cors";
 import path from "path";
-import fs from "fs";
-import os from "os";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
 import ejs from "ejs";
@@ -12,11 +10,7 @@ import ejs from "ejs";
 // Import MySQL connector instead of MongoDB
 import mysqlConnector from "./dbConnector/mysqlConnector.js";
 
-// Import schema checker for automatic database maintenance
-import DatabaseSchemaChecker from "../check-missing-columns.js";
 
-// Import MySQL config for connection testing
-import { testMasterConnection } from "./config/mysql.js";
 
 // Import new MySQL routes
 import authRoutes from "./routes/authRoutes.js";
@@ -93,25 +87,6 @@ app.use("/api", hsCodeRoutes);
 // Public Invoice Routes
 app.use("/api", publicInvoiceRoutes);
 
-// Manual schema check endpoint
-app.post("/api/admin/check-schema", async (req, res) => {
-  try {
-    console.log("🔍 Manual schema check triggered via API...");
-    const checker = new DatabaseSchemaChecker(false); // false = not standalone, part of main app
-    await checker.checkAllTenants();
-    res.json({ 
-      success: true, 
-      message: "Database schema check completed successfully" 
-    });
-  } catch (error) {
-    console.error("❌ Manual schema check failed:", error);
-    res.status(500).json({ 
-      success: false, 
-      message: "Schema check failed", 
-      error: error.message 
-    });
-  }
-});
 
 // Catch-all route for SPA - must be last
 app.get("*", (req, res) => {
@@ -137,33 +112,7 @@ const startServer = async () => {
       console.log("🔗 API Endpoints:");
     });
 
-    // Run database schema check in the background (non-blocking)
-    console.log("🔍 Running automatic database schema check in background...");
-    setImmediate(async () => {
-      try {
-        // Verify master connection is still working before running schema check
-        await testMasterConnection();
-        
-        const checker = new DatabaseSchemaChecker(false); // false = not standalone, part of main app
-        await checker.checkAllTenants();
-        console.log("✅ Database schema check completed successfully!");
-        
-        // Verify master connection is still working after schema check
-        await testMasterConnection();
-        console.log("✅ Master database connection verified after schema check");
-        
-      } catch (schemaError) {
-        console.log("⚠️  Schema check had issues (server continues running):", schemaError.message);
-        
-        // Try to recover the master connection if it was closed
-        try {
-          await testMasterConnection();
-          console.log("✅ Master database connection recovered after schema check issues");
-        } catch (recoveryError) {
-          console.log("❌ Failed to recover master database connection:", recoveryError.message);
-        }
-      }
-    });
+
 
   } catch (error) {
     console.log("❌ Error starting server", error);

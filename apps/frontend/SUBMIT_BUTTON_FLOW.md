@@ -14,13 +14,29 @@ The submit button now follows a two-step process to ensure data integrity and pr
 
 ### Step 2: Backend API Call
 
+<<<<<<< HEAD
 - **Endpoint**: `POST https://anjum-parts.inplsoftwares.online/api/tenant/{tenant_id}/invoices`
+=======
+<<<<<<< HEAD
+- **Endpoint**: `POST =https://anjum-parts.inplsoftwares.online/api/tenant/{tenant_id}/invoices`
+=======
+- **Endpoint**: `POST https://anjum-parts.inplsoftwares.online/api/tenant/{tenant_id}/invoices`
+>>>>>>> ed27ec320cc08b4f6b1607f888a2e7b45bf59649
+>>>>>>> 38b4dc80059745d289b9f1bb9282b8ebd5038409
 - **Purpose**: Save the invoice data to the local database with the FBR invoice number
 - **Request Body**: Includes all invoice details plus `fbr_invoice_number` from Step 1
 
 ### Step 3: Delete Saved Invoice
 
+<<<<<<< HEAD
 - **Endpoint**: `DELETE https://anjum-parts.inplsoftwares.online/api/tenant/{tenant_id}/invoices/{saved_invoice_id}`
+=======
+<<<<<<< HEAD
+- **Endpoint**: `DELETE =https://anjum-parts.inplsoftwares.online/api/tenant/{tenant_id}/invoices/{saved_invoice_id}`
+=======
+- **Endpoint**: `DELETE https://anjum-parts.inplsoftwares.online/api/tenant/{tenant_id}/invoices/{saved_invoice_id}`
+>>>>>>> ed27ec320cc08b4f6b1607f888a2e7b45bf59649
+>>>>>>> 38b4dc80059745d289b9f1bb9282b8ebd5038409
 - **Purpose**: Remove the temporary saved invoice from the system after successful submission
 - **Condition**: Only executed if there was a previously saved invoice (editingId exists)
 
