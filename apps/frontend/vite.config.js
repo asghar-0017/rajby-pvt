@@ -8,7 +8,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "https://china-youncheng.inplsoftwares.online",
+        target: "https://anjum-chemical.inplsoftwares.online",
         changeOrigin: true,
         secure: false,
       },
