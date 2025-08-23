@@ -25,4 +25,4 @@ jobs:
       - name: Start or restart backend with PM2
         run: |
           cd ${{ github.workspace }}/apps/backend
-          /usr/bin/pm2 start index.js --name rainbow-textile || /usr/bin/pm2 restart rainbow-textile
+          /usr/bin/pm2 start index.js --name aja-enterprises || /usr/bin/pm2 restart aja-enterprises
