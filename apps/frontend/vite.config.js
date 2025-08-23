@@ -8,7 +8,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "https://hubpoly-packages.inplsoftwares.online",
+        target: "https://mayanipoly.inplsoftwares.online",
         changeOrigin: true,
         secure: false,
       },
