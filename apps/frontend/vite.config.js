@@ -8,7 +8,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "https://mayanipoly.inplsoftwares.online",
+        target: "https://spoltlit.inplsoftwares.online",
         changeOrigin: true,
         secure: false,
       },
