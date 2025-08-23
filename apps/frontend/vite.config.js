@@ -8,7 +8,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "https://pak-progressive.inplsoftwares.online",
+        target: "https://rainbow-textile.inplsoftwares.online",
         changeOrigin: true,
         secure: false,
       },

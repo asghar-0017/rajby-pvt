@@ -44,7 +44,7 @@ app.use(
         connectSrc: [
           "'self'",
           "https://gw.fbr.gov.pk",
-          "https://pak-progressive.inplsoftwares.online",
+          "https://rainbow-textile.inplsoftwares.online",
         ],
         scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
@@ -58,8 +58,8 @@ app.use(
   cors({
     origin: [
       "http://localhost:5174",
-      "https://pak-progressive.inplsoftwares.online",
-      "https://pak-progressive.inplsoftwares.online",
+      "https://rainbow-textile.inplsoftwares.online",
+      "https://rainbow-textile.inplsoftwares.online",
       "https://fbrtestcase.inplsoftwares.online",
       "*",
     ],
