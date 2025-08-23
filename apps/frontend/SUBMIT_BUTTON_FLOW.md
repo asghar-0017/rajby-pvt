@@ -16,10 +16,10 @@ The submit button now follows a two-step process to ensure data integrity and pr
 
 <<<<<<< HEAD
 
-- # **Endpoint**: `POST https://biomedics.inplsoftwares.online/api/tenant/{tenant_id}/invoices`
+- # **Endpoint**: `POST https://syahimpex.inplsoftwares.online/api/tenant/{tenant_id}/invoices`
   <<<<<<< HEAD
-- # **Endpoint**: `POST =https://biomedics.inplsoftwares.online/api/tenant/{tenant_id}/invoices`
-- **Endpoint**: `POST https://biomedics.inplsoftwares.online/api/tenant/{tenant_id}/invoices`
+- # **Endpoint**: `POST =https://syahimpex.inplsoftwares.online/api/tenant/{tenant_id}/invoices`
+- **Endpoint**: `POST https://syahimpex.inplsoftwares.online/api/tenant/{tenant_id}/invoices`
   > > > > > > > ed27ec320cc08b4f6b1607f888a2e7b45bf59649
   > > > > > > > 38b4dc80059745d289b9f1bb9282b8ebd5038409
 - **Purpose**: Save the invoice data to the local database with the FBR invoice number
@@ -29,10 +29,10 @@ The submit button now follows a two-step process to ensure data integrity and pr
 
 <<<<<<< HEAD
 
-- # **Endpoint**: `DELETE https://biomedics.inplsoftwares.online/api/tenant/{tenant_id}/invoices/{saved_invoice_id}`
+- # **Endpoint**: `DELETE https://syahimpex.inplsoftwares.online/api/tenant/{tenant_id}/invoices/{saved_invoice_id}`
   <<<<<<< HEAD
-- # **Endpoint**: `DELETE =https://biomedics.inplsoftwares.online/api/tenant/{tenant_id}/invoices/{saved_invoice_id}`
-- **Endpoint**: `DELETE https://biomedics.inplsoftwares.online/api/tenant/{tenant_id}/invoices/{saved_invoice_id}`
+- # **Endpoint**: `DELETE =https://syahimpex.inplsoftwares.online/api/tenant/{tenant_id}/invoices/{saved_invoice_id}`
+- **Endpoint**: `DELETE https://syahimpex.inplsoftwares.online/api/tenant/{tenant_id}/invoices/{saved_invoice_id}`
   > > > > > > > ed27ec320cc08b4f6b1607f888a2e7b45bf59649
   > > > > > > > 38b4dc80059745d289b9f1bb9282b8ebd5038409
 - **Purpose**: Remove the temporary saved invoice from the system after successful submission
