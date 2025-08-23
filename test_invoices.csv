@@ -1,6 +1,0 @@
-invoice_number,invoiceType,invoiceDate,sellerNTNCNIC,sellerBusinessName,sellerProvince,sellerAddress,buyerNTNCNIC,buyerBusinessName,buyerProvince,buyerAddress,buyerRegistrationType,invoiceRefNo,companyInvoiceRefNo,transctypeId
-INV-001,Sale Invoice,2024-01-15,1234567890123,ABC Trading Company,PUNJAB,123 Main Street Lahore,9876543210987,XYZ Import Export,SINDH,456 Business Avenue Karachi,Registered,REF-001,COMP-001,1
-INV-002,Debit Note,2024-01-16,4567891230456,Global Traders Ltd,KHYBER PAKHTUNKHWA,789 Commerce Road Peshawar,3216549870321,Capital Enterprises,CAPITAL TERRITORY,654 Blue Area Islamabad,Unregistered,REF-002,COMP-002,2
-INV-003,Sale Invoice,2024-01-17,7891234560789,Metro Traders,BALOCHISTAN,321 Industrial Zone Quetta,6543219870654,Mountain Traders,GILGIT BALTISTAN,123 Valley Road Gilgit,Registered,REF-003,COMP-003,1
-INV-004,Debit Note,2024-01-18,3216549870321,City Traders,SINDH,789 Business Park Karachi,1234567890123,Valley Enterprises,PUNJAB,456 Market Street Lahore,Registered,REF-004,COMP-004,3
-INV-005,Sale Invoice,2024-01-19,6543219870654,Port Traders,BALOCHISTAN,123 Harbor Road Karachi,4567891230456,Desert Traders,BALOCHISTAN,789 Sand Street Quetta,Unregistered,REF-005,COMP-005,1

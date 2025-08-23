@@ -31,6 +31,11 @@ router.get(
 );
 router.get("/invoices/stats/summary", invoiceController.getInvoiceStats);
 router.get("/dashboard/summary", invoiceController.getDashboardSummary);
+// Place specific routes before dynamic ones to avoid shadowing
+router.get(
+  "/invoices/template.xlsx",
+  invoiceController.downloadInvoiceTemplateExcel
+);
 router.get("/invoices/:id", invoiceController.getInvoiceById);
 router.put("/invoices/:id", invoiceController.updateInvoice);
 router.delete("/invoices/:id", invoiceController.deleteInvoice);

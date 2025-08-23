@@ -154,7 +154,7 @@ const formatQuantityWithCommas = (value) => {
 
   // Remove commas first to get the raw value
   const cleanValue = value.toString().replace(/,/g, "");
-  
+
   // Handle decimal point cases
   if (cleanValue.includes(".")) {
     const [integerPart, decimalPart] = cleanValue.split(".");
@@ -174,6 +174,7 @@ export default function CreateInvoice() {
     invoiceType: "",
     invoiceDate: dayjs(),
     sellerNTNCNIC: "",
+    sellerFullNTN: "",
     sellerBusinessName: "",
     sellerProvince: "",
     sellerAddress: "",
@@ -493,6 +494,7 @@ export default function CreateInvoice() {
       setFormData((prev) => ({
         ...prev,
         sellerNTNCNIC: selectedTenant.sellerNTNCNIC || "",
+        sellerFullNTN: selectedTenant.sellerFullNTN || "",
         sellerBusinessName: selectedTenant.sellerBusinessName || "",
         sellerProvince: selectedTenant.sellerProvince || "",
         sellerAddress: selectedTenant.sellerAddress || "",
@@ -502,6 +504,7 @@ export default function CreateInvoice() {
       setFormData((prev) => ({
         ...prev,
         sellerNTNCNIC: "",
+        sellerFullNTN: "",
         sellerBusinessName: "",
         sellerProvince: "",
         sellerAddress: "",
@@ -524,46 +527,51 @@ export default function CreateInvoice() {
         console.log("Loading invoice data for editing:", invoiceData);
         console.log("Invoice type from data:", invoiceData.invoiceType);
         console.log("Available invoice types:", invoiceTypes);
-        
+
         // Check if we need to wait for invoice types to load
         if (invoiceTypes.length === 0) {
-          console.log("Invoice types not loaded yet, will retry when they're available");
+          console.log(
+            "Invoice types not loaded yet, will retry when they're available"
+          );
         }
-        
+
         // Helper function to find invoice type description by ID or description
         const getInvoiceTypeDescription = (invoiceTypeValue) => {
           if (!invoiceTypeValue) return "";
-          
+
           // If it's already a description, return it
-          if (typeof invoiceTypeValue === 'string') {
+          if (typeof invoiceTypeValue === "string") {
             // Check if it matches any of the available descriptions
-            const matchingType = invoiceTypes.find(type => 
-              type.docDescription === invoiceTypeValue
+            const matchingType = invoiceTypes.find(
+              (type) => type.docDescription === invoiceTypeValue
             );
             if (matchingType) return invoiceTypeValue;
           }
-          
+
           // If it's a number/ID, try to find the description
           if (!isNaN(invoiceTypeValue)) {
-            const matchingType = invoiceTypes.find(type => 
-              type.docTypeId === parseInt(invoiceTypeValue)
+            const matchingType = invoiceTypes.find(
+              (type) => type.docTypeId === parseInt(invoiceTypeValue)
             );
             if (matchingType) return matchingType.docDescription;
           }
-          
+
           // If no match found, return the original value
           return invoiceTypeValue;
         };
-        
+
         // Convert the invoice data to form format
         const formDataFromInvoice = {
-          invoiceType: getInvoiceTypeDescription(invoiceData.invoiceType) || 
-                      getInvoiceTypeDescription(invoiceData.docTypeDescription) || 
-                      getInvoiceTypeDescription(invoiceData.documentType) || "",
+          invoiceType:
+            getInvoiceTypeDescription(invoiceData.invoiceType) ||
+            getInvoiceTypeDescription(invoiceData.docTypeDescription) ||
+            getInvoiceTypeDescription(invoiceData.documentType) ||
+            "",
           invoiceDate: invoiceData.invoiceDate
             ? dayjs(invoiceData.invoiceDate)
             : dayjs(),
           sellerNTNCNIC: invoiceData.sellerNTNCNIC || "",
+          sellerFullNTN: invoiceData.sellerFullNTN || "",
           sellerBusinessName: invoiceData.sellerBusinessName || "",
           sellerProvince: invoiceData.sellerProvince || "",
           sellerAddress: invoiceData.sellerAddress || "",
@@ -650,10 +658,13 @@ export default function CreateInvoice() {
         };
 
         setFormData(formDataFromInvoice);
-        
+
         // Debug: Log the final form data
         console.log("Final form data set:", formDataFromInvoice);
-        console.log("Invoice type in form data:", formDataFromInvoice.invoiceType);
+        console.log(
+          "Invoice type in form data:",
+          formDataFromInvoice.invoiceType
+        );
 
         // Set the transactionTypeId and other required data for editing
         const scenarioId = invoiceData.scenario_id || invoiceData.scenarioId;
@@ -757,43 +768,48 @@ export default function CreateInvoice() {
     if (editInvoiceData && invoiceTypes.length > 0) {
       try {
         const invoiceData = JSON.parse(editInvoiceData);
-        console.log("Retrying to load invoice data with invoice types:", invoiceTypes);
-        
+        console.log(
+          "Retrying to load invoice data with invoice types:",
+          invoiceTypes
+        );
+
         // Helper function to find invoice type description by ID or description
         const getInvoiceTypeDescription = (invoiceTypeValue) => {
           if (!invoiceTypeValue) return "";
-          
+
           // If it's already a description, return it
-          if (typeof invoiceTypeValue === 'string') {
+          if (typeof invoiceTypeValue === "string") {
             // Check if it matches any of the available descriptions
-            const matchingType = invoiceTypes.find(type => 
-              type.docDescription === invoiceTypeValue
+            const matchingType = invoiceTypes.find(
+              (type) => type.docDescription === invoiceTypeValue
             );
             if (matchingType) return invoiceTypeValue;
           }
-          
+
           // If it's a number/ID, try to find the description
           if (!isNaN(invoiceTypeValue)) {
-            const matchingType = invoiceTypes.find(type => 
-              type.docTypeId === parseInt(invoiceTypeValue)
+            const matchingType = invoiceTypes.find(
+              (type) => type.docTypeId === parseInt(invoiceTypeValue)
             );
             if (matchingType) return matchingType.docDescription;
           }
-          
+
           // If no match found, return the original value
           return invoiceTypeValue;
         };
-        
+
         // Update only the invoice type if it was empty before
         setFormData((prev) => {
           if (!prev.invoiceType && invoiceData.invoiceType) {
-            const resolvedInvoiceType = getInvoiceTypeDescription(invoiceData.invoiceType) || 
-                                       getInvoiceTypeDescription(invoiceData.docTypeDescription) || 
-                                       getInvoiceTypeDescription(invoiceData.documentType) || "";
+            const resolvedInvoiceType =
+              getInvoiceTypeDescription(invoiceData.invoiceType) ||
+              getInvoiceTypeDescription(invoiceData.docTypeDescription) ||
+              getInvoiceTypeDescription(invoiceData.documentType) ||
+              "";
             console.log("Updating invoice type to:", resolvedInvoiceType);
             return {
               ...prev,
-              invoiceType: resolvedInvoiceType
+              invoiceType: resolvedInvoiceType,
             };
           }
           return prev;
@@ -1916,6 +1932,8 @@ export default function CreateInvoice() {
     // Required field validations
     if (!item.hsCode || item.hsCode.trim() === "") {
       errors.push("HS Code is required");
+    } else if (item.hsCode.length > 50) {
+      errors.push("HS Code must be 50 characters or less");
     }
 
     if (!item.productDescription || item.productDescription.trim() === "") {
@@ -2007,6 +2025,7 @@ export default function CreateInvoice() {
       // Validate seller fields
       const sellerRequiredFields = [
         { field: "sellerNTNCNIC", label: "Seller NTN/CNIC" },
+        { field: "sellerFullNTN", label: "Seller NTN" },
         { field: "sellerBusinessName", label: "Seller Business Name" },
         { field: "sellerProvince", label: "Seller Province" },
         { field: "sellerAddress", label: "Seller Address" },
@@ -2318,6 +2337,7 @@ export default function CreateInvoice() {
       // Validate seller fields
       const sellerRequiredFields = [
         { field: "sellerNTNCNIC", label: "Seller NTN/CNIC" },
+        { field: "sellerFullNTN", label: "Seller NTN" },
         { field: "sellerBusinessName", label: "Seller Business Name" },
         { field: "sellerProvince", label: "Seller Province" },
         { field: "sellerAddress", label: "Seller Address" },
@@ -2722,6 +2742,7 @@ export default function CreateInvoice() {
       invoiceType: "",
       invoiceDate: dayjs(),
       sellerNTNCNIC: selectedTenant?.sellerNTNCNIC || "",
+      sellerFullNTN: selectedTenant?.sellerFullNTN || "",
       sellerBusinessName: selectedTenant?.sellerBusinessName || "",
       sellerProvince: selectedTenant?.sellerProvince || "",
       sellerAddress: selectedTenant?.sellerAddress || "",
@@ -2898,7 +2919,7 @@ export default function CreateInvoice() {
           </Typography>
           {selectedTenant && (
             <Tooltip
-              title={`${selectedTenant.sellerBusinessName} | ${selectedTenant.sellerNTNCNIC} | ${selectedTenant.sellerProvince} | ${selectedTenant.sellerAddress}`}
+              title={`${selectedTenant.sellerBusinessName} | ${selectedTenant.sellerNTNCNIC}${selectedTenant.sellerFullNTN ? ` | Seller NTN: ${selectedTenant.sellerFullNTN}` : ""} | ${selectedTenant.sellerProvince} | ${selectedTenant.sellerAddress}`}
               arrow
             >
               <Box
@@ -2945,6 +2966,25 @@ export default function CreateInvoice() {
                   <CreditCard fontSize="small" />
                   {selectedTenant.sellerNTNCNIC}
                 </Typography>
+                {selectedTenant.sellerFullNTN && (
+                  <>
+                    <Typography variant="body2" noWrap>
+                      |
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      noWrap
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 0.5,
+                      }}
+                    >
+                      <CreditCard fontSize="small" />
+                      Seller NTN: {selectedTenant.sellerFullNTN}
+                    </Typography>
+                  </>
+                )}
                 <Typography variant="body2" noWrap>
                   |
                 </Typography>
@@ -3751,11 +3791,7 @@ export default function CreateInvoice() {
                         const cleanValue = value.replace(/,/g, "");
                         // Don't parse to float and back to string - preserve the original decimal places
                         if (cleanValue && cleanValue !== "") {
-                          handleItemChange(
-                            index,
-                            "quantity",
-                            cleanValue
-                          );
+                          handleItemChange(index, "quantity", cleanValue);
                         }
                       }
                     }}

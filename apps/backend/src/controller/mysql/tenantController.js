@@ -1,28 +1,37 @@
-import TenantDatabaseService from '../../service/TenantDatabaseService.js';
-import Tenant from '../../model/mysql/Tenant.js';
+import TenantDatabaseService from "../../service/TenantDatabaseService.js";
+import Tenant from "../../model/mysql/Tenant.js";
 
 // Create new tenant (seller registration)
 export const createTenant = async (req, res) => {
   try {
-    const { sellerNTNCNIC, sellerBusinessName, sellerProvince, sellerAddress, databaseName,sandboxTestToken,sandboxProductionToken} = req.body;
+    const {
+      sellerNTNCNIC,
+      sellerFullNTN,
+      sellerBusinessName,
+      sellerProvince,
+      sellerAddress,
+      databaseName,
+      sandboxTestToken,
+      sandboxProductionToken,
+    } = req.body;
 
     // Validate required fields
     if (!sellerNTNCNIC || !sellerBusinessName) {
       return res.status(400).json({
         success: false,
-        message: 'Seller NTN/CNIC and business name are required'
+        message: "Seller NTN/CNIC and business name are required",
       });
     }
 
     // Check if tenant already exists
     const existingTenant = await Tenant.findOne({
-      where: { seller_ntn_cnic: sellerNTNCNIC }
+      where: { seller_ntn_cnic: sellerNTNCNIC },
     });
 
     if (existingTenant) {
       return res.status(409).json({
         success: false,
-        message: 'Seller with this NTN/CNIC already exists'
+        message: "Seller with this NTN/CNIC already exists",
       });
     }
 
@@ -31,49 +40,51 @@ export const createTenant = async (req, res) => {
     if (!finalDatabaseName) {
       const timestamp = Date.now();
       const randomSuffix = Math.random().toString(36).substr(2, 6);
-      finalDatabaseName = `tenant_${sellerNTNCNIC.replace(/[^a-zA-Z0-9]/g, '_')}_${timestamp}_${randomSuffix}`;
+      finalDatabaseName = `tenant_${sellerNTNCNIC.replace(/[^a-zA-Z0-9]/g, "_")}_${timestamp}_${randomSuffix}`;
     }
 
-    console.log('Creating tenant with database name:', finalDatabaseName);
+    console.log("Creating tenant with database name:", finalDatabaseName);
 
     // Create tenant database
     const result = await TenantDatabaseService.createTenantDatabase({
       sellerNTNCNIC,
+      sellerFullNTN,
       sellerBusinessName,
       sellerProvince,
       sellerAddress,
       databaseName: finalDatabaseName,
       sandboxTestToken,
-      sandboxProductionToken
+      sandboxProductionToken,
     });
 
     res.status(201).json({
       success: true,
-      message: 'Tenant created successfully',
+      message: "Tenant created successfully",
       data: {
         tenant_id: result.tenant.tenant_id,
         sellerNTNCNIC: result.tenant.seller_ntn_cnic,
+        sellerFullNTN: result.tenant.seller_full_ntn,
         sellerBusinessName: result.tenant.seller_business_name,
         database_name: result.databaseName,
         sandbox_test_token: result.tenant.sandboxTestToken,
-        sandbox_production_token: result.tenant.sandboxProductionToken
-      }
+        sandbox_production_token: result.tenant.sandboxProductionToken,
+      },
     });
   } catch (error) {
-    console.error('Error creating tenant:', error);
-    
+    console.error("Error creating tenant:", error);
+
     // Handle specific database errors
-    if (error.name === 'SequelizeUniqueConstraintError') {
+    if (error.name === "SequelizeUniqueConstraintError") {
       return res.status(409).json({
         success: false,
-        message: 'A tenant with this information already exists'
+        message: "A tenant with this information already exists",
       });
     }
-    
+
     res.status(500).json({
       success: false,
-      message: 'Error creating tenant',
-      error: error.message
+      message: "Error creating tenant",
+      error: error.message,
     });
   }
 };
@@ -85,14 +96,14 @@ export const getAllTenants = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      data: tenants
+      data: tenants,
     });
   } catch (error) {
-    console.error('Error getting tenants:', error);
+    console.error("Error getting tenants:", error);
     res.status(500).json({
       success: false,
-      message: 'Error retrieving tenants',
-      error: error.message
+      message: "Error retrieving tenants",
+      error: error.message,
     });
   }
 };
@@ -105,25 +116,25 @@ export const getTenantById = async (req, res) => {
     const tenant = await Tenant.findOne({
       where: { tenant_id: tenantId },
       attributes: [
-        'id',
-        'tenant_id',
-        'seller_ntn_cnic',
-        'seller_business_name',
-        'seller_province',
-        'seller_address',
-        'is_active',
-        'database_name',
-        'created_at',
-        'sandbox_test_token',
-        'sandbox_production_token'
+        "id",
+        "tenant_id",
+        "seller_ntn_cnic",
+        "seller_business_name",
+        "seller_province",
+        "seller_address",
+        "is_active",
+        "database_name",
+        "created_at",
+        "sandbox_test_token",
+        "sandbox_production_token",
       ],
-      raw: true
+      raw: true,
     });
 
     if (!tenant) {
       return res.status(404).json({
         success: false,
-        message: 'Tenant not found'
+        message: "Tenant not found",
       });
     }
 
@@ -139,19 +150,19 @@ export const getTenantById = async (req, res) => {
       database_name: tenant.database_name,
       created_at: tenant.created_at,
       sandboxTestToken: tenant.sandbox_test_token,
-      sandboxProductionToken: tenant.sandbox_production_token
+      sandboxProductionToken: tenant.sandbox_production_token,
     };
 
     res.status(200).json({
       success: true,
-      data: mappedTenant
+      data: mappedTenant,
     });
   } catch (error) {
-    console.error('Error getting tenant:', error);
+    console.error("Error getting tenant:", error);
     res.status(500).json({
       success: false,
-      message: 'Error retrieving tenant',
-      error: error.message
+      message: "Error retrieving tenant",
+      error: error.message,
     });
   }
 };
@@ -163,33 +174,33 @@ export const updateTenant = async (req, res) => {
     const { sellerBusinessName, sellerProvince, sellerAddress } = req.body;
 
     const tenant = await Tenant.findOne({
-      where: { tenant_id: tenantId }
+      where: { tenant_id: tenantId },
     });
 
     if (!tenant) {
       return res.status(404).json({
         success: false,
-        message: 'Tenant not found'
+        message: "Tenant not found",
       });
     }
 
     await tenant.update({
       seller_business_name: sellerBusinessName,
       seller_province: sellerProvince,
-      seller_address: sellerAddress
+      seller_address: sellerAddress,
     });
 
     res.status(200).json({
       success: true,
-      message: 'Tenant updated successfully',
-      data: tenant
+      message: "Tenant updated successfully",
+      data: tenant,
     });
   } catch (error) {
-    console.error('Error updating tenant:', error);
+    console.error("Error updating tenant:", error);
     res.status(500).json({
       success: false,
-      message: 'Error updating tenant',
-      error: error.message
+      message: "Error updating tenant",
+      error: error.message,
     });
   }
 };
@@ -200,13 +211,13 @@ export const deactivateTenant = async (req, res) => {
     const { tenantId } = req.params;
 
     const tenant = await Tenant.findOne({
-      where: { tenant_id: tenantId }
+      where: { tenant_id: tenantId },
     });
 
     if (!tenant) {
       return res.status(404).json({
         success: false,
-        message: 'Tenant not found'
+        message: "Tenant not found",
       });
     }
 
@@ -214,14 +225,14 @@ export const deactivateTenant = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: 'Tenant deactivated successfully'
+      message: "Tenant deactivated successfully",
     });
   } catch (error) {
-    console.error('Error deactivating tenant:', error);
+    console.error("Error deactivating tenant:", error);
     res.status(500).json({
       success: false,
-      message: 'Error deactivating tenant',
-      error: error.message
+      message: "Error deactivating tenant",
+      error: error.message,
     });
   }
 };
@@ -243,15 +254,15 @@ export const getTenantStats = async (req, res) => {
       data: {
         tenant_id: tenantId,
         buyer_count: buyerCount,
-        invoice_count: invoiceCount
-      }
+        invoice_count: invoiceCount,
+      },
     });
   } catch (error) {
-    console.error('Error getting tenant stats:', error);
+    console.error("Error getting tenant stats:", error);
     res.status(500).json({
       success: false,
-      message: 'Error retrieving tenant statistics',
-      error: error.message
+      message: "Error retrieving tenant statistics",
+      error: error.message,
     });
   }
-}; 
+};

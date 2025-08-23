@@ -85,7 +85,10 @@ export const fetchData = async (
 };
 
 // New function to fetch document types from FBR
-export const getDocumentTypes = async (environment = "sandbox", token = null) => {
+export const getDocumentTypes = async (
+  environment = "sandbox",
+  token = null
+) => {
   if (!token) {
     throw new Error(`No ${environment} token provided for FBR API calls`);
   }
@@ -97,7 +100,10 @@ export const getDocumentTypes = async (environment = "sandbox", token = null) =>
   };
 
   try {
-    const response = await axios.get(`${FBR_BASE_URL}/pdi/v1/doctypecode`, config);
+    const response = await axios.get(
+      `${FBR_BASE_URL}/pdi/v1/doctypecode`,
+      config
+    );
 
     console.log("FBR Document Types API Response:", {
       endpoint: "pdi/v1/doctypecode",
@@ -130,7 +136,10 @@ export const getProvinces = async (environment = "sandbox", token = null) => {
   };
 
   try {
-    const response = await axios.get(`${FBR_BASE_URL}/pdi/v1/provinces`, config);
+    const response = await axios.get(
+      `${FBR_BASE_URL}/pdi/v1/provinces`,
+      config
+    );
 
     console.log("FBR Provinces API Response:", {
       endpoint: "pdi/v1/provinces",
@@ -151,7 +160,11 @@ export const getProvinces = async (environment = "sandbox", token = null) => {
 };
 
 // New function to validate invoice data with FBR
-export const validateInvoiceData = async (invoiceData, environment = "sandbox", token = null) => {
+export const validateInvoiceData = async (
+  invoiceData,
+  environment = "sandbox",
+  token = null
+) => {
   if (!token) {
     throw new Error(`No ${environment} token provided for FBR API calls`);
   }
@@ -189,7 +202,11 @@ export const validateInvoiceData = async (invoiceData, environment = "sandbox", 
 };
 
 // New function to submit invoice data to FBR
-export const submitInvoiceData = async (invoiceData, environment = "sandbox", token = null) => {
+export const submitInvoiceData = async (
+  invoiceData,
+  environment = "sandbox",
+  token = null
+) => {
   if (!token) {
     throw new Error(`No ${environment} token provided for FBR API calls`);
   }
@@ -218,6 +235,99 @@ export const submitInvoiceData = async (invoiceData, environment = "sandbox", to
   } catch (error) {
     console.error("FBR Invoice Submission API Error:", {
       endpoint: "pdi/v1/di_data/v1/di/postinvoicedata",
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data,
+    });
+    throw error;
+  }
+};
+
+// New function to fetch SRO Schedule from FBR
+export const getSROSchedule = async (
+  rateId,
+  date = "04-Feb-2024",
+  originationSupplierCsv,
+  environment = "sandbox",
+  token = null
+) => {
+  if (!token) {
+    throw new Error(`No ${environment} token provided for FBR API calls`);
+  }
+
+  const config = {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  };
+
+  try {
+    const response = await axios.get(
+      `${FBR_BASE_URL}/pdi/v1/SroSchedule?rate_id=${encodeURIComponent(rateId)}&date=${encodeURIComponent(date)}&origination_supplier_csv=${encodeURIComponent(originationSupplierCsv)}`,
+      config
+    );
+
+    console.log("FBR SRO Schedule API Response:", {
+      endpoint: "pdi/v1/SroSchedule",
+      rateId,
+      date,
+      originationSupplierCsv,
+      status: response.status,
+      data: response.data,
+    });
+
+    return response.data;
+  } catch (error) {
+    console.error("FBR SRO Schedule API Error:", {
+      endpoint: "pdi/v1/SroSchedule",
+      rateId,
+      date,
+      originationSupplierCsv,
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data,
+    });
+    throw error;
+  }
+};
+
+// New function to fetch SRO Items from FBR
+export const getSROItems = async (
+  sroId,
+  date = "2025-03-25",
+  environment = "sandbox",
+  token = null
+) => {
+  if (!token) {
+    throw new Error(`No ${environment} token provided for FBR API calls`);
+  }
+
+  const config = {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  };
+
+  try {
+    const response = await axios.get(
+      `${FBR_BASE_URL}/pdi/v2/SROItem?date=${encodeURIComponent(date)}&sro_id=${encodeURIComponent(sroId)}`,
+      config
+    );
+
+    console.log("FBR SRO Items API Response:", {
+      endpoint: "pdi/v2/SROItem",
+      sroId,
+      date,
+      status: response.status,
+      data: response.data,
+    });
+
+    return response.data;
+  } catch (error) {
+    console.error("FBR SRO Items API Error:", {
+      endpoint: "pdi/v2/SROItem",
+      sroId,
+      date,
       message: error.message,
       status: error.response?.status,
       data: error.response?.data,

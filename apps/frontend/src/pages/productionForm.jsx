@@ -43,6 +43,7 @@ export default function ProductionFoam() {
     invoiceType: "",
     invoiceDate: dayjs(),
     sellerNTNCNIC: "",
+    sellerFullNTN: "",
     sellerBusinessName: "",
     sellerProvince: "",
     sellerAddress: "",
@@ -104,6 +105,7 @@ export default function ProductionFoam() {
       setFormData((prev) => ({
         ...prev,
         sellerNTNCNIC: selectedTenant.sellerNTNCNIC || "",
+        sellerFullNTN: selectedTenant.sellerFullNTN || "",
         sellerBusinessName: selectedTenant.sellerBusinessName || "",
         sellerProvince: selectedTenant.sellerProvince || "",
         sellerAddress: selectedTenant.sellerAddress || "",
@@ -113,6 +115,7 @@ export default function ProductionFoam() {
       setFormData((prev) => ({
         ...prev,
         sellerNTNCNIC: "",
+        sellerFullNTN: "",
         sellerBusinessName: "",
         sellerProvince: "",
         sellerAddress: "",
@@ -129,7 +132,8 @@ export default function ProductionFoam() {
       }),
       // HS codes will be loaded by OptimizedHSCodeSelector component with caching
       Promise.resolve([]),
-      fetchData("pdi/v1/doctypecode", "production").then((data) => setInvoiceTypes(data))
+      fetchData("pdi/v1/doctypecode", "production")
+        .then((data) => setInvoiceTypes(data))
         .catch(() =>
           setInvoiceTypes([
             { docTypeId: 4, docDescription: "Sale Invoice" },
@@ -536,6 +540,15 @@ export default function ProductionFoam() {
           {
             field: "hsCode",
             message: `HS Code is required for item ${index + 1}`,
+            validate: (value) => {
+              if (!value || value.trim() === "") {
+                return `HS Code is required for item ${index + 1}`;
+              }
+              if (value.length > 50) {
+                return `HS Code must be 50 characters or less for item ${index + 1}`;
+              }
+              return null;
+            },
           },
           {
             field: "productDescription",
@@ -586,19 +599,37 @@ export default function ProductionFoam() {
             : []),
         ];
 
-        for (const { field, message } of itemRequiredFields) {
-          if (
-            !item[field] ||
-            (field === "valueSalesExcludingST" && item[field] <= 0)
-          ) {
-            Swal.fire({
-              icon: "error",
-              title: "Error",
-              text: message,
-              confirmButtonColor: "#d33",
-            });
-            setLoading(false);
-            return;
+        for (const fieldConfig of itemRequiredFields) {
+          const { field, message, validate } = fieldConfig;
+
+          if (validate) {
+            // Use custom validation function
+            const validationError = validate(item[field]);
+            if (validationError) {
+              Swal.fire({
+                icon: "error",
+                title: "Error",
+                text: validationError,
+                confirmButtonColor: "#d33",
+              });
+              setLoading(false);
+              return;
+            }
+          } else {
+            // Use default validation
+            if (
+              !item[field] ||
+              (field === "valueSalesExcludingST" && item[field] <= 0)
+            ) {
+              Swal.fire({
+                icon: "error",
+                title: "Error",
+                text: message,
+                confirmButtonColor: "#d33",
+              });
+              setLoading(false);
+              return;
+            }
           }
         }
       }
@@ -1162,6 +1193,7 @@ export default function ProductionFoam() {
           <Box sx={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
             {[
               { label: "Seller NTN/CNIC", field: "sellerNTNCNIC" },
+              { label: "Seller NTN", field: "sellerFullNTN" },
               { label: "Seller Business Name", field: "sellerBusinessName" },
               { label: "Seller Address", field: "sellerAddress" },
             ].map(({ label, field }) => (

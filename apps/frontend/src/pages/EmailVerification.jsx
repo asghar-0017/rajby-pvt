@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { Button, TextField, Paper, Typography, Box } from "@mui/material";
 import axios from "axios";
 import { API_CONFIG } from "../API/Api";
-import Footer from "../component/Footer";
 import { toast } from "react-toastify";
 
 const { apiKeyLocal } = API_CONFIG;
@@ -258,7 +257,7 @@ const EmailVerification = () => {
 
         <div className="w-full max-w-md lg:max-w-lg border-b-2 border-[#FB5B24] mt-4 lg:mt-6"></div>
       </div>
-      <Footer />
+      
     </div>
   );
 };

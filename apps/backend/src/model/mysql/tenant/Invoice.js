@@ -26,6 +26,10 @@ export const createInvoiceModel = (sequelize) => {
         type: DataTypes.STRING(50),
         allowNull: true,
       },
+      sellerFullNTN: {
+        type: DataTypes.STRING(50),
+        allowNull: true,
+      },
       sellerBusinessName: {
         type: DataTypes.STRING(255),
         allowNull: true,

@@ -166,7 +166,7 @@ const Login = ({ onLogin }) => {
             )}
             <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 1 }}>
               <Button
-                onClick={() => navigate("/forgot-password")}
+                onClick={() => navigate("/email-verification")}
                 sx={{
                   color: "#ED5B2A",
                   textDecoration: "none",

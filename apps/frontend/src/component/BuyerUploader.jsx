@@ -33,6 +33,7 @@ import {
 } from "@mui/icons-material";
 import { toast } from "react-toastify";
 import { api } from "../API/Api";
+import * as XLSX from "xlsx";
 
 const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
   const [file, setFile] = useState(null);
@@ -55,28 +56,80 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
   ];
 
   const downloadTemplate = () => {
-    const headers = expectedColumns.join(",");
+    // Create Excel template using xlsx library
+    const workbook = XLSX.utils.book_new();
+
+    // Create sample data
     const sampleData = [
-      "1234567890123,ABC Trading Company,PUNJAB,123 Main Street Lahore,Registered",
-      "9876543210987,XYZ Import Export,SINDH,456 Business Avenue Karachi,Unregistered",
-      "4567891230456,Global Traders Ltd,KHYBER PAKHTUNKHWA,789 Commerce Road Peshawar,Registered",
-      "7891234560789,Metro Traders,BALOCHISTAN,321 Industrial Zone Quetta,Registered",
-      "3216549870321,Capital Enterprises,ISLAMABAD CAPITAL TERRITORY,654 Blue Area Islamabad,Unregistered",
-      "6543219870654,Mountain Traders,GILGIT-BALTISTAN,123 Valley Road Gilgit,Registered",
+      expectedColumns, // Header row
+      [
+        "1234567890123",
+        "ABC Trading Company",
+        "PUNJAB",
+        "123 Main Street Lahore",
+        "Registered",
+      ],
+      [
+        "9876543210987",
+        "XYZ Import Export",
+        "SINDH",
+        "456 Business Avenue Karachi",
+        "Unregistered",
+      ],
+      [
+        "4567891230456",
+        "Global Traders Ltd",
+        "KHYBER PAKHTUNKHWA",
+        "789 Commerce Road Peshawar",
+        "Registered",
+      ],
+      [
+        "7891234560789",
+        "Metro Traders",
+        "BALOCHISTAN",
+        "321 Industrial Zone Quetta",
+        "Registered",
+      ],
+      [
+        "3216549870321",
+        "Capital Enterprises",
+        "ISLAMABAD CAPITAL TERRITORY",
+        "654 Blue Area Islamabad",
+        "Unregistered",
+      ],
+      [
+        "6543219870654",
+        "Mountain Traders",
+        "GILGIT-BALTISTAN",
+        "123 Valley Road Gilgit",
+        "Registered",
+      ],
     ];
 
-    const csvContent = [headers, ...sampleData].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv" });
+    const worksheet = XLSX.utils.aoa_to_sheet(sampleData);
+
+    // Add the worksheet to the workbook
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Buyers");
+
+    // Generate Excel file
+    const excelBuffer = XLSX.write(workbook, {
+      bookType: "xlsx",
+      type: "array",
+    });
+    const blob = new Blob([excelBuffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "buyer_template.csv";
+    a.download = "buyer_template.xlsx";
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
 
-    toast.success("Template downloaded successfully!");
+    toast.success("Excel template downloaded successfully!");
   };
 
   const handleFileSelect = (event) => {
@@ -122,17 +175,24 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     reader.onload = (e) => {
       try {
         const content = e.target.result;
-        const data = parseFileContent(content, selectedFile.type);
+        const data = parseFileContent(content, selectedFile.type, selectedFile);
         validateAndSetPreview(data);
       } catch (error) {
         console.error("Error parsing file:", error);
         toast.error("Error parsing file. Please check the file format.");
       }
     };
-    reader.readAsText(selectedFile);
+
+    // Use different reading methods based on file type
+    if (selectedFile.type === "text/csv") {
+      reader.readAsText(selectedFile);
+    } else {
+      // For Excel files, read as ArrayBuffer
+      reader.readAsArrayBuffer(selectedFile);
+    }
   };
 
-  const parseFileContent = (content, fileType) => {
+  const parseFileContent = (content, fileType, file) => {
     if (fileType === "text/csv") {
       // Improved CSV parsing with better handling of quoted fields
       const lines = content.split("\n").filter((line) => line.trim());
@@ -179,12 +239,73 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
 
       return data;
     } else {
-      // For Excel files, we'll use a simple approach
-      // In a real implementation, you'd use a library like xlsx
-      toast.error(
-        "Excel file parsing requires additional setup. Please use CSV format for now."
-      );
-      return [];
+      // Excel file parsing using xlsx library
+      try {
+        const workbook = XLSX.read(content, { type: "array" });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+
+        // Convert worksheet to JSON
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+        if (jsonData.length < 2) {
+          throw new Error(
+            "Excel file must have at least a header row and one data row"
+          );
+        }
+
+        // Get headers from first row
+        const headers = jsonData[0].map((header) =>
+          String(header || "").trim()
+        );
+
+        // Validate headers
+        const missingHeaders = expectedColumns.filter(
+          (col) => !headers.includes(col)
+        );
+        if (missingHeaders.length > 0) {
+          throw new Error(
+            `Missing required columns: ${missingHeaders.join(", ")}`
+          );
+        }
+
+        const data = [];
+
+        // Process data rows (skip header row)
+        for (let i = 1; i < jsonData.length; i++) {
+          const row = jsonData[i];
+          if (
+            row &&
+            row.some(
+              (cell) => cell !== null && cell !== undefined && cell !== ""
+            )
+          ) {
+            const rowData = {};
+
+            headers.forEach((header, index) => {
+              rowData[header] =
+                row[index] !== null && row[index] !== undefined
+                  ? String(row[index]).trim()
+                  : "";
+            });
+
+            // Only include expected columns
+            const filteredRow = {};
+            expectedColumns.forEach((col) => {
+              filteredRow[col] = rowData[col] || "";
+            });
+
+            data.push(filteredRow);
+          }
+        }
+
+        return data;
+      } catch (error) {
+        console.error("Error parsing Excel file:", error);
+        throw new Error(
+          "Error parsing Excel file. Please check the file format."
+        );
+      }
     }
   };
 
@@ -450,7 +571,7 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       <DialogContent>
         <Box sx={{ mb: 3 }}>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Upload a CSV file with the following columns: buyerNTNCNIC,
+            Upload a CSV or Excel file with the following columns: buyerNTNCNIC,
             buyerBusinessName, buyerProvince, buyerAddress,
             buyerRegistrationType
           </Typography>
@@ -463,7 +584,7 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
               onClick={downloadTemplate}
               size="small"
             >
-              Download CSV Template
+              Download Excel Template
             </Button>
           </Box>
 

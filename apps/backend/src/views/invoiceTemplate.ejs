@@ -173,7 +173,7 @@
         <%= invoice.sellerAddress %><br/>
         <%= invoice.sellerCity %>
       </p>
-      <p>NTN: <%= invoice.sellerNTNCNIC %>
+      <p>NTN: <%= invoice.seller_full_ntn || invoice.sellerFullNTN || invoice.sellerNTNCNIC %>
       </p>
     </div>
   </div>

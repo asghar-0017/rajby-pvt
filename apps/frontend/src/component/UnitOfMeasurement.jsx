@@ -10,6 +10,13 @@ const UnitOfMeasurement = ({ index, item, handleItemChange, hsCode }) => {
     const getUoM = async () => {
       if (!hsCode) return;
 
+      // Extract HS code from description if it contains a dash separator
+      // Format: "8432.1010 - NUCLEAR REACTOR, BOILERS, MACHINERY AN"
+      let extractedHsCode = hsCode;
+      if (hsCode.includes(" - ")) {
+        extractedHsCode = hsCode.split(" - ")[0].trim();
+      }
+
       // Special handling for scenario SN018 with rate containing "/bill"
       if (item.rate && item.rate.includes("/bill")) {
         handleItemChange(index, "uoM", "Bill of lading");
@@ -28,8 +35,8 @@ const UnitOfMeasurement = ({ index, item, handleItemChange, hsCode }) => {
       setIsLoading(true);
 
       try {
-        // Use the new UOM caching system
-        const response = await hsCodeCache.getUOM(hsCode);
+        // Use the new UOM caching system with extracted HS code
+        const response = await hsCodeCache.getUOM(extractedHsCode);
 
         if (response && Array.isArray(response)) {
           setUom(response);

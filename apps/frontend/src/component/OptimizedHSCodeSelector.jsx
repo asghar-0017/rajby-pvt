@@ -73,20 +73,44 @@ const OptimizedHSCodeSelector = ({
   const handleHSCodeChange = useCallback(
     (_, newValue) => {
       console.log("HS Code Selection:", newValue);
-      handleItemChange(index, "hsCode", newValue ? newValue.hS_CODE : "");
+      const hsCodeValue = newValue ? newValue.hS_CODE : "";
+
+      // Validate hsCode length (max 50 characters)
+      if (hsCodeValue && hsCodeValue.length > 50) {
+        console.warn(
+          `HS Code "${hsCodeValue}" is too long (${hsCodeValue.length} characters). Truncating to 50 characters.`
+        );
+        handleItemChange(index, "hsCode", hsCodeValue.substring(0, 50));
+      } else {
+        handleItemChange(index, "hsCode", hsCodeValue);
+      }
     },
     [index, handleItemChange]
   );
 
   // Get current value
   const currentValue = useMemo(() => {
-    return hsCodeList.find((code) => code.hS_CODE === item.hsCode) || null;
+    // Extract HS code from description if it contains a dash separator
+    // Format: "8432.1010 - NUCLEAR REACTOR, BOILERS, MACHINERY AN"
+    let extractedHsCode = item.hsCode;
+    if (item.hsCode && item.hsCode.includes(" - ")) {
+      extractedHsCode = item.hsCode.split(" - ")[0].trim();
+    }
+
+    return hsCodeList.find((code) => code.hS_CODE === extractedHsCode) || null;
   }, [hsCodeList, item.hsCode]);
 
   // Get description for selected HS code
   const selectedDescription = useMemo(() => {
+    // Extract HS code from description if it contains a dash separator
+    let extractedHsCode = item.hsCode;
+    if (item.hsCode && item.hsCode.includes(" - ")) {
+      extractedHsCode = item.hsCode.split(" - ")[0].trim();
+    }
+
     return (
-      hsCodeList.find((code) => code.hS_CODE === item.hsCode)?.description || ""
+      hsCodeList.find((code) => code.hS_CODE === extractedHsCode)
+        ?.description || ""
     );
   }, [hsCodeList, item.hsCode]);
 
@@ -158,6 +182,13 @@ const OptimizedHSCodeSelector = ({
           {selectedDescription}
         </Typography>
       )}
+
+      <Typography
+        variant="caption"
+        sx={{ mt: 0.5, color: "text.disabled", fontSize: "0.75rem" }}
+      >
+        Maximum 50 characters allowed
+      </Typography>
     </Box>
   );
 };

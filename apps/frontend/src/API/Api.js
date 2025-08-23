@@ -46,7 +46,7 @@ const API_CONFIG = {
 
 const api = axios.create({
   // baseURL: "https://fbrtestcase.inplsoftwares.online/api",
-  baseURL: "https://anjum-parts.inplsoftwares.online/api",
+  baseURL: "https://biogenics.inplsoftwares.online/api",
   // You can add headers or other config here if needed
 });
 
@@ -66,13 +66,14 @@ api.interceptors.request.use(
     }
 
     // Skip tenant ID for authentication endpoints
-    const isAuthEndpoint = config.url.includes('/auth/') || 
-                          config.url.includes('/tenant-auth/') ||
-                          config.url === '/auth/login' ||
-                          config.url === '/auth/forgot-password' ||
-                          config.url === '/auth/verify-reset-code' ||
-                          config.url === '/auth/reset-password' ||
-                          config.url === '/auth/refresh-token';
+    const isAuthEndpoint =
+      config.url.includes("/auth/") ||
+      config.url.includes("/tenant-auth/") ||
+      config.url === "/auth/login" ||
+      config.url === "/auth/forgot-password" ||
+      config.url === "/auth/verify-reset-code" ||
+      config.url === "/auth/reset-password" ||
+      config.url === "/auth/refresh-token";
 
     if (!isAuthEndpoint) {
       // For admin users, use selected tenant ID if available
@@ -94,7 +95,10 @@ api.interceptors.request.use(
         }
       } else if (tenantId) {
         tenantIdToUse = tenantId;
-        console.log("Using tenant ID from tenantId localStorage:", tenantIdToUse);
+        console.log(
+          "Using tenant ID from tenantId localStorage:",
+          tenantIdToUse
+        );
       }
 
       // Fallback: Try to extract tenant ID from URL if not found in localStorage
@@ -102,7 +106,10 @@ api.interceptors.request.use(
         const urlMatch = config.url.match(/\/tenant\/([^\/]+)/);
         if (urlMatch && urlMatch[1]) {
           tenantIdToUse = urlMatch[1];
-          console.log("Extracted tenant ID from URL as fallback:", tenantIdToUse);
+          console.log(
+            "Extracted tenant ID from URL as fallback:",
+            tenantIdToUse
+          );
         }
       }
 

@@ -240,6 +240,17 @@ const TenantManagement = () => {
                     <PersonIcon sx={{ mr: 1, fontSize: 16 }} />
                     {tenant.sellerNTNCNIC}
                   </Typography>
+                  {tenant.sellerFullNTN && (
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      display="flex"
+                      alignItems="center"
+                    >
+                      <PersonIcon sx={{ mr: 1, fontSize: 16 }} />
+                      Seller NTN: {tenant.sellerFullNTN}
+                    </Typography>
+                  )}
                   <Typography
                     variant="body2"
                     color="text.secondary"

@@ -499,7 +499,7 @@ export default function BasicTable() {
             >
               Your Invoices
             </Typography>
-            {/* <Button
+            <Button
               variant="contained"
               startIcon={<UploadIcon />}
               onClick={() => setUploadModalOpen(true)}
@@ -517,7 +517,7 @@ export default function BasicTable() {
               }}
             >
               Upload Invoice
-            </Button> */}
+            </Button>
           </Box>
           {/* Search and Filter Controls */}
           <Box sx={{ display: "flex", gap: 2, mb: 2, flexWrap: "wrap" }}>
@@ -829,10 +829,14 @@ export default function BasicTable() {
                             }}
                           >
                             {/* Print button for all invoice statuses */}
-                            <Tooltip title={`Print ${row.status === "posted" ? "Invoice" : row.status === "draft" ? "Draft Invoice" : "Saved Invoice"}`}>
+                            <Tooltip
+                              title={`Print ${row.status === "posted" ? "Invoice" : row.status === "draft" ? "Draft Invoice" : "Saved Invoice"}`}
+                            >
                               <Button
                                 variant="outlined"
-                                color={row.status === "posted" ? "success" : "info"}
+                                color={
+                                  row.status === "posted" ? "success" : "info"
+                                }
                                 size="small"
                                 onClick={() => handleButtonClick(row)}
                                 sx={{
@@ -841,9 +845,18 @@ export default function BasicTable() {
                                   height: "32px",
                                   p: 0,
                                   "&:hover": {
-                                    backgroundColor: row.status === "posted" ? "success.main" : "info.main",
-                                    color: row.status === "posted" ? "success.contrastText" : "info.contrastText",
-                                    borderColor: row.status === "posted" ? "success.main" : "info.main",
+                                    backgroundColor:
+                                      row.status === "posted"
+                                        ? "success.main"
+                                        : "info.main",
+                                    color:
+                                      row.status === "posted"
+                                        ? "success.contrastText"
+                                        : "info.contrastText",
+                                    borderColor:
+                                      row.status === "posted"
+                                        ? "success.main"
+                                        : "info.main",
                                   },
                                 }}
                               >
@@ -871,9 +884,12 @@ export default function BasicTable() {
                                 <VisibilityIcon fontSize="small" />
                               </Button>
                             </Tooltip>
-                            {(row.status === "draft" || row.status === "saved") && (
+                            {(row.status === "draft" ||
+                              row.status === "saved") && (
                               <>
-                                <Tooltip title={`Edit ${row.status === "draft" ? "Draft" : "Saved"} Invoice`}>
+                                <Tooltip
+                                  title={`Edit ${row.status === "draft" ? "Draft" : "Saved"} Invoice`}
+                                >
                                   <Button
                                     variant="outlined"
                                     color="warning"

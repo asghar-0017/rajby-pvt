@@ -26,13 +26,105 @@ import {
   Delete,
   Visibility,
   CheckCircle,
-  Error,
+  Error as ErrorIcon,
   Warning,
   Download,
   Info,
 } from "@mui/icons-material";
 import { toast } from "react-toastify";
 import { api } from "../API/Api";
+import * as XLSX from "xlsx";
+
+// Utility function to convert Excel date to YYYY-MM-DD format
+const convertExcelDateToYYYYMMDD = (excelDate) => {
+  if (!excelDate || excelDate === "") return "";
+
+  // If it's already a string that looks like a date, try to parse it
+  if (typeof excelDate === "string") {
+    // Check if it's already in YYYY-MM-DD format
+    if (/^\d{4}-\d{2}-\d{2}$/.test(excelDate)) {
+      return excelDate;
+    }
+
+    // Check if it's a numeric string that might be an Excel serial date
+    if (/^\d+$/.test(excelDate)) {
+      const numericValue = parseFloat(excelDate);
+      // If it's a large number, treat it as Excel serial date
+      if (numericValue > 1000) {
+        // Excel dates are number of days since 1900-01-01
+        // Excel incorrectly treats 1900 as a leap year, so we need to adjust
+        const excelEpoch = new Date(1900, 0, 1);
+        let daysToAdd = numericValue - 1;
+
+        // Adjust for Excel's leap year bug (1900 is not a leap year but Excel treats it as one)
+        if (numericValue > 59) {
+          daysToAdd = daysToAdd - 1;
+        }
+
+        const date = new Date(
+          excelEpoch.getTime() + daysToAdd * 24 * 60 * 60 * 1000
+        );
+        return date.toISOString().split("T")[0];
+      }
+    }
+
+    // Handle date strings with slashes (MM/DD/YYYY or DD/MM/YYYY)
+    if (excelDate.includes("/")) {
+      const parts = excelDate.split("/");
+      if (parts.length === 3) {
+        // Try MM/DD/YYYY format first (US format)
+        let month = parseInt(parts[0], 10);
+        let day = parseInt(parts[1], 10);
+        let year = parseInt(parts[2], 10);
+
+        // If month > 12, it might be DD/MM/YYYY format
+        if (month > 12 && day <= 12) {
+          // Swap month and day
+          [month, day] = [day, month];
+        }
+
+        // Validate the date
+        if (
+          month >= 1 &&
+          month <= 12 &&
+          day >= 1 &&
+          day <= 31 &&
+          year >= 1900 &&
+          year <= 2100
+        ) {
+          // Format as YYYY-MM-DD
+          return `${year.toString().padStart(4, "0")}-${month.toString().padStart(2, "0")}-${day.toString().padStart(2, "0")}`;
+        }
+      }
+    }
+
+    // Try to parse various date formats using JavaScript Date
+    const date = new Date(excelDate);
+    if (!isNaN(date.getTime())) {
+      return date.toISOString().split("T")[0];
+    }
+  }
+
+  // If it's a number (Excel serial date), convert it
+  if (typeof excelDate === "number") {
+    // Excel dates are number of days since 1900-01-01
+    // Excel incorrectly treats 1900 as a leap year, so we need to adjust
+    const excelEpoch = new Date(1900, 0, 1);
+    let daysToAdd = excelDate - 1;
+
+    // Adjust for Excel's leap year bug (1900 is not a leap year but Excel treats it as one)
+    if (excelDate > 59) {
+      daysToAdd = daysToAdd - 1;
+    }
+
+    const date = new Date(
+      excelEpoch.getTime() + daysToAdd * 24 * 60 * 60 * 1000
+    );
+    return date.toISOString().split("T")[0];
+  }
+
+  return "";
+};
 
 const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
   const [file, setFile] = useState(null);
@@ -43,9 +135,10 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
   const [existingInvoices, setExistingInvoices] = useState([]);
   const [newInvoices, setNewInvoices] = useState([]);
   const [checkingExisting, setCheckingExisting] = useState(false);
+  const [downloadButtonDisabled, setDownloadButtonDisabled] = useState(false);
   const fileInputRef = useRef(null);
 
-  // Expected columns for invoice data (including items) - aligned with createInvoiceForm.jsx field names
+  // Expected columns for invoice data (including items)
   const expectedColumns = [
     "invoiceType",
     "invoiceDate",
@@ -61,46 +154,61 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     "invoiceRefNo",
     "companyInvoiceRefNo",
     "transctypeId",
-    "hsCode",
-    "productDescription",
-    "rate",
-    "uoM",
-    "quantity",
-    "unitPrice",
-    "retailPrice",
-    "totalValues",
-    "valueSalesExcludingST",
-    "salesTaxApplicable",
-    "salesTaxWithheldAtSource",
-    "extraTax",
-    "furtherTax",
-    "sroScheduleNo",
-    "fedPayable",
-    "discount",
-    "saleType",
-    "sroItemSerialNo",
+    "item_hsCode",
+    "item_productDescription",
+    "item_rate",
+    "item_uoM",
+    "item_quantity",
+    "item_unitPrice",
+    "item_totalValues",
+    "item_valueSalesExcludingST",
+    "item_fixedNotifiedValueOrRetailPrice",
+    "item_salesTaxApplicable",
+    "item_salesTaxWithheldAtSource",
+    "item_extraTax",
+    "item_furtherTax",
+    "item_sroScheduleNo",
+    "item_fedPayable",
+    "item_discount",
+    "item_saleType",
+    "item_sroItemSerialNo",
   ];
 
-  const downloadTemplate = () => {
-    const headers = expectedColumns.join(",");
-    const sampleData = [
-      "Sale Invoice,2024-01-15,1234567890123,ABC Trading Company,PUNJAB,123 Main Street Lahore,9876543210987,XYZ Import Export,SINDH,456 Business Avenue Karachi,Registered,REF-001,COMP-001,1,8471.30.00,Laptop Computer,15,Units,5,50000,250000,250000,250000,37500,0,0,0,1,0,0,Retail,1",
-      "Sale Invoice,2024-01-15,1234567890123,ABC Trading Company,PUNJAB,123 Main Street Lahore,9876543210987,XYZ Import Export,SINDH,456 Business Avenue Karachi,Registered,REF-001,COMP-001,1,8471.30.00,Computer Mouse,15,Units,10,2000,20000,20000,20000,3000,0,0,0,1,0,0,Retail,2",
-      "Debit Note,2024-01-16,4567891230456,Global Traders Ltd,KHYBER PAKHTUNKHWA,789 Commerce Road Peshawar,3216549870321,Capital Enterprises,CAPITAL TERRITORY,654 Blue Area Islamabad,Unregistered,REF-002,COMP-002,2,8517.12.00,Mobile Phone,17,Units,20,15000,300000,300000,300000,51000,0,0,0,2,0,0,Wholesale,1",
-    ];
+  const downloadTemplate = async () => {
+    try {
+      if (!selectedTenant) {
+        toast.error("Please select a tenant first");
+        return;
+      }
 
-    const csvContent = [headers, ...sampleData].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "invoice_template_with_items.csv";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
+      // Disable the button for 10 seconds
+      setDownloadButtonDisabled(true);
 
-    toast.success("Template downloaded successfully!");
+      const response = await api.get(
+        `/tenant/${selectedTenant.tenant_id}/invoices/template.xlsx`,
+        { responseType: "blob" }
+      );
+      const blob = new Blob([response.data], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "invoice_template.xlsx";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      toast.success("Excel template downloaded successfully!");
+    } catch (e) {
+      console.error(e);
+      toast.error("Could not download Excel template");
+    } finally {
+      // Re-enable the button after 10 seconds
+      setTimeout(() => {
+        setDownloadButtonDisabled(false);
+      }, 5000);
+    }
   };
 
   const handleFileSelect = (event) => {
@@ -120,6 +228,43 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
 
   const handleDragOver = (event) => {
     event.preventDefault();
+  };
+
+  // Utility functions to clean data for preview display
+  const cleanTransctypeId = (value) => {
+    if (!value || String(value).trim() === "" || String(value).trim() === "N/A")
+      return "";
+
+    const stringValue = String(value).trim();
+
+    // If it contains " - ", extract the part before the first " - "
+    if (stringValue.includes(" - ")) {
+      const parts = stringValue.split(" - ");
+      const idPart = parts[0].trim();
+      // Return the ID part if it's not empty
+      return idPart;
+    }
+
+    // If no " - " found, assume the entire string is the ID
+    return stringValue;
+  };
+
+  const cleanHsCode = (value) => {
+    if (!value || String(value).trim() === "" || String(value).trim() === "N/A")
+      return "";
+
+    const stringValue = String(value).trim();
+
+    // If it contains " - ", extract the part before the first " - "
+    if (stringValue.includes(" - ")) {
+      const parts = stringValue.split(" - ");
+      const codePart = parts[0].trim();
+      // Return the code part if it's not empty
+      return codePart;
+    }
+
+    // If no " - " found, assume the entire string is the code
+    return stringValue;
   };
 
   const processFile = (selectedFile) => {
@@ -146,17 +291,28 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     reader.onload = (e) => {
       try {
         const content = e.target.result;
-        const data = parseFileContent(content, selectedFile.type);
+        const data = processFileContent(
+          content,
+          selectedFile.type,
+          selectedFile
+        );
         validateAndSetPreview(data);
       } catch (error) {
         console.error("Error parsing file:", error);
         toast.error("Error parsing file. Please check the file format.");
       }
     };
-    reader.readAsText(selectedFile);
+
+    // Use different reading methods based on file type
+    if (selectedFile.type === "text/csv") {
+      reader.readAsText(selectedFile);
+    } else {
+      // For Excel files, read as ArrayBuffer
+      reader.readAsArrayBuffer(selectedFile);
+    }
   };
 
-  const parseFileContent = (content, fileType) => {
+  const processFileContent = (content, fileType, file) => {
     if (fileType === "text/csv") {
       // Improved CSV parsing with better handling of quoted fields
       const lines = content.split("\n").filter((line) => line.trim());
@@ -185,30 +341,220 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       for (let i = 1; i < lines.length; i++) {
         if (lines[i].trim()) {
           const values = parseCSVLine(lines[i]);
-          const row = {};
 
-          headers.forEach((header, index) => {
-            row[header] = values[index] || "";
-          });
+          // Check if this row has any meaningful data in the first few columns
+          const hasData = values
+            .slice(0, 5)
+            .some((value) => value && value.trim() !== "");
 
-          // Only include expected columns
-          const filteredRow = {};
-          expectedColumns.forEach((col) => {
-            filteredRow[col] = row[col] || "";
-          });
+          if (hasData) {
+            const row = {};
 
-          data.push(filteredRow);
+            headers.forEach((header, index) => {
+              let value = values[index] || "";
+
+              // Convert date format if this is the invoiceDate field
+              if (header === "invoiceDate" && value) {
+                value = convertExcelDateToYYYYMMDD(value);
+              }
+
+              row[header] = value;
+            });
+
+            // Only include expected columns
+            const filteredRow = {};
+            expectedColumns.forEach((col) => {
+              filteredRow[col] = row[col] || "";
+            });
+
+            // Additional check: exclude rows that are clearly not invoice data
+            const invoiceType = String(filteredRow.invoiceType || "")
+              .trim()
+              .toLowerCase();
+            const sellerNTN = String(filteredRow.sellerNTNCNIC || "").trim();
+            const sellerName = String(
+              filteredRow.sellerBusinessName || ""
+            ).trim();
+            const invoiceDate = String(filteredRow.invoiceDate || "").trim();
+
+            // Skip special rows
+            if (
+              invoiceType.includes("total") ||
+              invoiceType.includes("instruction") ||
+              invoiceType.includes("summary") ||
+              invoiceType.includes("note")
+            ) {
+              continue;
+            }
+
+            // Must have valid invoice data
+            const hasValidInvoiceType =
+              invoiceType &&
+              invoiceType !== "" &&
+              (invoiceType.includes("sale") ||
+                invoiceType.includes("purchase"));
+            const hasValidSellerNTN =
+              sellerNTN && sellerNTN !== "" && !isNaN(sellerNTN);
+            const hasValidSellerName = sellerName && sellerName !== "";
+
+            // Validate date format (YYYY-MM-DD)
+            const hasValidDate =
+              invoiceDate && /^\d{4}-\d{2}-\d{2}$/.test(invoiceDate);
+
+            if (
+              hasValidInvoiceType &&
+              hasValidSellerNTN &&
+              hasValidSellerName &&
+              hasValidDate
+            ) {
+              data.push(filteredRow);
+            }
+          }
         }
       }
 
       return data;
     } else {
-      // For Excel files, we'll use a simple approach
-      // In a real implementation, you'd use a library like xlsx
-      toast.error(
-        "Excel file parsing requires additional setup. Please use CSV format for now."
-      );
-      return [];
+      // Excel file parsing using xlsx library
+      try {
+        const workbook = XLSX.read(content, { type: "array" });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+
+        // Convert worksheet to JSON with better date handling
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, {
+          header: 1,
+          raw: false, // Set to false to get formatted values
+          dateNF: "yyyy-mm-dd",
+        });
+
+        if (jsonData.length < 2) {
+          throw new Error(
+            "Excel file must have at least a header row and one data row"
+          );
+        }
+
+        // Get headers from first row
+        const headers = jsonData[0].map((header) =>
+          String(header || "").trim()
+        );
+
+        // Validate headers
+        const missingHeaders = expectedColumns.filter(
+          (col) => !headers.includes(col)
+        );
+        if (missingHeaders.length > 0) {
+          throw new Error(
+            `Missing required columns: ${missingHeaders.join(", ")}`
+          );
+        }
+
+        const data = [];
+
+        // Process data rows (skip header row)
+        for (let i = 1; i < jsonData.length; i++) {
+          const row = jsonData[i];
+
+          // Check if row exists and has any meaningful data
+          if (row && Array.isArray(row)) {
+            // Check if the row has any non-empty cells in the first few columns (key fields)
+            const hasData = row
+              .slice(0, 5)
+              .some(
+                (cell) =>
+                  cell !== null &&
+                  cell !== undefined &&
+                  String(cell).trim() !== ""
+              );
+
+            if (hasData) {
+              const rowData = {};
+
+              headers.forEach((header, index) => {
+                let value =
+                  row[index] !== null && row[index] !== undefined
+                    ? String(row[index]).trim()
+                    : "";
+
+                // Convert date format if this is the invoiceDate field
+                if (
+                  header === "invoiceDate" &&
+                  row[index] !== null &&
+                  row[index] !== undefined
+                ) {
+                  // Handle different types that xlsx might return for dates
+                  if (row[index] instanceof Date) {
+                    // If it's already a Date object, format it
+                    value = row[index].toISOString().split("T")[0];
+                  } else {
+                    // Convert the value to string and then process it
+                    const dateValue = String(row[index]).trim();
+                    value = convertExcelDateToYYYYMMDD(dateValue);
+                  }
+                }
+
+                rowData[header] = value;
+              });
+
+              // Only include expected columns
+              const filteredRow = {};
+              expectedColumns.forEach((col) => {
+                filteredRow[col] = rowData[col] || "";
+              });
+
+              // Additional check: exclude rows that are clearly not invoice data
+              const invoiceType = String(filteredRow.invoiceType || "")
+                .trim()
+                .toLowerCase();
+              const sellerNTN = String(filteredRow.sellerNTNCNIC || "").trim();
+              const sellerName = String(
+                filteredRow.sellerBusinessName || ""
+              ).trim();
+              const invoiceDate = String(filteredRow.invoiceDate || "").trim();
+
+              // Skip special rows
+              if (
+                invoiceType.includes("total") ||
+                invoiceType.includes("instruction") ||
+                invoiceType.includes("summary") ||
+                invoiceType.includes("note")
+              ) {
+                continue;
+              }
+
+              // Must have valid invoice data
+              const hasValidInvoiceType =
+                invoiceType &&
+                invoiceType !== "" &&
+                (invoiceType.includes("sale") ||
+                  invoiceType.includes("purchase"));
+              const hasValidSellerNTN =
+                sellerNTN && sellerNTN !== "" && !isNaN(sellerNTN);
+              const hasValidSellerName = sellerName && sellerName !== "";
+
+              // Validate date format (YYYY-MM-DD)
+              const hasValidDate =
+                invoiceDate && /^\d{4}-\d{2}-\d{2}$/.test(invoiceDate);
+
+              if (
+                hasValidInvoiceType &&
+                hasValidSellerNTN &&
+                hasValidSellerName &&
+                hasValidDate
+              ) {
+                data.push(filteredRow);
+              }
+            }
+          }
+        }
+
+        return data;
+      } catch (error) {
+        console.error("Error parsing Excel file:", error);
+        throw new Error(
+          "Error parsing Excel file. Please check the file format."
+        );
+      }
     }
   };
 
@@ -245,187 +591,80 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
   };
 
   const validateAndSetPreview = async (data) => {
-    const validationErrors = [];
-    const validData = [];
+    console.log(`Raw data rows received: ${data.length}`);
 
-    data.forEach((row, index) => {
-      const rowErrors = [];
+    // Filter out completely empty rows and special rows
+    const validData = data
+      .filter((row, index) => {
+        // Skip rows that are clearly not invoice data
+        const invoiceType = String(row.invoiceType || "")
+          .trim()
+          .toLowerCase();
+        const sellerNTN = String(row.sellerNTNCNIC || "").trim();
+        const sellerName = String(row.sellerBusinessName || "").trim();
+        const invoiceDate = String(row.invoiceDate || "").trim();
 
-      // Check required fields (invoice_number will be generated by system)
-
-      if (!row.invoiceType || !row.invoiceType.trim()) {
-        rowErrors.push("Invoice type is required");
-      }
-
-      if (!row.invoiceDate || !row.invoiceDate.trim()) {
-        rowErrors.push("Invoice date is required");
-      }
-
-      // Validate invoice type
-      const validInvoiceTypes = ["Sale Invoice", "Debit Note"];
-      if (
-        row.invoiceType &&
-        !validInvoiceTypes.includes(row.invoiceType.trim())
-      ) {
-        rowErrors.push("Invoice type must be 'Sale Invoice' or 'Debit Note'");
-      }
-
-      // Validate date format (basic validation)
-      if (row.invoiceDate && row.invoiceDate.trim()) {
-        const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-        if (!dateRegex.test(row.invoiceDate.trim())) {
-          rowErrors.push("Invoice date must be in YYYY-MM-DD format");
-        }
-      }
-
-      // Validate seller information
-      if (!row.sellerBusinessName || !row.sellerBusinessName.trim()) {
-        rowErrors.push("Seller business name is required");
-      }
-
-      if (!row.sellerProvince || !row.sellerProvince.trim()) {
-        rowErrors.push("Seller province is required");
-      }
-
-      // Validate buyer information
-      if (!row.buyerBusinessName || !row.buyerBusinessName.trim()) {
-        rowErrors.push("Buyer business name is required");
-      }
-
-      if (!row.buyerProvince || !row.buyerProvince.trim()) {
-        rowErrors.push("Buyer province is required");
-      }
-
-      // Validate provinces (common Pakistani provinces)
-      const validProvinces = [
-        "BALOCHISTAN",
-        "AZAD JAMMU AND KASHMIR",
-        "CAPITAL TERRITORY",
-        "PUNJAB",
-        "KHYBER PAKHTUNKHWA",
-        "GILGIT BALTISTAN",
-        "SINDH",
-      ];
-
-      if (
-        row.sellerProvince &&
-        !validProvinces.includes(row.sellerProvince.trim())
-      ) {
-        rowErrors.push(
-          "Invalid seller province. Use: BALOCHISTAN, AZAD JAMMU AND KASHMIR, CAPITAL TERRITORY, PUNJAB, KHYBER PAKHTUNKHWA, GILGIT BALTISTAN, SINDH"
-        );
-      }
-
-      if (
-        row.buyerProvince &&
-        !validProvinces.includes(row.buyerProvince.trim())
-      ) {
-        rowErrors.push(
-          "Invalid buyer province. Use: BALOCHISTAN, AZAD JAMMU AND KASHMIR, CAPITAL TERRITORY, PUNJAB, KHYBER PAKHTUNKHWA, GILGIT BALTISTAN, SINDH"
-        );
-      }
-
-      // Validate buyer registration type
-      const validRegistrationTypes = ["Registered", "Unregistered"];
-      if (
-        row.buyerRegistrationType &&
-        !validRegistrationTypes.includes(row.buyerRegistrationType.trim())
-      ) {
-        rowErrors.push(
-          "Buyer registration type must be 'Registered' or 'Unregistered'"
-        );
-      }
-
-      // Check for duplicate invoice number within the same file (removed since invoice_number will be generated by system)
-
-      // Validate item fields if present
-      const itemFields = [
-        "hsCode",
-        "productDescription",
-        "rate",
-        "uoM",
-        "quantity",
-        "unitPrice",
-        "totalValues",
-        "valueSalesExcludingST",
-        "retailPrice",
-        "salesTaxApplicable",
-        "salesTaxWithheldAtSource",
-        "extraTax",
-        "furtherTax",
-        "sroScheduleNo",
-        "fedPayable",
-        "discount",
-        "saleType",
-        "sroItemSerialNo",
-      ];
-
-      // Check if any item field is present
-      const hasItemData = itemFields.some(
-        (field) =>
-          row[field] !== undefined && row[field] !== null && row[field] !== ""
-      );
-
-      if (hasItemData) {
-        // Validate required item fields
+        // Exclude special rows
         if (
-          !row.productDescription ||
-          !row.productDescription.trim()
+          invoiceType.includes("total") ||
+          invoiceType.includes("instruction") ||
+          invoiceType.includes("summary") ||
+          invoiceType.includes("note")
         ) {
-          rowErrors.push(
-            "Product description is required when item data is provided"
-          );
+          return false;
         }
 
-        if (!row.quantity || !row.quantity.trim()) {
-          rowErrors.push("Quantity is required when item data is provided");
-        }
+        // Must have meaningful data in key invoice fields
+        const hasValidInvoiceType =
+          invoiceType &&
+          invoiceType !== "" &&
+          (invoiceType.includes("sale") || invoiceType.includes("purchase"));
+        const hasValidSellerNTN =
+          sellerNTN && sellerNTN !== "" && !isNaN(sellerNTN);
+        const hasValidSellerName = sellerName && sellerName !== "";
 
-        if (!row.unitPrice || !row.unitPrice.trim()) {
-          rowErrors.push("Unit price is required when item data is provided");
-        }
+        // Validate date format (YYYY-MM-DD)
+        const hasValidDate =
+          invoiceDate && /^\d{4}-\d{2}-\d{2}$/.test(invoiceDate);
 
-        // Validate numeric fields
-        const numericFields = [
-          "quantity",
-          "unitPrice",
-          "totalValues",
-          "valueSalesExcludingST",
-          "retailPrice",
-          "salesTaxApplicable",
-          "salesTaxWithheldAtSource",
-          "extraTax",
-          "furtherTax",
-          "fedPayable",
-          "discount",
-        ];
+        return (
+          hasValidInvoiceType &&
+          hasValidSellerNTN &&
+          hasValidSellerName &&
+          hasValidDate
+        );
+      })
+      .map((row, index) => {
+        // Ensure all expected columns exist with default values if missing
+        const processedRow = {};
+        expectedColumns.forEach((col) => {
+          let value = row[col] || "";
 
-        numericFields.forEach((field) => {
-          if (row[field] && row[field].trim()) {
-            const numValue = parseFloat(row[field]);
-            if (isNaN(numValue)) {
-              rowErrors.push(
-                `${field} must be a valid number`
-              );
-            }
+          // Ensure date format is correct
+          if (col === "invoiceDate" && value) {
+            value = convertExcelDateToYYYYMMDD(value);
           }
+
+          // Clean transctypeId and hsCode for preview display
+          if (col === "transctypeId" && value) {
+            value = cleanTransctypeId(value);
+          }
+
+          if (col === "item_hsCode" && value) {
+            value = cleanHsCode(value);
+          }
+
+          processedRow[col] = value;
         });
-      }
+        return processedRow;
+      });
 
-      if (rowErrors.length > 0) {
-        validationErrors.push({
-          row: index + 2, // +2 because of 0-based index and header row
-          errors: rowErrors,
-        });
-      } else {
-        validData.push(row);
-      }
-    });
+    console.log(`Valid data rows after filtering: ${validData.length}`);
 
-    setErrors(validationErrors);
-    setPreviewData(validData); // Show all valid data
+    setErrors([]); // No validation errors
+    setPreviewData(validData); // Show all data as valid
 
-    // Check for existing invoices if we have valid data
+    // Check for existing invoices if we have data
     if (validData.length > 0 && selectedTenant) {
       await checkExistingInvoices(validData);
     }
@@ -439,9 +678,31 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
 
     setCheckingExisting(true);
     try {
+      // Clean the data before checking - extract only IDs for transctypeId and hsCode
+      const cleanedData = invoicesData.map((invoice) => {
+        const cleanedInvoice = { ...invoice };
+
+        // Clean transctypeId - extract only the ID part
+        if (cleanedInvoice.transctypeId) {
+          cleanedInvoice.transctypeId = cleanTransctypeId(
+            cleanedInvoice.transctypeId
+          );
+        }
+
+        // Clean item_hsCode - extract only the code part
+        if (cleanedInvoice.item_hsCode) {
+          cleanedInvoice.item_hsCode = cleanHsCode(cleanedInvoice.item_hsCode);
+        }
+
+        return cleanedInvoice;
+      });
+
+      // Limit the number of invoices sent for checking to avoid payload size issues
+      const limitedData = cleanedData.slice(0, 100); // Only check first 100 invoices
+
       const response = await api.post(
         `/tenant/${selectedTenant.tenant_id}/invoices/check-existing`,
-        { invoices: invoicesData }
+        { invoices: limitedData }
       );
 
       const { existing, new: newInvoicesData } = response.data.data;
@@ -455,24 +716,42 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       }
     } catch (error) {
       console.error("Error checking existing invoices:", error);
-      toast.error(
-        "Error checking existing invoices. Preview may not be accurate."
-      );
+      // Don't show error toast, just log it and continue
+      // This allows the upload to proceed even if checking fails
+      setExistingInvoices([]);
+      setNewInvoices([]);
     } finally {
       setCheckingExisting(false);
     }
   };
 
   const handleUpload = async () => {
-    if (!file || newInvoices.length === 0) {
-      toast.error("Please select a valid file with new invoices to upload");
+    if (!file || previewData.length === 0) {
+      toast.error("Please select a valid file with invoice data to upload");
       return;
     }
 
     setUploading(true);
     try {
-      // Only upload new invoices
-      const invoicesToUpload = newInvoices.map((item) => item.invoiceData);
+      // Clean the data before uploading - extract only IDs for transctypeId and hsCode
+      const invoicesToUpload = previewData.map((invoice) => {
+        const cleanedInvoice = { ...invoice };
+
+        // Clean transctypeId - extract only the ID part
+        if (cleanedInvoice.transctypeId) {
+          cleanedInvoice.transctypeId = cleanTransctypeId(
+            cleanedInvoice.transctypeId
+          );
+        }
+
+        // Clean item_hsCode - extract only the code part
+        if (cleanedInvoice.item_hsCode) {
+          cleanedInvoice.item_hsCode = cleanHsCode(cleanedInvoice.item_hsCode);
+        }
+
+        return cleanedInvoice;
+      });
+
       const result = await onUpload(invoicesToUpload);
 
       // Check if there were any errors in the upload
@@ -586,10 +865,10 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       <DialogContent>
         <Box sx={{ mb: 3 }}>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Upload a CSV file with invoice data. All invoices will be saved with
-            "draft" status. Invoice numbers will be generated automatically by
-            the system. Required columns: invoiceType, invoiceDate,
-            sellerBusinessName, sellerProvince, buyerBusinessName, buyerProvince
+            Upload a CSV or Excel file with invoice data. All invoices will be
+            saved with "draft" status. Invoice numbers will be generated
+            automatically by the system. All data from the file will be
+            accepted.
           </Typography>
 
           {/* Download Template Button */}
@@ -598,9 +877,12 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
               variant="outlined"
               startIcon={<Download />}
               onClick={downloadTemplate}
+              disabled={downloadButtonDisabled}
               size="small"
             >
-              Download CSV Template
+              {downloadButtonDisabled
+                ? "Downloading..."
+                : "Download Excel Template"}
             </Button>
           </Box>
 
@@ -657,25 +939,6 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
             )}
           </Paper>
         </Box>
-
-        {/* Validation Results */}
-        {errors.length > 0 && (
-          <Alert severity="warning" sx={{ mb: 2 }}>
-            <Typography variant="subtitle2" gutterBottom>
-              Found {errors.length} rows with validation errors:
-            </Typography>
-            {errors.slice(0, 3).map((error, index) => (
-              <Typography key={index} variant="body2">
-                Row {error.row}: {error.errors.join(", ")}
-              </Typography>
-            ))}
-            {errors.length > 3 && (
-              <Typography variant="body2">
-                ... and {errors.length - 3} more errors
-              </Typography>
-            )}
-          </Alert>
-        )}
 
         {/* Existing Invoices Alert */}
         {existingInvoices.length > 0 && (
@@ -790,7 +1053,11 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
                           </TableCell>
                           {expectedColumns.map((column) => (
                             <TableCell key={column}>
-                              {row[column] || "-"}
+                              {column === "transctypeId"
+                                ? cleanTransctypeId(row[column]) || "-"
+                                : column === "item_hsCode"
+                                  ? cleanHsCode(row[column]) || "-"
+                                  : row[column] || "-"}
                             </TableCell>
                           ))}
                         </TableRow>
@@ -829,7 +1096,7 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
                 <Box display="flex" alignItems="center" gap={2} mb={1}>
                   <CheckCircle color="success" />
                   <Typography variant="body2">
-                    {newInvoices.length} new invoices ready to upload as drafts
+                    {previewData.length} invoices ready to upload as drafts
                   </Typography>
                 </Box>
                 {existingInvoices.length > 0 && (
@@ -838,14 +1105,6 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
                     <Typography variant="body2" color="warning.main">
                       {existingInvoices.length} invoices will be skipped
                       (already exist)
-                    </Typography>
-                  </Box>
-                )}
-                {errors.length > 0 && (
-                  <Box display="flex" alignItems="center" gap={2}>
-                    <Error color="error" />
-                    <Typography variant="body2" color="error.main">
-                      {errors.length} rows skipped due to errors
                     </Typography>
                   </Box>
                 )}
@@ -868,7 +1127,7 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
           onClick={handleUpload}
           variant="contained"
           disabled={
-            !file || newInvoices.length === 0 || uploading || checkingExisting
+            !file || previewData.length === 0 || uploading || checkingExisting
           }
           startIcon={
             uploading ? <CircularProgress size={20} /> : <FileUpload />
@@ -876,7 +1135,7 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         >
           {uploading
             ? "Uploading..."
-            : `Upload ${newInvoices.length} New Invoices as Drafts`}
+            : `Upload ${previewData.length} Invoices as Drafts`}
         </Button>
       </DialogActions>
     </Dialog>
