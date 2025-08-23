@@ -28,21 +28,21 @@ const mysqlConnector = async (dbConfig, logger) => {
     logger.error(`❌ Error connecting to MySQL: ${error.message}`);
     process.exit(1);
   }
-};
+}
 
 // Initialize default admin user
 const initializeAdminUser = async () => {
   try {
     const adminExists = await AdminUser.findOne({
-      where: { email: 'tuliptowel@inpl.com' }
+      where: { email: 'pakleather@inpl.com' }
     });
 
     if (!adminExists) {
       const bcrypt = await import('bcryptjs');
-      const hashedPassword = await bcrypt.hash('r_tuliptowelpasJK76^h', 10);
+      const hashedPassword = await bcrypt.hash('r_pakleatherpasJK76^h', 10);
       
       await AdminUser.create({
-        email: 'tuliptowel@inpl.com',
+        email: 'pakleather@inpl.com',
         password: hashedPassword,
         is_verify: true,
         role: "admin",
@@ -68,5 +68,6 @@ const gracefulShutdown = async () => {
 // Handle process termination
 process.on("SIGINT", gracefulShutdown);
 process.on("SIGTERM", gracefulShutdown);
+
 
 export default mysqlConnector;
