@@ -1,6 +1,8 @@
 // AppRouter.js
 import React from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
+// Alternative import for production if server routing doesn't work:
+// import { HashRouter as BrowserRouter, Route, Routes } from "react-router-dom";
 import Sidebar from "../component/Sidebar";
 import Login from "../pages/login";
 import TenantLogin from "../pages/TenantLogin";
@@ -14,6 +16,7 @@ import YourInvoices from "../pages/YourInvoices";
 import EmailVerification from "../pages/EmailVerification";
 import OTP from "../pages/OTP";
 import ResetPassword from "../pages/ResetPassword";
+import ForgotPassword from "../pages/ForgotPassword";
 import RegisterUser from "../pages/RegisterUser";
 import { RegisteredUsers } from "../pages/RegisteredUsers";
 import Buyers from "../pages/Buyers";
@@ -40,6 +43,7 @@ const AppRouter = () => {
                 element={<EmailVerification />}
               />
               <Route path="/otp" element={<OTP />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route
                 path="/"

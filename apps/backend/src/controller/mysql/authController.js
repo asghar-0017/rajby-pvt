@@ -507,15 +507,6 @@ export const forgotPassword = async (req, res) => {
           )
         );
     }
-    const checkEmail = await AdminUser.findOne({
-      where: { email: email.toLowerCase().trim() },
-    });
-    if (!checkEmail) {
-      return res.status(200).json({
-        exists: false,
-        message: "This email is not registered. Please try again.",
-      });
-    }
 
     // Find user
     const user = await AdminUser.findOne({
@@ -549,8 +540,38 @@ export const forgotPassword = async (req, res) => {
     // Send email
     try {
       await sendResetEmail(email, code);
+      console.log(`Reset code sent successfully to: ${email}`);
     } catch (emailError) {
       console.error("Email sending failed:", emailError);
+      
+      // Check if it's an authentication error
+      if (emailError.code === 'EAUTH') {
+        return res
+          .status(500)
+          .json(
+            formatResponse(
+              false,
+              "Email service configuration error. Please contact support.",
+              null,
+              500
+            )
+          );
+      }
+      
+      // Check if it's a network/connection error
+      if (emailError.code === 'ECONNECTION' || emailError.code === 'ETIMEDOUT') {
+        return res
+          .status(500)
+          .json(
+            formatResponse(
+              false,
+              "Email service temporarily unavailable. Please try again later.",
+              null,
+              500
+            )
+          );
+      }
+      
       return res
         .status(500)
         .json(

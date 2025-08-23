@@ -7,12 +7,21 @@ dotenv.config();
  * Creates a nodemailer transporter for sending emails
  */
 const createTransporter = () => {
+  // Check if required environment variables are set
+  if (!process.env.EMAIL || !process.env.EMAIL_PASS) {
+    throw new Error('Email configuration missing: EMAIL and EMAIL_PASS environment variables are required');
+  }
+
   return nodemailer.createTransport({
     service: 'gmail',
     auth: {
       user: process.env.EMAIL,
       pass: process.env.EMAIL_PASS,
     },
+    // Add timeout and connection settings
+    connectionTimeout: 60000, // 60 seconds
+    greetingTimeout: 30000,   // 30 seconds
+    socketTimeout: 60000,     // 60 seconds
   });
 };
 
@@ -24,6 +33,13 @@ const createTransporter = () => {
  */
 const sendResetEmail = async (email, code) => {
   try {
+    console.log('Attempting to send reset email to:', email);
+    console.log('Email configuration check:', {
+      hasEmail: !!process.env.EMAIL,
+      hasPassword: !!process.env.EMAIL_PASS,
+      emailUser: process.env.EMAIL
+    });
+
     const transporter = createTransporter();
     
     const mailOptions = {
@@ -61,7 +77,20 @@ const sendResetEmail = async (email, code) => {
     return result;
   } catch (error) {
     console.error('Error sending password reset email:', error);
-    throw new Error('Failed to send password reset email');
+    
+    // Provide more specific error information
+    if (error.code === 'EAUTH') {
+      console.error('Authentication failed - check EMAIL and EMAIL_PASS environment variables');
+      throw new Error('Email authentication failed - configuration error');
+    } else if (error.code === 'ECONNECTION') {
+      console.error('Connection failed - check network and Gmail service availability');
+      throw new Error('Email connection failed - service unavailable');
+    } else if (error.code === 'ETIMEDOUT') {
+      console.error('Connection timeout - Gmail service may be slow');
+      throw new Error('Email service timeout - please try again');
+    } else {
+      throw new Error(`Failed to send password reset email: ${error.message}`);
+    }
   }
 };
 
