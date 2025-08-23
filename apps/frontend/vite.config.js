@@ -8,7 +8,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "https://central-timber.inplsoftwares.online",
+        target: "https://signs-now.inplsoftwares.online",
         changeOrigin: true,
         secure: false,
       },
