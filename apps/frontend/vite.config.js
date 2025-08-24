@@ -8,7 +8,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "https://einv-aaafm.inplsolftwares.online",
+        target: "https://einv-aaafm.inplsoftwares.online",
         changeOrigin: true,
         secure: false,
       },
