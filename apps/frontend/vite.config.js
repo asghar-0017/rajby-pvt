@@ -8,7 +8,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "https://premierpipe.inplsoftwares.online",
+        target: "https://aqmsburhani.inplsoftwares.online",
         changeOrigin: true,
         secure: false,
       },
