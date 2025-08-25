@@ -52981,6 +52981,7 @@ function Fye() {
             furtherTax: "0",
             fedPayable: "0",
             discount: "0",
+            advanceIncomeTax: "0",
             saleType: ce,
             isSROScheduleEnabled: !1,
             isSROItemEnabled: !1,
@@ -53106,22 +53107,30 @@ function Fye() {
                       productDescription: "",
                       rate: "",
                       uoM: "",
-                      quantity: 1,
-                      totalValues: 0,
-                      valueSalesExcludingST: 0,
-                      fixedNotifiedValueOrRetailPrice: 1,
-                      salesTaxApplicable: 0,
-                      salesTaxWithheldAtSource: 0,
+                      quantity: "1",
+                      unitPrice: "0.00",
+                      retailPrice: "0",
+                      totalValues: "0",
+                      valueSalesExcludingST: "0",
+                      salesTaxApplicable: "0",
+                      salesTaxWithheldAtSource: "0",
                       sroScheduleNo: "",
                       sroItemSerialNo: "",
+                      billOfLadingUoM: "",
                       extraTax: "",
-                      furtherTax: 0,
-                      fedPayable: 0,
-                      discount: 0,
+                      furtherTax: "0",
+                      fedPayable: "0",
+                      discount: "0",
+                      advanceIncomeTax: "0",
                       saleType: Be,
                       isSROScheduleEnabled: !1,
                       isSROItemEnabled: !1,
                       isValueSalesManual: !1,
+                      isTotalValuesManual: !1,
+                      isSalesTaxManual: !1,
+                      isSalesTaxWithheldManual: !1,
+                      isFurtherTaxManual: !1,
+                      isFedPayableManual: !1,
                     },
                   ];
           return { ...xe, transctypeId: ie, items: ct };
@@ -53874,6 +53883,7 @@ ${ve.join(`
               furtherTax: "0",
               fedPayable: "0",
               discount: "0",
+              advanceIncomeTax: "0",
               isValueSalesManual: !1,
               isTotalValuesManual: !1,
               isSalesTaxManual: !1,
@@ -83941,27 +83951,29 @@ ${ge}`));
                       " invoices already exist and will be skipped:",
                     ],
                   }),
-                  v.slice(0, 3).map((W, Y) =>
-                    w.jsxs(
-                      Le,
-                      {
-                        variant: "body2",
-                        children: [
-                          "Row ",
-                          W.row,
-                          ": ",
-                          W.invoiceData.invoice_number,
-                          " -",
-                          " ",
-                          W.invoiceData.sellerBusinessName,
-                          "(Already exists as: ",
-                          W.existingInvoice.sellerBusinessName,
-                          ")",
-                        ],
-                      },
-                      Y
-                    )
-                  ),
+                  v
+                    .slice(0, 3)
+                    .map((W, Y) =>
+                      w.jsxs(
+                        Le,
+                        {
+                          variant: "body2",
+                          children: [
+                            "Row ",
+                            W.row,
+                            ": ",
+                            W.invoiceData.invoice_number,
+                            " -",
+                            " ",
+                            W.invoiceData.sellerBusinessName,
+                            "(Already exists as: ",
+                            W.existingInvoice.sellerBusinessName,
+                            ")",
+                          ],
+                        },
+                        Y
+                      )
+                    ),
                   v.length > 3 &&
                     w.jsxs(Le, {
                       variant: "body2",
@@ -91303,18 +91315,22 @@ var WDe = (e, t, r, n, a) => {
           offset: y,
         }))
       : o.ticks && f != null
-        ? o.ticks(f).map((S, E) => ({
-            coordinate: o(S) + y,
-            value: S,
-            offset: y,
-            index: E,
-          }))
-        : o.domain().map((S, E) => ({
-            coordinate: o(S) + y,
-            value: n ? n[S] : S,
-            index: E,
-            offset: y,
-          }));
+        ? o
+            .ticks(f)
+            .map((S, E) => ({
+              coordinate: o(S) + y,
+              value: S,
+              offset: y,
+              index: E,
+            }))
+        : o
+            .domain()
+            .map((S, E) => ({
+              coordinate: o(S) + y,
+              value: n ? n[S] : S,
+              index: E,
+              offset: y,
+            }));
   },
   ij = 1e-4,
   YDe = (e) => {
@@ -99643,12 +99659,14 @@ var Rw = (e, t) => t,
           ? n
               .ticks(m)
               .map((S) => ({ coordinate: n(S) + v, value: S, offset: v }))
-          : n.domain().map((S, E) => ({
-              coordinate: n(S) + v,
-              value: o ? o[S] : S,
-              index: E,
-              offset: v,
-            }));
+          : n
+              .domain()
+              .map((S, E) => ({
+                coordinate: n(S) + v,
+                value: o ? o[S] : S,
+                index: E,
+                offset: v,
+              }));
     }
   },
   qq = Ge([Yr, Gg, Xg, xh, g4, Zg, v4, y4, oa], NNe),
@@ -99670,12 +99688,14 @@ var Rw = (e, t) => t,
             ? r
                 .ticks(c)
                 .map((f) => ({ coordinate: r(f) + u, value: f, offset: u }))
-            : r.domain().map((f, h) => ({
-                coordinate: r(f) + u,
-                value: a ? a[f] : f,
-                index: h,
-                offset: u,
-              }))
+            : r
+                .domain()
+                .map((f, h) => ({
+                  coordinate: r(f) + u,
+                  value: a ? a[f] : f,
+                  index: h,
+                  offset: u,
+                }))
       );
     }
   },
@@ -100136,12 +100156,14 @@ var aY = (e, t, r, n, a, i, o) => {
                 index: g,
                 offset: h,
               }))
-            : n.domain().map((m, g) => ({
-                coordinate: n(m) + h,
-                value: i ? i[m] : m,
-                index: g,
-                offset: h,
-              }))
+            : n
+                .domain()
+                .map((m, g) => ({
+                  coordinate: n(m) + h,
+                  value: i ? i[m] : m,
+                  index: g,
+                  offset: h,
+                }))
         );
       }
     }
@@ -111761,16 +111783,18 @@ ${W}`));
                       " rows with validation errors:",
                     ],
                   }),
-                  f.slice(0, 3).map((B, L) =>
-                    w.jsxs(
-                      Le,
-                      {
-                        variant: "body2",
-                        children: ["Row ", B.row, ": ", B.errors.join(", ")],
-                      },
-                      L
-                    )
-                  ),
+                  f
+                    .slice(0, 3)
+                    .map((B, L) =>
+                      w.jsxs(
+                        Le,
+                        {
+                          variant: "body2",
+                          children: ["Row ", B.row, ": ", B.errors.join(", ")],
+                        },
+                        L
+                      )
+                    ),
                   f.length > 3 &&
                     w.jsxs(Le, {
                       variant: "body2",
@@ -111791,27 +111815,29 @@ ${W}`));
                       " buyers already exist and will be skipped:",
                     ],
                   }),
-                  v.slice(0, 3).map((B, L) =>
-                    w.jsxs(
-                      Le,
-                      {
-                        variant: "body2",
-                        children: [
-                          "Row ",
-                          B.row,
-                          ": ",
-                          B.buyerData.buyerNTNCNIC,
-                          " -",
-                          " ",
-                          B.buyerData.buyerBusinessName,
-                          "(Already exists as: ",
-                          B.existingBuyer.buyerBusinessName,
-                          ")",
-                        ],
-                      },
-                      L
-                    )
-                  ),
+                  v
+                    .slice(0, 3)
+                    .map((B, L) =>
+                      w.jsxs(
+                        Le,
+                        {
+                          variant: "body2",
+                          children: [
+                            "Row ",
+                            B.row,
+                            ": ",
+                            B.buyerData.buyerNTNCNIC,
+                            " -",
+                            " ",
+                            B.buyerData.buyerBusinessName,
+                            "(Already exists as: ",
+                            B.existingBuyer.buyerBusinessName,
+                            ")",
+                          ],
+                        },
+                        L
+                      )
+                    ),
                   v.length > 3 &&
                     w.jsxs(Le, {
                       variant: "body2",
