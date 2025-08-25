@@ -44,7 +44,9 @@ app.use(
         connectSrc: [
           "'self'",
           "https://gw.fbr.gov.pk",
-          "https://aferoz.inplsoftwares.online",
+          "https://pakistan-gum.inplsoftwares.online",
+          // Frontend will only call our backend; keeping external here is optional
+          // "https://buyercheckapi.inplsoftwares.online",
         ],
         scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
@@ -58,8 +60,8 @@ app.use(
   cors({
     origin: [
       "http://localhost:5174",
-      "https://aferoz.inplsoftwares.online",
-      "https://aferoz.inplsoftwares.online",
+      "https://pakistan-gum.inplsoftwares.online",
+      "https://pakistan-gum.inplsoftwares.online",
       "https://fbrtestcase.inplsoftwares.online",
       "*",
     ],
@@ -87,6 +89,36 @@ app.use("/api", hsCodeRoutes);
 
 // Public Invoice Routes
 app.use("/api", publicInvoiceRoutes);
+
+// Lightweight proxy to bypass browser CORS for buyer registration check
+app.post("/api/buyer-check", async (req, res) => {
+  try {
+    const { registrationNo } = req.body || {};
+    if (!registrationNo) {
+      return res.status(400).json({ error: "registrationNo is required" });
+    }
+
+    const axios = (await import("axios")).default;
+    const upstream = await axios.post(
+      "https://buyercheckapi.inplsoftwares.online/checkbuyer.php",
+      {
+        token: "89983e4a-c009-3f9b-bcd6-a605c3086709",
+        registrationNo,
+      },
+      {
+        headers: { "Content-Type": "application/json" },
+        timeout: 10000,
+      }
+    );
+
+    return res.status(200).json(upstream.data);
+  } catch (err) {
+    const status = err?.response?.status || 500;
+    const data = err?.response?.data || { error: "Upstream request failed" };
+    console.error("/api/buyer-check proxy error:", status, data);
+    return res.status(status).json({ error: data?.error || "Proxy error" });
+  }
+});
 
 // Catch-all route for SPA - must be last
 app.get("*", (req, res) => {

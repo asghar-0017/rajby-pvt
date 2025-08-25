@@ -40,6 +40,11 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
   const [showError, setShowError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [maxRetries] = useState(3);
+  const [checkingBuyerRegistration, setCheckingBuyerRegistration] =
+    useState(false);
+  const [buyerRegistrationHint, setBuyerRegistrationHint] = useState("");
+  const [ntnDebounceTimer, setNtnDebounceTimer] = useState(null);
+  const [registrationTypeLocked, setRegistrationTypeLocked] = useState(false);
 
   // Reset form data when modal opens
   useEffect(() => {
@@ -59,6 +64,7 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
           buyerAddress: buyer.buyerAddress || "",
           buyerRegistrationType: buyer.buyerRegistrationType || "",
         });
+        setRegistrationTypeLocked(false);
       } else {
         // If adding a new buyer, reset the form to empty
         setFormData({
@@ -68,6 +74,7 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
           buyerAddress: "",
           buyerRegistrationType: "",
         });
+        setRegistrationTypeLocked(false);
       }
     }
   }, [isOpen, buyer]);
@@ -199,6 +206,93 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
 
     setIsSubmitting(false);
   };
+
+  const checkBuyerRegistration = async (registrationNo) => {
+    console.log("checkBuyerRegistration() -> registrationNo:", registrationNo);
+    if (!registrationNo) return;
+    try {
+      setCheckingBuyerRegistration(true);
+      setBuyerRegistrationHint("");
+
+      const response = await fetch(
+        "https://pakistan-gum.inplsoftwares.online/api/buyer-check",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ registrationNo }),
+        }
+      );
+
+      console.log(
+        "FBR buyer check response status:",
+        response.status,
+        "ok:",
+        response.ok
+      );
+
+      const data = await response.json().catch(() => ({}));
+
+      console.log("FBR buyer check parsed data:", data);
+
+      let derivedRegistrationType = "";
+      if (data && typeof data.REGISTRATION_TYPE === "string") {
+        derivedRegistrationType =
+          data.REGISTRATION_TYPE.toLowerCase() === "registered"
+            ? "Registered"
+            : "Unregistered";
+      } else {
+        let isRegistered = false;
+        if (typeof data === "boolean") {
+          isRegistered = data;
+        } else if (data) {
+          isRegistered =
+            data.isRegistered === true ||
+            data.registered === true ||
+            (typeof data.status === "string" &&
+              data.status.toLowerCase() === "registered") ||
+            (typeof data.registrationType === "string" &&
+              data.registrationType.toLowerCase() === "registered");
+        }
+        derivedRegistrationType = isRegistered ? "Registered" : "Unregistered";
+      }
+
+      setFormData((prev) => ({
+        ...prev,
+        buyerRegistrationType: derivedRegistrationType,
+      }));
+
+      setBuyerRegistrationHint(
+        derivedRegistrationType === "Registered"
+          ? "Auto-filled as Registered from FBR"
+          : "Auto-filled as Unregistered from FBR"
+      );
+      setRegistrationTypeLocked(true);
+    } catch (err) {
+      console.error("Buyer registration check failed:", err);
+      setBuyerRegistrationHint(
+        "Could not verify from FBR. You can choose manually."
+      );
+      setRegistrationTypeLocked(false);
+    } finally {
+      setCheckingBuyerRegistration(false);
+    }
+  };
+
+  // Debounce API call when NTN/CNIC changes so user doesn't have to blur
+  useEffect(() => {
+    if (!isOpen) return;
+    const value = (formData.buyerNTNCNIC || "").trim();
+    if (ntnDebounceTimer) clearTimeout(ntnDebounceTimer);
+    if (!value) return;
+    const id = setTimeout(() => {
+      console.log("Debounce fire -> checking buyer with:", value);
+      checkBuyerRegistration(value);
+    }, 700);
+    setNtnDebounceTimer(id);
+    return () => clearTimeout(id);
+  }, [formData.buyerNTNCNIC, isOpen]);
 
   if (!isOpen) return null;
 
@@ -345,14 +439,26 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
           </Typography>
 
           {/* Form container */}
-          <Box component="form" onSubmit={handleSave} sx={{ width: "100%" }}>
+          <Box
+            component="form"
+            noValidate
+            onSubmit={handleSave}
+            sx={{ width: "100%" }}
+          >
             <Stack spacing={{ xs: 1, sm: 1.5 }}>
               {/* Modern text fields with frosted styling */}
               <TextField
                 label="NTN/CNIC"
                 name="buyerNTNCNIC"
                 value={formData.buyerNTNCNIC}
-                onChange={handleChange}
+                onChange={(e) => {
+                  console.log("NTN/CNIC onChange:", e.target.value);
+                  handleChange(e);
+                }}
+                onBlur={(e) => {
+                  console.log("NTN/CNIC onBlur ->", e.target.value);
+                  checkBuyerRegistration(e.target.value?.trim());
+                }}
                 fullWidth
                 required
                 variant="outlined"
@@ -384,6 +490,11 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
                     fontWeight: 400,
                   },
                 }}
+                helperText={
+                  checkingBuyerRegistration
+                    ? "Checking registration from FBR..."
+                    : buyerRegistrationHint || " "
+                }
               />
 
               <TextField
@@ -617,6 +728,7 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
                   value={formData.buyerRegistrationType}
                   label="Registration Type"
                   onChange={handleChange}
+                  disabled={checkingBuyerRegistration || registrationTypeLocked}
                   MenuProps={{
                     PaperProps: {
                       sx: {

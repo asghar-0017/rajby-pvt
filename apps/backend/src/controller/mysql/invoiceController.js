@@ -108,7 +108,7 @@ const generateShortInvoiceId = async (Invoice, prefix) => {
 
 export const createInvoice = async (req, res) => {
   try {
-    const { Invoice, InvoiceItem } = req.tenantModels;
+    const { Invoice, InvoiceItem, Buyer } = req.tenantModels;
 
     const {
       invoice_number,
@@ -188,6 +188,100 @@ export const createInvoice = async (req, res) => {
 
         message: "Invoice with this number already exists",
       });
+    }
+
+    // Auto-create/validate buyer before creating invoice
+    try {
+      if (buyerNTNCNIC && String(buyerNTNCNIC).trim()) {
+        const existingBuyer = await Buyer.findOne({
+          where: { buyerNTNCNIC: String(buyerNTNCNIC).trim() },
+        });
+        if (existingBuyer) {
+          if (
+            buyerBusinessName &&
+            String(buyerBusinessName).trim() &&
+            String(existingBuyer.buyerBusinessName || "")
+              .trim()
+              .toLowerCase() !== String(buyerBusinessName).trim().toLowerCase()
+          ) {
+            return res.status(409).json({
+              success: false,
+              message: "This Buyer already exists",
+            });
+          }
+        } else {
+          await Buyer.create({
+            buyerNTNCNIC: String(buyerNTNCNIC).trim(),
+            buyerBusinessName: buyerBusinessName || null,
+            buyerProvince: buyerProvince || "",
+            buyerAddress: buyerAddress || null,
+            buyerRegistrationType: buyerRegistrationType || "Unregistered",
+          });
+        }
+      }
+    } catch (e) {
+      console.error("Buyer check/create error:", e);
+      return res.status(500).json({
+        success: false,
+        message: "Error validating/creating buyer",
+        error: e.message,
+      });
+    }
+
+    // Server-side FBR registration mismatch check
+    try {
+      if (
+        buyerNTNCNIC &&
+        String(buyerNTNCNIC).trim() &&
+        buyerRegistrationType &&
+        String(buyerRegistrationType).trim()
+      ) {
+        const selectedType = String(buyerRegistrationType).trim().toLowerCase();
+        if (selectedType === "unregistered") {
+          const axios = (await import("axios")).default;
+          const upstream = await axios.post(
+            "https://buyercheckapi.inplsoftwares.online/checkbuyer.php",
+            {
+              token: "89983e4a-c009-3f9b-bcd6-a605c3086709",
+              registrationNo: String(buyerNTNCNIC).trim(),
+            },
+            { headers: { "Content-Type": "application/json" }, timeout: 10000 }
+          );
+          const data = upstream.data;
+          let derived = "Unregistered";
+          if (data && typeof data.REGISTRATION_TYPE === "string") {
+            derived =
+              data.REGISTRATION_TYPE.toLowerCase() === "registered"
+                ? "Registered"
+                : "Unregistered";
+          } else {
+            let isRegistered = false;
+            if (typeof data === "boolean") {
+              isRegistered = data === true;
+            } else if (data) {
+              isRegistered =
+                data.isRegistered === true ||
+                data.registered === true ||
+                (typeof data.status === "string" &&
+                  data.status.toLowerCase() === "registered") ||
+                (typeof data.registrationType === "string" &&
+                  data.registrationType.toLowerCase() === "registered");
+            }
+            derived = isRegistered ? "Registered" : "Unregistered";
+          }
+          if (derived === "Registered") {
+            return res.status(400).json({
+              success: false,
+              message:
+                "Buyer Registration Type is not correct (FBR: Registered)",
+            });
+          }
+        }
+      }
+    } catch (fbrErr) {
+      console.error("FBR registration check failed:", fbrErr);
+      // If the upstream fails, proceed rather than hard-blocking; comment next line to block on failure
+      // return res.status(502).json({ success: false, message: "FBR registration check failed", error: fbrErr.message });
     }
 
     // Create invoice with transaction
@@ -2338,7 +2432,7 @@ export const submitSavedInvoice = async (req, res) => {
 
 export const bulkCreateInvoices = async (req, res) => {
   try {
-    const { Invoice, InvoiceItem } = req.tenantModels;
+    const { Invoice, InvoiceItem, Buyer } = req.tenantModels;
 
     const { invoices } = req.body;
 
@@ -2463,6 +2557,60 @@ export const bulkCreateInvoices = async (req, res) => {
 
       try {
         const invoiceData = group.header;
+
+        // Auto-fill seller fields from selected tenant if missing in upload
+        try {
+          const tenantInfo = req.tenant;
+          if (tenantInfo) {
+            if (
+              !invoiceData.sellerBusinessName ||
+              !String(invoiceData.sellerBusinessName).trim()
+            ) {
+              invoiceData.sellerBusinessName =
+                tenantInfo.seller_business_name ||
+                tenantInfo.sellerBusinessName ||
+                invoiceData.sellerBusinessName;
+            }
+            if (
+              !invoiceData.sellerProvince ||
+              !String(invoiceData.sellerProvince).trim()
+            ) {
+              invoiceData.sellerProvince =
+                tenantInfo.seller_province ||
+                tenantInfo.sellerProvince ||
+                invoiceData.sellerProvince;
+            }
+            if (
+              !invoiceData.sellerAddress ||
+              !String(invoiceData.sellerAddress).trim()
+            ) {
+              invoiceData.sellerAddress =
+                tenantInfo.seller_address ||
+                tenantInfo.sellerAddress ||
+                invoiceData.sellerAddress;
+            }
+            if (
+              !invoiceData.sellerNTNCNIC ||
+              !String(invoiceData.sellerNTNCNIC).trim()
+            ) {
+              invoiceData.sellerNTNCNIC =
+                tenantInfo.seller_ntn_cnic ||
+                tenantInfo.sellerNTNCNIC ||
+                invoiceData.sellerNTNCNIC;
+            }
+            if (
+              !invoiceData.sellerFullNTN ||
+              !String(invoiceData.sellerFullNTN).trim()
+            ) {
+              invoiceData.sellerFullNTN =
+                tenantInfo.seller_full_ntn ||
+                tenantInfo.sellerFullNTN ||
+                invoiceData.sellerFullNTN;
+            }
+          }
+        } catch (e) {
+          // Non-fatal; proceed with whatever data we have
+        }
 
         console.log(`Processing invoice row ${rowKey}:`, {
           invoiceType: invoiceData.invoiceType,
@@ -2690,6 +2838,122 @@ export const bulkCreateInvoices = async (req, res) => {
 
             continue;
           }
+        }
+
+        // Ensure buyer exists or create automatically; validate NTN/business name conflict
+        try {
+          if (
+            invoiceData.buyerNTNCNIC &&
+            String(invoiceData.buyerNTNCNIC).trim()
+          ) {
+            const ntnTrimmed = String(invoiceData.buyerNTNCNIC).trim();
+            const existingBuyer = await Buyer.findOne({
+              where: { buyerNTNCNIC: ntnTrimmed },
+            });
+            if (existingBuyer) {
+              const providedName = String(
+                invoiceData.buyerBusinessName || ""
+              ).trim();
+              const existingName = String(
+                existingBuyer.buyerBusinessName || ""
+              ).trim();
+              if (
+                providedName &&
+                existingName &&
+                existingName.toLowerCase() !== providedName.toLowerCase()
+              ) {
+                group.rowNumbers.forEach((rowNum) => {
+                  results.errors.push({
+                    index: group.rowNumbers.indexOf(rowNum),
+                    row: rowNum,
+                    error: "This Buyer already exists",
+                  });
+                });
+                continue;
+              }
+            } else {
+              await Buyer.create({
+                buyerNTNCNIC: ntnTrimmed,
+                buyerBusinessName: invoiceData.buyerBusinessName || null,
+                buyerProvince: invoiceData.buyerProvince || "",
+                buyerAddress: invoiceData.buyerAddress || null,
+                buyerRegistrationType:
+                  invoiceData.buyerRegistrationType || "Unregistered",
+              });
+            }
+          }
+        } catch (buyerErr) {
+          group.rowNumbers.forEach((rowNum) => {
+            results.errors.push({
+              index: group.rowNumbers.indexOf(rowNum),
+              row: rowNum,
+              error: `Buyer validation/creation error: ${buyerErr.message}`,
+            });
+          });
+          continue;
+        }
+
+        // Server-side FBR registration mismatch check for bulk
+        try {
+          if (
+            invoiceData.buyerNTNCNIC &&
+            String(invoiceData.buyerNTNCNIC).trim() &&
+            invoiceData.buyerRegistrationType &&
+            String(invoiceData.buyerRegistrationType).trim()
+          ) {
+            const selectedType = String(invoiceData.buyerRegistrationType)
+              .trim()
+              .toLowerCase();
+            if (selectedType === "unregistered") {
+              const axios = (await import("axios")).default;
+              const upstream = await axios.post(
+                "https://buyercheckapi.inplsoftwares.online/checkbuyer.php",
+                {
+                  token: "89983e4a-c009-3f9b-bcd6-a605c3086709",
+                  registrationNo: String(invoiceData.buyerNTNCNIC).trim(),
+                },
+                {
+                  headers: { "Content-Type": "application/json" },
+                  timeout: 10000,
+                }
+              );
+              const data = upstream.data;
+              let derived = "Unregistered";
+              if (data && typeof data.REGISTRATION_TYPE === "string") {
+                derived =
+                  data.REGISTRATION_TYPE.toLowerCase() === "registered"
+                    ? "Registered"
+                    : "Unregistered";
+              } else {
+                let isRegistered = false;
+                if (typeof data === "boolean") {
+                  isRegistered = data === true;
+                } else if (data) {
+                  isRegistered =
+                    data.isRegistered === true ||
+                    data.registered === true ||
+                    (typeof data.status === "string" &&
+                      data.status.toLowerCase() === "registered") ||
+                    (typeof data.registrationType === "string" &&
+                      data.registrationType.toLowerCase() === "registered");
+                }
+                derived = isRegistered ? "Registered" : "Unregistered";
+              }
+              if (derived === "Registered") {
+                group.rowNumbers.forEach((rowNum) => {
+                  results.errors.push({
+                    index: group.rowNumbers.indexOf(rowNum),
+                    row: rowNum,
+                    error:
+                      "Buyer Registration Type is not correct (FBR: Registered)",
+                  });
+                });
+                continue;
+              }
+            }
+          }
+        } catch (fbrErr) {
+          // Non-blocking on upstream failure; skip blocking if proxy fails
         }
 
         // Generate a temporary invoice number for draft (will be replaced when posted to FBR)
@@ -4093,121 +4357,41 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
       }
     }
 
-    // Fetch SRO items per SRO schedule id
+    // Build SRO Item lists per SRO Id (for Excel dropdowns)
 
     const sroItemsBySroId = {};
 
-    if (token) {
-      for (const [rateId, sroMap] of Object.entries(sroByRateId)) {
-        for (const sroId of new Set(Array.from(sroMap.values()))) {
-          try {
-            const sroItemsRaw = await fetchData(
-              `pdi/v2/SROItem?date=2025-03-25&sro_id=${encodeURIComponent(
-                sroId
-              )}`,
+    if (token && sroByRateId && Object.keys(sroByRateId).length > 0) {
+      // Collect unique SRO Ids across all rates
+      const uniqueSroIds = new Set();
 
-              "sandbox",
+      for (const sroMap of Object.values(sroByRateId)) {
+        for (const id of sroMap.values()) uniqueSroIds.add(id);
+      }
 
-              token
-            );
+      for (const sroId of uniqueSroIds) {
+        try {
+          const sroItemsRaw = await fetchData(
+            `pdi/v2/SROItem?date=2025-03-25&sro_id=${encodeURIComponent(
+              sroId
+            )}`,
+            "sandbox",
+            token
+          );
 
-            const items = (Array.isArray(sroItemsRaw) ? sroItemsRaw : [])
+          const items = (Array.isArray(sroItemsRaw) ? sroItemsRaw : [])
+            .map((it) => {
+              const desc =
+                it.srO_ITEM_DESC || it.SRO_ITEM_DESC || it.desc || null;
+              return desc ? String(desc).trim() : null;
+            })
+            .filter(Boolean);
 
-              .map((it) => {
-                const itemDesc =
-                  it.srO_ITEM_DESC || it.SRO_ITEM_DESC || it.desc || null;
-
-                const itemId =
-                  it.srO_ITEM_ID || it.SRO_ITEM_ID || it.id || null;
-
-                return itemDesc && itemId
-                  ? { id: String(itemId), desc: String(itemDesc).trim() }
-                  : null;
-              })
-
-              .filter(Boolean);
-
-            sroItemsBySroId[sroId] = new Map(items.map((x) => [x.desc, x.id]));
-          } catch (e) {
-            // skip
-          }
+          sroItemsBySroId[sroId] = items;
+        } catch (e) {
+          sroItemsBySroId[sroId] = [];
         }
       }
-    }
-
-    // Add fallback SRO items when no token or no items found
-    if (!token || Object.keys(sroItemsBySroId).length === 0) {
-      console.log(
-        "No token or SRO items available - using enhanced fallback data"
-      );
-
-      // Provide comprehensive fallback SRO items for common scenarios
-      const fallbackSroItems = {
-        // Common SRO IDs that might be used
-        SRO001: new Map([
-          ["General Goods - Standard Rate", "ITEM001"],
-          ["General Goods - Reduced Rate", "ITEM002"],
-          ["General Goods - Zero Rate", "ITEM003"],
-          ["Services - Standard Rate", "ITEM004"],
-          ["Services - Reduced Rate", "ITEM005"],
-        ]),
-        SRO002: new Map([
-          ["Manufacturing - Standard Rate", "ITEM006"],
-          ["Manufacturing - Reduced Rate", "ITEM007"],
-          ["Manufacturing - Zero Rate", "ITEM008"],
-          ["Export Goods", "ITEM009"],
-          ["Import Goods", "ITEM010"],
-        ]),
-        SRO003: new Map([
-          ["Retail - Standard Rate", "ITEM011"],
-          ["Retail - Reduced Rate", "ITEM012"],
-          ["Wholesale - Standard Rate", "ITEM013"],
-          ["Wholesale - Reduced Rate", "ITEM014"],
-        ]),
-        SRO004: new Map([
-          ["Digital Services", "ITEM015"],
-          ["Professional Services", "ITEM016"],
-          ["Consulting Services", "ITEM017"],
-        ]),
-        SRO005: new Map([
-          ["Agricultural Products", "ITEM018"],
-          ["Livestock", "ITEM019"],
-          ["Fertilizers", "ITEM020"],
-        ]),
-        // Add more fallback SROs for better coverage
-        SRO006: new Map([
-          ["Textile Products", "ITEM021"],
-          ["Garments", "ITEM022"],
-          ["Leather Goods", "ITEM023"],
-        ]),
-        SRO007: new Map([
-          ["Electronics", "ITEM024"],
-          ["Computers", "ITEM025"],
-          ["Mobile Phones", "ITEM026"],
-        ]),
-        SRO008: new Map([
-          ["Automotive Parts", "ITEM027"],
-          ["Vehicles", "ITEM028"],
-          ["Motorcycles", "ITEM029"],
-        ]),
-        SRO009: new Map([
-          ["Construction Materials", "ITEM030"],
-          ["Cement", "ITEM031"],
-          ["Steel", "ITEM032"],
-        ]),
-        SRO010: new Map([
-          ["Pharmaceuticals", "ITEM033"],
-          ["Medical Equipment", "ITEM034"],
-          ["Healthcare Services", "ITEM035"],
-        ]),
-      };
-
-      // Merge with any existing data
-      Object.assign(sroItemsBySroId, fallbackSroItems);
-
-      console.log(
-        `Added ${Object.keys(fallbackSroItems).length} fallback SRO items`
-      );
     }
 
     // Fetch UoM data for HS Codes
@@ -4428,13 +4612,7 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
 
       "invoiceDate",
 
-      "sellerNTNCNIC",
-
-      "sellerBusinessName",
-
-      "sellerProvince",
-
-      "sellerAddress",
+      // Seller columns removed per requirement
 
       "buyerNTNCNIC",
 
@@ -4492,6 +4670,18 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
     template.addRow(columns);
 
     template.getRow(1).font = { bold: true };
+
+    // Ensure Buyer NTN is treated as text (avoid scientific notation like 7.41E+12)
+    const buyerNtnColIndex = columns.indexOf("buyerNTNCNIC") + 1; // 1-based
+    if (buyerNtnColIndex > 0) {
+      const buyerNtnColumn = template.getColumn(buyerNtnColIndex);
+      buyerNtnColumn.numFmt = "@"; // Text format
+      buyerNtnColumn.alignment = { horizontal: "left" };
+      // Give enough width so full digits are visible
+      if (!buyerNtnColumn.width || buyerNtnColumn.width < 18) {
+        buyerNtnColumn.width = 20;
+      }
+    }
 
     // Lists sheet content removed - no longer generating dropdown data in Excel template
 
@@ -4561,23 +4751,27 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
 
     const sroResolvedCountCol = sroStartIndexCol + 1; // per-row resolved count of SRO options
 
-    // SRO Item hidden areas
+    // Additional hidden columns for SRO Items (appended after SRO schedule areas)
 
-    const extractedSroIdCol = sroResolvedCountCol + 1; // per-row extracted SRO id from selected schedule desc
+    const selectedSroIndexCol = sroResolvedCountCol + 1; // index of selected SRO within row outputs
 
-    const sroItemLabelCol = extractedSroIdCol + 1; // hidden projected SRO Item labels per SRO id
+    const extractedSroIdCol2 = selectedSroIndexCol + 1; // selected SRO Id per-row
 
-    const sroItemDescCol = sroItemLabelCol + 1; // hidden SRO Item descriptions
+    const sroItemLabelCol = extractedSroIdCol2 + 1; // hidden projected SRO Item labels per SRO Id
 
-    const sroItemCountCol = sroItemDescCol + 1; // hidden counts per SRO id
+    const sroItemCountCol = sroItemLabelCol + 1; // hidden projected SRO Item counts
 
-    const sroItemOutputStartCol = sroItemCountCol + 1; // per-row horizontal output area for SRO items
+    const sroItemOutputStartCol = sroItemCountCol + 1; // per-row horizontal output area for SRO Items
 
     const maxSroItemsPerSro = 60;
 
+    const sroItemStartIndexCol = sroItemOutputStartCol + maxSroItemsPerSro; // per-row start index for SRO Item block
+
+    const sroItemResolvedCountCol = sroItemStartIndexCol + 1; // per-row resolved count of SRO Item options
+
     // Helper columns for automatic calculations
 
-    const subtotalCol = sroItemOutputStartCol + maxSroItemsPerSro; // subtotal before discount
+    const subtotalCol = sroItemResolvedCountCol + 1; // subtotal before discount
 
     const discountAmountCol = subtotalCol + 1; // calculated discount amount
 
@@ -4773,15 +4967,23 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
 
     template.getColumn(sroResolvedCountCol).hidden = true;
 
-    template.getColumn(sroItemLabelCol).hidden = true;
+    // Hide SRO Item columns
 
-    template.getColumn(sroItemDescCol).hidden = true;
+    template.getColumn(selectedSroIndexCol).hidden = true;
+
+    template.getColumn(extractedSroIdCol2).hidden = true;
+
+    template.getColumn(sroItemLabelCol).hidden = true;
 
     template.getColumn(sroItemCountCol).hidden = true;
 
     for (let c = 0; c < maxSroItemsPerSro; c++) {
       template.getColumn(sroItemOutputStartCol + c).hidden = true;
     }
+
+    template.getColumn(sroItemStartIndexCol).hidden = true;
+
+    template.getColumn(sroItemResolvedCountCol).hidden = true;
 
     // Hide helper calculation columns
 
@@ -4915,83 +5117,38 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
 
     const sroLabelsEndRow = templateSroRow - 1;
 
-    // Project SRO item blocks onto the Template sheet (store sroId labels)
-    console.log(
-      `Starting SRO item population with ${Object.keys(sroItemsBySroId).length} SRO IDs`
-    );
+    // Project SRO Item blocks onto the Template sheet (store SRO Id labels)
 
     let templateSroItemRow = labelsStartRow;
 
-    for (const [sroId, itemsMap] of Object.entries(sroItemsBySroId)) {
-      const itemEntries = Array.from(itemsMap.entries()); // [desc, id]
-      console.log(
-        `Processing SRO ID ${sroId} with ${itemEntries.length} items`
-      );
+    for (const [sroId, itemDescs] of Object.entries(sroItemsBySroId)) {
+      const items = Array.isArray(itemDescs) ? itemDescs : [];
 
       template.getCell(templateSroItemRow, sroItemLabelCol).value =
         String(sroId);
 
       template.getCell(templateSroItemRow, sroItemCountCol).value = Math.max(
-        itemEntries.length,
-
+        items.length,
         1
       );
 
-      if (itemEntries.length === 0) {
+      if (items.length === 0) {
         template.getCell(templateSroItemRow + 1, sroItemLabelCol).value =
-          "No SRO items available";
+          "No SRO Items available";
 
         templateSroItemRow += 2;
-
         continue;
       }
 
-      itemEntries.forEach(([desc, id], idx) => {
-        // Store SRO ID in the label column (for lookup purposes)
+      items.forEach((desc, idx) => {
         template.getCell(templateSroItemRow + 1 + idx, sroItemLabelCol).value =
-          String(sroId);
-
-        // Store SRO item description in a separate column for display
-        template.getCell(templateSroItemRow + 1 + idx, sroItemDescCol).value =
           desc;
       });
 
-      templateSroItemRow += 1 + itemEntries.length;
+      templateSroItemRow += 1 + items.length;
     }
 
     const sroItemLabelsEndRow = templateSroItemRow - 1;
-    console.log(
-      `SRO item labels end row: ${sroItemLabelsEndRow}, labels start row: ${labelsStartRow}`
-    );
-
-    // Ensure minimum valid range for SRO items
-    if (sroItemLabelsEndRow < labelsStartRow) {
-      console.log(
-        "SRO items range is invalid - adding comprehensive placeholder data"
-      );
-
-      // Add multiple placeholder rows to ensure valid range and provide options
-      const placeholderSroItems = [
-        { sroId: "DEFAULT_SRO_001", desc: "General Goods - Standard Rate" },
-        { sroId: "DEFAULT_SRO_002", desc: "General Goods - Reduced Rate" },
-        { sroId: "DEFAULT_SRO_003", desc: "Services - Standard Rate" },
-        { sroId: "DEFAULT_SRO_004", desc: "Manufacturing - Standard Rate" },
-        { sroId: "DEFAULT_SRO_005", desc: "Retail - Standard Rate" },
-      ];
-
-      placeholderSroItems.forEach((item, index) => {
-        const row = labelsStartRow + index;
-        template.getCell(row, sroItemLabelCol).value = item.sroId;
-        template.getCell(row, sroItemDescCol).value = item.desc;
-        template.getCell(row, sroItemCountCol).value = 1;
-      });
-
-      // Update the end row to include the placeholder data
-      const newEndRow = labelsStartRow + placeholderSroItems.length - 1;
-      console.log(
-        `Added ${placeholderSroItems.length} placeholder SRO items (rows ${labelsStartRow}-${newEndRow})`
-      );
-    }
 
     // Helper: get column letter by index (1-based)
 
@@ -5054,19 +5211,7 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
         error: "Select a value from the dropdown list.",
       };
 
-      // sellerProvince
-
-      template.getCell(r, headerIndex("sellerProvince")).dataValidation = {
-        type: "list",
-
-        allowBlank: true,
-
-        formulae: [
-          `$${getColLetter(provinceListCol)}$${provinceListRange.startRow}:$${getColLetter(provinceListCol)}$${provinceListRange.endRow}`,
-        ],
-
-        showErrorMessage: true,
-      };
+      // sellerProvince removed
 
       // buyerProvince
 
@@ -5206,55 +5351,57 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
         error: "Select a valid SRO Schedule from the dropdown list.",
       };
 
-      // Extract SRO Id from selected schedule by matching against horizontal labels
+      // Selected SRO index within the horizontal SRO labels for this row
 
-      const sroScheduleColLetter = getColLetter(
-        headerIndex("item_sroScheduleNo")
-      );
-
-      template.getCell(r, extractedSroIdCol).value = {
-        formula: `IFERROR(INDEX($${getColLetter(sroIdOutputStartCol)}$${r}:$${getColLetter(
-          sroIdOutputStartCol + maxSroPerRate - 1
-        )}$${r},MATCH($${sroScheduleColLetter}${r},$${getColLetter(
-          sroOutputStartCol
-        )}$${r}:$${getColLetter(sroOutputStartCol + maxSroPerRate - 1)}$${r},0)),"")`,
+      template.getCell(r, selectedSroIndexCol).value = {
+        formula: `IFERROR(MATCH($${getColLetter(
+          headerIndex("item_sroScheduleNo")
+        )}${r},$${getColLetter(sroOutputStartCol)}$${r}:$${getColLetter(
+          sroOutputStartCol + maxSroPerRate - 1
+        )}$${r},0),0)`,
       };
 
-      // SRO Items per selected SRO Id
+      // Extract selected SRO Id using the aligned SRO Id horizontal outputs
 
-      // Compute start index into SRO Item blocks and counts
+      template.getCell(r, extractedSroIdCol2).value = {
+        formula: `IF($${getColLetter(selectedSroIndexCol)}${r}>0,INDEX($${getColLetter(
+          sroIdOutputStartCol
+        )}$${r}:$${getColLetter(
+          sroIdOutputStartCol + maxSroPerRate - 1
+        )}$${r},$${getColLetter(selectedSroIndexCol)}${r}),"")`,
+      };
 
-      const sroItemStartIndexCol = sroItemOutputStartCol + maxSroItemsPerSro; // reuse per-row horizontal space
-
-      const sroItemResolvedCountCol = sroItemStartIndexCol + 1;
-
-      template.getColumn(sroItemStartIndexCol).hidden = true;
-
-      template.getColumn(sroItemResolvedCountCol).hidden = true;
+      // Per-row: compute starting index of selected SRO Id's SRO Item block
 
       template.getCell(r, sroItemStartIndexCol).value = {
-        formula: `IFERROR(MATCH($${getColLetter(extractedSroIdCol)}${r},$${getColLetter(
+        formula: `IFERROR(MATCH($${getColLetter(extractedSroIdCol2)}${r},$${getColLetter(
           sroItemLabelCol
         )}$${labelsStartRow}:$${getColLetter(sroItemLabelCol)}$${sroItemLabelsEndRow},0)+${
           labelsStartRow - 1
         },0)`,
       };
 
+      // Resolve number of SRO Item options for selected SRO Id
+
       template.getCell(r, sroItemResolvedCountCol).value = {
         formula: `IFERROR(INDEX($${getColLetter(sroItemCountCol)}$${labelsStartRow}:$${getColLetter(
           sroItemCountCol
-        )}$${sroItemLabelsEndRow},MATCH($${getColLetter(extractedSroIdCol)}${r},$${getColLetter(
+        )}$${sroItemLabelsEndRow},MATCH($${getColLetter(
+          extractedSroIdCol2
+        )}${r},$${getColLetter(sroItemLabelCol)}$${labelsStartRow}:$${getColLetter(
           sroItemLabelCol
-        )}$${labelsStartRow}:$${getColLetter(sroItemLabelCol)}$${sroItemLabelsEndRow},0)),0)`,
+        )}$${sroItemLabelsEndRow},0)),0)`,
       };
+
+      // Project SRO Items horizontally
 
       for (let k = 0; k < maxSroItemsPerSro; k++) {
         template.getCell(r, sroItemOutputStartCol + k).value = {
-          formula: `IF($${getColLetter(sroItemResolvedCountCol)}${r}>=${k + 1},INDEX($${getColLetter(
-            sroItemDescCol
-          )}:$${getColLetter(sroItemDescCol)},$${getColLetter(sroItemStartIndexCol)}${r}+${
+          formula: `IF($${getColLetter(sroItemResolvedCountCol)}${r}>=${
             k + 1
-          }),"")`,
+          },INDEX($${getColLetter(sroItemLabelCol)}:$${getColLetter(
+            sroItemLabelCol
+          )},$${getColLetter(sroItemStartIndexCol)}${r}+${k + 1}),"")`,
         };
       }
 
@@ -5263,21 +5410,15 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
       template.getCell(r, headerIndex("item_sroItemSerialNo")).dataValidation =
         {
           type: "list",
-
           allowBlank: true,
-
           formulae: [
             `$${getColLetter(sroItemOutputStartCol)}$${r}:$${getColLetter(
               sroItemOutputStartCol + maxSroItemsPerSro - 1
             )}$${r}`,
           ],
-
           showErrorMessage: true,
-
           errorStyle: "warning",
-
           errorTitle: "Invalid SRO Item",
-
           error: "Select a valid SRO Item from the dropdown list.",
         };
 
@@ -5432,106 +5573,25 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
         error: "Discount must be between 0 and 100 percent.",
       };
 
-      // AUTOMATIC CALCULATIONS - Start implementing the required formulas
+      // Auto-calculations removed: leave cells empty for manual entry
 
-      // 1. Calculate item_unitPrice: RetailPrice/Quantity
+      // Clear calculated cells (unitPrice, valueSalesExcludingST, salesTaxApplicable, totalValues)
+      template.getCell(r, headerIndex("item_unitPrice")).value = "";
+      template.getCell(r, headerIndex("item_valueSalesExcludingST")).value = "";
+      template.getCell(r, headerIndex("item_salesTaxApplicable")).value = "";
+      template.getCell(r, headerIndex("item_totalValues")).value = "";
 
-      const retailPriceCol = getColLetter(
-        headerIndex("item_fixedNotifiedValueOrRetailPrice")
-      );
-
-      const quantityCol = getColLetter(headerIndex("item_quantity"));
-
-      template.getCell(r, headerIndex("item_unitPrice")).value = {
-        formula: `IF(AND($${quantityCol}${r}<>"",$${quantityCol}${r}>0,$${retailPriceCol}${r}<>"",$${retailPriceCol}${r}>0),$${retailPriceCol}${r}/$${quantityCol}${r},"")`,
-      };
-
-      // 2. Set item_valueSalesExcludingST equal to item_fixedNotifiedValueOrRetailPrice
-
-      template.getCell(r, headerIndex("item_valueSalesExcludingST")).value = {
-        formula: `IF($${retailPriceCol}${r}<>"",$${retailPriceCol}${r},"")`,
-      };
-
-      // 3. Calculate item_salesTaxApplicable: Rate * RetailPrice
-
-      const rateCol = getColLetter(headerIndex("item_rate"));
-
-      template.getCell(r, headerIndex("item_salesTaxApplicable")).value = {
-        formula: `IF(AND($${rateCol}${r}<>"",$${rateCol}${r}<>"exempt",$${rateCol}${r}<>"EXEMPT",$${retailPriceCol}${r}<>"",$${retailPriceCol}${r}>0),$${rateCol}${r}*$${retailPriceCol}${r},"")`,
-      };
-
-      // 4. Calculate item_totalValues using helper columns for better performance
-
-      const salesTaxCol = getColLetter(headerIndex("item_salesTaxApplicable"));
-
-      const salesTaxWithheldCol = getColLetter(
-        headerIndex("item_salesTaxWithheldAtSource")
-      );
-
-      const furtherTaxCol = getColLetter(headerIndex("item_furtherTax"));
-
-      const fedPayableCol = getColLetter(headerIndex("item_fedPayable"));
-
-      const advanceTaxCol = getColLetter(headerIndex("item_advanceIncomeTax"));
-
-      const extraTaxCol = getColLetter(headerIndex("item_extraTax"));
-
-      const discountCol = getColLetter(headerIndex("item_discount"));
-
-      // Helper column: Calculate subtotal (retail price + all taxes)
-
-      template.getCell(r, subtotalCol).value = {
-        formula: `IF($${retailPriceCol}${r}<>"",$${retailPriceCol}${r}+IF($${salesTaxCol}${r}<>"",$${salesTaxCol}${r},0)+IF($${salesTaxWithheldCol}${r}<>"",$${salesTaxWithheldCol}${r},0)+IF($${furtherTaxCol}${r}<>"",$${furtherTaxCol}${r},0)+IF($${fedPayableCol}${r}<>"",$${fedPayableCol}${r},0)+IF($${advanceTaxCol}${r}<>"",$${advanceTaxCol}${r},0)+IF($${extraTaxCol}${r}<>"",$${extraTaxCol}${r},0),0),"")`,
-      };
-
-      // Helper column: Calculate discount amount
-
-      template.getCell(r, discountAmountCol).value = {
-        formula: `IF(AND($${discountCol}${r}<>"",$${discountCol}${r}>0,$${subtotalCol}${r}<>""),($${discountCol}${r}/100)*$${subtotalCol}${r},"")`,
-      };
-
-      // Final total: subtotal - discount amount
-
-      template.getCell(r, headerIndex("item_totalValues")).value = {
-        formula: `IF($${subtotalCol}${r}<>"",$${subtotalCol}${r}-IF($${discountAmountCol}${r}<>"",$${discountAmountCol}${r},0),"")`,
-      };
+      // Also clear helper columns to avoid hidden computed values
+      template.getCell(r, subtotalCol).value = "";
+      template.getCell(r, discountAmountCol).value = "";
     }
 
-    // Add summary row with totals
+    // Summary totals removed (no auto-calculation)
 
     const summaryRow = maxRows + 1;
 
-    template.getCell(summaryRow, 1).value = "TOTALS:";
-
-    template.getCell(summaryRow, 1).font = { bold: true };
-
-    // Sum up all the important columns
-
-    const totalColumns = [
-      "item_quantity",
-
-      "item_fixedNotifiedValueOrRetailPrice",
-
-      "item_salesTaxApplicable",
-
-      "item_totalValues",
-    ];
-
-    totalColumns.forEach((colName, idx) => {
-      const colIndex = headerIndex(colName);
-
-      if (colIndex > 0) {
-        const colLetter = getColLetter(colIndex);
-
-        template.getCell(summaryRow, colIndex).value = {
-          formula: `SUM($${colLetter}2:$${colLetter}${maxRows})`,
-        };
-
-        template.getCell(summaryRow, colIndex).font = { bold: true };
-
-        template.getCell(summaryRow, colIndex).numFmt = "#,##0.00";
-      }
-    });
+    // Optionally keep a label to indicate end of grid
+    template.getCell(summaryRow, 1).value = "";
 
     // Add instructions row
 
@@ -5546,11 +5606,7 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
     };
 
     const instructions = [
-      "1. Enter item_quantity and item_fixedNotifiedValueOrRetailPrice to auto-calculate item_unitPrice",
-
-      "2. item_valueSalesExcludingST automatically equals item_fixedNotifiedValueOrRetailPrice",
-
-      "3. item_salesTaxApplicable is calculated as Rate × RetailPrice",
+      "1. Fill all values manually (no auto-calculations).",
 
       "4. item_totalValues includes all taxes and applies discount automatically",
 
@@ -5567,35 +5623,7 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
       };
     });
 
-    // Add conditional formatting to highlight calculated fields
-
-    const calculatedColumns = [
-      "item_unitPrice",
-
-      "item_valueSalesExcludingST",
-
-      "item_salesTaxApplicable",
-
-      "item_totalValues",
-    ];
-
-    calculatedColumns.forEach((colName) => {
-      const colIndex = headerIndex(colName);
-
-      if (colIndex > 0) {
-        // Apply light blue background to calculated fields
-
-        for (let r = 2; r <= maxRows; r++) {
-          template.getCell(r, colIndex).fill = {
-            type: "pattern",
-
-            pattern: "solid",
-
-            fgColor: { argb: "FFF0F8FF" }, // Light blue
-          };
-        }
-      }
-    });
+    // Removed blue background styling for previously calculated fields
 
     // Autofit columns roughly
 

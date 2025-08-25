@@ -142,10 +142,7 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
   const expectedColumns = [
     "invoiceType",
     "invoiceDate",
-    "sellerNTNCNIC",
-    "sellerBusinessName",
-    "sellerProvince",
-    "sellerAddress",
+    // Seller columns removed
     "buyerNTNCNIC",
     "buyerBusinessName",
     "buyerProvince",
@@ -371,10 +368,7 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
             const invoiceType = String(filteredRow.invoiceType || "")
               .trim()
               .toLowerCase();
-            const sellerNTN = String(filteredRow.sellerNTNCNIC || "").trim();
-            const sellerName = String(
-              filteredRow.sellerBusinessName || ""
-            ).trim();
+            // Seller fields removed
             const invoiceDate = String(filteredRow.invoiceDate || "").trim();
 
             // Skip special rows
@@ -393,20 +387,13 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
               invoiceType !== "" &&
               (invoiceType.includes("sale") ||
                 invoiceType.includes("purchase"));
-            const hasValidSellerNTN =
-              sellerNTN && sellerNTN !== "" && !isNaN(sellerNTN);
-            const hasValidSellerName = sellerName && sellerName !== "";
+            // Seller validations removed
 
             // Validate date format (YYYY-MM-DD)
             const hasValidDate =
               invoiceDate && /^\d{4}-\d{2}-\d{2}$/.test(invoiceDate);
 
-            if (
-              hasValidInvoiceType &&
-              hasValidSellerNTN &&
-              hasValidSellerName &&
-              hasValidDate
-            ) {
+            if (hasValidInvoiceType && hasValidDate) {
               data.push(filteredRow);
             }
           }
@@ -506,10 +493,7 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
               const invoiceType = String(filteredRow.invoiceType || "")
                 .trim()
                 .toLowerCase();
-              const sellerNTN = String(filteredRow.sellerNTNCNIC || "").trim();
-              const sellerName = String(
-                filteredRow.sellerBusinessName || ""
-              ).trim();
+              // Seller fields removed
               const invoiceDate = String(filteredRow.invoiceDate || "").trim();
 
               // Skip special rows
@@ -528,20 +512,13 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
                 invoiceType !== "" &&
                 (invoiceType.includes("sale") ||
                   invoiceType.includes("purchase"));
-              const hasValidSellerNTN =
-                sellerNTN && sellerNTN !== "" && !isNaN(sellerNTN);
-              const hasValidSellerName = sellerName && sellerName !== "";
+              // Seller validations removed
 
               // Validate date format (YYYY-MM-DD)
               const hasValidDate =
                 invoiceDate && /^\d{4}-\d{2}-\d{2}$/.test(invoiceDate);
 
-              if (
-                hasValidInvoiceType &&
-                hasValidSellerNTN &&
-                hasValidSellerName &&
-                hasValidDate
-              ) {
+              if (hasValidInvoiceType && hasValidDate) {
                 data.push(filteredRow);
               }
             }
@@ -600,8 +577,7 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         const invoiceType = String(row.invoiceType || "")
           .trim()
           .toLowerCase();
-        const sellerNTN = String(row.sellerNTNCNIC || "").trim();
-        const sellerName = String(row.sellerBusinessName || "").trim();
+        // Seller fields removed
         const invoiceDate = String(row.invoiceDate || "").trim();
 
         // Exclude special rows
@@ -619,20 +595,13 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
           invoiceType &&
           invoiceType !== "" &&
           (invoiceType.includes("sale") || invoiceType.includes("purchase"));
-        const hasValidSellerNTN =
-          sellerNTN && sellerNTN !== "" && !isNaN(sellerNTN);
-        const hasValidSellerName = sellerName && sellerName !== "";
+        // Seller validations removed
 
         // Validate date format (YYYY-MM-DD)
         const hasValidDate =
           invoiceDate && /^\d{4}-\d{2}-\d{2}$/.test(invoiceDate);
 
-        return (
-          hasValidInvoiceType &&
-          hasValidSellerNTN &&
-          hasValidSellerName &&
-          hasValidDate
-        );
+        return hasValidInvoiceType && hasValidDate;
       })
       .map((row, index) => {
         // Ensure all expected columns exist with default values if missing
@@ -661,8 +630,75 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
 
     console.log(`Valid data rows after filtering: ${validData.length}`);
 
-    setErrors([]); // No validation errors
-    setPreviewData(validData); // Show all data as valid
+    // Pre-check buyer registration via backend proxy and validate against sheet selection
+    const precheckErrors = [];
+    const checkedRows = [];
+    for (let i = 0; i < validData.length; i++) {
+      const row = validData[i];
+      const ntn = String(row.buyerNTNCNIC || "").trim();
+      const regType = String(row.buyerRegistrationType || "").trim();
+      if (!ntn) {
+        checkedRows.push(row);
+        continue;
+      }
+      try {
+        const resp = await fetch(
+          "https://pakistan-gum.inplsoftwares.online/api/buyer-check",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ registrationNo: ntn }),
+          }
+        );
+        const data = await resp.json().catch(() => ({}));
+        let derived = "";
+        if (data && typeof data.REGISTRATION_TYPE === "string") {
+          derived =
+            data.REGISTRATION_TYPE.toLowerCase() === "registered"
+              ? "Registered"
+              : "Unregistered";
+        } else {
+          let isRegistered = false;
+          if (typeof data === "boolean") {
+            isRegistered = data;
+          } else if (data) {
+            isRegistered =
+              data.isRegistered === true ||
+              data.registered === true ||
+              (typeof data.status === "string" &&
+                data.status.toLowerCase() === "registered") ||
+              (typeof data.registrationType === "string" &&
+                data.registrationType.toLowerCase() === "registered");
+          }
+          derived = isRegistered ? "Registered" : "Unregistered";
+        }
+
+        // If user marked Unregistered but FBR says Registered, block
+        if (regType === "Unregistered" && derived === "Registered") {
+          precheckErrors.push({
+            row: i + 1,
+            error:
+              "Buyer ki Registration Type correct nahi hai (FBR: Registered)",
+          });
+        }
+        checkedRows.push(row);
+      } catch (e) {
+        // Non-blocking: if precheck fails, allow but note warning
+        checkedRows.push(row);
+      }
+    }
+
+    if (precheckErrors.length > 0) {
+      setErrors(precheckErrors);
+      toast.error(
+        `Buyer registration issues found in ${precheckErrors.length} rows. Fix before upload.`
+      );
+      setPreviewData([]);
+      return;
+    }
+
+    setErrors([]);
+    setPreviewData(validData);
 
     // Check for existing invoices if we have data
     if (validData.length > 0 && selectedTenant) {
