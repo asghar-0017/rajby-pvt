@@ -2558,55 +2558,16 @@ export const bulkCreateInvoices = async (req, res) => {
       try {
         const invoiceData = group.header;
 
-        // Auto-fill seller fields from selected tenant if missing in upload
+        // Always populate seller fields from selected tenant
         try {
           const tenantInfo = req.tenant;
           if (tenantInfo) {
-            if (
-              !invoiceData.sellerBusinessName ||
-              !String(invoiceData.sellerBusinessName).trim()
-            ) {
-              invoiceData.sellerBusinessName =
-                tenantInfo.seller_business_name ||
-                tenantInfo.sellerBusinessName ||
-                invoiceData.sellerBusinessName;
-            }
-            if (
-              !invoiceData.sellerProvince ||
-              !String(invoiceData.sellerProvince).trim()
-            ) {
-              invoiceData.sellerProvince =
-                tenantInfo.seller_province ||
-                tenantInfo.sellerProvince ||
-                invoiceData.sellerProvince;
-            }
-            if (
-              !invoiceData.sellerAddress ||
-              !String(invoiceData.sellerAddress).trim()
-            ) {
-              invoiceData.sellerAddress =
-                tenantInfo.seller_address ||
-                tenantInfo.sellerAddress ||
-                invoiceData.sellerAddress;
-            }
-            if (
-              !invoiceData.sellerNTNCNIC ||
-              !String(invoiceData.sellerNTNCNIC).trim()
-            ) {
-              invoiceData.sellerNTNCNIC =
-                tenantInfo.seller_ntn_cnic ||
-                tenantInfo.sellerNTNCNIC ||
-                invoiceData.sellerNTNCNIC;
-            }
-            if (
-              !invoiceData.sellerFullNTN ||
-              !String(invoiceData.sellerFullNTN).trim()
-            ) {
-              invoiceData.sellerFullNTN =
-                tenantInfo.seller_full_ntn ||
-                tenantInfo.sellerFullNTN ||
-                invoiceData.sellerFullNTN;
-            }
+            invoiceData.sellerBusinessName =
+              tenantInfo.seller_business_name || "";
+            invoiceData.sellerProvince = tenantInfo.seller_province || "";
+            invoiceData.sellerAddress = tenantInfo.seller_address || "";
+            invoiceData.sellerNTNCNIC = tenantInfo.seller_ntn_cnic || "";
+            invoiceData.sellerFullNTN = tenantInfo.seller_full_ntn || "";
           }
         } catch (e) {
           // Non-fatal; proceed with whatever data we have
@@ -2646,37 +2607,6 @@ export const bulkCreateInvoices = async (req, res) => {
               row: rowNum,
 
               error: "Invoice date is required",
-            });
-          });
-
-          continue;
-        }
-
-        if (
-          !invoiceData.sellerBusinessName ||
-          !invoiceData.sellerBusinessName.trim()
-        ) {
-          group.rowNumbers.forEach((rowNum) => {
-            results.errors.push({
-              index: group.rowNumbers.indexOf(rowNum),
-
-              row: rowNum,
-
-              error: "Seller business name is required",
-            });
-          });
-
-          continue;
-        }
-
-        if (!invoiceData.sellerProvince || !invoiceData.sellerProvince.trim()) {
-          group.rowNumbers.forEach((rowNum) => {
-            results.errors.push({
-              index: group.rowNumbers.indexOf(rowNum),
-
-              row: rowNum,
-
-              error: "Seller province is required",
             });
           });
 
@@ -2781,21 +2711,6 @@ export const bulkCreateInvoices = async (req, res) => {
 
           "SINDH",
         ];
-
-        if (!validProvinces.includes(invoiceData.sellerProvince.trim())) {
-          group.rowNumbers.forEach((rowNum) => {
-            results.errors.push({
-              index: group.rowNumbers.indexOf(rowNum),
-
-              row: rowNum,
-
-              error:
-                "Invalid seller province. Valid provinces are: Balochistan, Azad Jammu and Kashmir, Capital Territory, Punjab, Khyber Pakhtunkhwa, Gilgit Baltistan, Sindh",
-            });
-          });
-
-          continue;
-        }
 
         if (!validProvinces.includes(invoiceData.buyerProvince.trim())) {
           group.rowNumbers.forEach((rowNum) => {
@@ -4609,69 +4524,32 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
 
     const columns = [
       "invoiceType",
-
       "invoiceDate",
-
-      "sellerNTNCNIC",
-
-      "sellerFullNTN",
-
-      "sellerBusinessName",
-
-      "sellerProvince",
-
-      "sellerAddress",
-
       "buyerNTNCNIC",
-
       "buyerBusinessName",
-
       "buyerProvince",
-
       "buyerAddress",
-
       "buyerRegistrationType",
-
       "invoiceRefNo",
-
       "companyInvoiceRefNo",
-
       "transctypeId",
-
       "item_hsCode",
-
       "item_productDescription",
-
       "item_rate",
-
       "item_uoM",
-
       "item_quantity",
-
       "item_unitPrice",
-
       "item_totalValues",
-
       "item_valueSalesExcludingST",
-
       "item_fixedNotifiedValueOrRetailPrice",
-
       "item_salesTaxApplicable",
-
       "item_salesTaxWithheldAtSource",
-
       "item_extraTax",
-
       "item_furtherTax",
-
       "item_sroScheduleNo",
-
       "item_fedPayable",
-
       "item_discount",
-
       "item_saleType",
-
       "item_sroItemSerialNo",
     ];
 

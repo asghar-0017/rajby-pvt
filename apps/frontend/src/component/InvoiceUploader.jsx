@@ -142,11 +142,6 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
   const expectedColumns = [
     "invoiceType",
     "invoiceDate",
-    "sellerNTNCNIC",
-    "sellerFullNTN",
-    "sellerBusinessName",
-    "sellerProvince",
-    "sellerAddress",
     "buyerNTNCNIC",
     "buyerBusinessName",
     "buyerProvince",
@@ -327,11 +322,8 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       // Parse headers
       const headers = parseCSVLine(lines[0]);
 
-      // Validate headers - seller columns are optional as they will be populated automatically
-      const requiredColumns = expectedColumns.filter(
-        (col) => !col.startsWith("seller")
-      );
-      const missingHeaders = requiredColumns.filter(
+      // Validate headers
+      const missingHeaders = expectedColumns.filter(
         (col) => !headers.includes(col)
       );
       if (missingHeaders.length > 0) {
@@ -431,11 +423,8 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
           String(header || "").trim()
         );
 
-        // Validate headers - seller columns are optional as they will be populated automatically
-        const requiredColumns = expectedColumns.filter(
-          (col) => !col.startsWith("seller")
-        );
-        const missingHeaders = requiredColumns.filter(
+        // Validate headers
+        const missingHeaders = expectedColumns.filter(
           (col) => !headers.includes(col)
         );
         if (missingHeaders.length > 0) {
@@ -638,15 +627,11 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     if (selectedTenant) {
       validData = validData.map((row) => ({
         ...row,
-        sellerNTNCNIC:
-          selectedTenant.seller_ntn_cnic || row.sellerNTNCNIC || "",
-        sellerFullNTN:
-          selectedTenant.seller_full_ntn || row.sellerFullNTN || "",
-        sellerBusinessName:
-          selectedTenant.seller_business_name || row.sellerBusinessName || "",
-        sellerProvince:
-          selectedTenant.seller_province || row.sellerProvince || "",
-        sellerAddress: selectedTenant.seller_address || row.sellerAddress || "",
+        sellerNTNCNIC: selectedTenant.seller_ntn_cnic || "",
+        sellerFullNTN: selectedTenant.seller_full_ntn || "",
+        sellerBusinessName: selectedTenant.seller_business_name || "",
+        sellerProvince: selectedTenant.seller_province || "",
+        sellerAddress: selectedTenant.seller_address || "",
       }));
     }
 
