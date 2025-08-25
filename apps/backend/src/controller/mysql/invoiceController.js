@@ -4612,7 +4612,15 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
 
       "invoiceDate",
 
-      // Seller columns removed per requirement
+      "sellerNTNCNIC",
+
+      "sellerFullNTN",
+
+      "sellerBusinessName",
+
+      "sellerProvince",
+
+      "sellerAddress",
 
       "buyerNTNCNIC",
 
