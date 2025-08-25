@@ -45,8 +45,6 @@ app.use(
           "'self'",
           "https://gw.fbr.gov.pk",
           "https://pakistan-gum.inplsoftwares.online",
-          // Frontend will only call our backend; keeping external here is optional
-          // "https://buyercheckapi.inplsoftwares.online",
         ],
         scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
