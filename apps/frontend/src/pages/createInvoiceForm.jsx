@@ -587,77 +587,78 @@ export default function CreateInvoice() {
             invoiceData.scenario_id ||
             invoiceData.scenarioId ||
             "",
-          items:
-            invoiceData.items && invoiceData.items.length > 0
-              ? invoiceData.items.map((item) => ({
-                  hsCode: item.hsCode || "",
-                  productDescription: item.productDescription || "",
-                  rate: item.rate || "",
-                  uoM: item.uoM || "",
-                  quantity: item.quantity || "1",
-                  unitPrice: item.unitPrice
-                    ? parseFloat(item.unitPrice).toFixed(2)
-                    : "0.00", // This will be recalculated from retail price
-                  retailPrice:
-                    item.retailPrice ||
-                    item.fixedNotifiedValueOrRetailPrice ||
-                    "0",
-                  totalValues: item.totalValues || "0",
-                  valueSalesExcludingST: item.valueSalesExcludingST || "0",
-                  salesTaxApplicable: item.salesTaxApplicable || "0",
-                  salesTaxWithheldAtSource:
-                    item.salesTaxWithheldAtSource || "0",
-                  sroScheduleNo: item.sroScheduleNo || "",
-                  sroItemSerialNo: item.sroItemSerialNo || "",
-                  billOfLadingUoM: item.billOfLadingUoM || "",
-                  saleType: item.saleType || "",
-                  isSROScheduleEnabled: item.rate ? true : false,
-                  isSROItemEnabled: item.sroScheduleNo ? true : false,
-                  extraTax: item.extraTax || "",
-                  furtherTax: item.furtherTax || "0",
-                  fedPayable: item.fedPayable || "0",
-                  discount: item.discount || "0",
-                  isValueSalesManual: false,
-                  isTotalValuesManual: false,
-                  isSalesTaxManual: false,
-                  isSalesTaxWithheldManual: false,
-                  isFurtherTaxManual: false,
-                  isFedPayableManual: false,
-                }))
-              : [
-                  {
-                    hsCode: "",
-                    productDescription: "",
-                    rate: "",
-                    uoM: "",
-                    quantity: "1",
-                    unitPrice: "0.00", // Calculated field: Retail Price ÷ Quantity
-                    retailPrice: "0", // User input field
-                    totalValues: "0",
-                    valueSalesExcludingST: "0",
-                    salesTaxApplicable: "0",
-                    salesTaxWithheldAtSource: "0",
-                    sroScheduleNo: "",
-                    sroItemSerialNo: "",
-                    billOfLadingUoM: "",
-                    saleType: "",
-                    isSROScheduleEnabled: false,
-                    isSROItemEnabled: false,
-                    extraTax: "",
-                    furtherTax: "0",
-                    fedPayable: "0",
-                    discount: "0",
-                    isValueSalesManual: false,
-                    isTotalValuesManual: false,
-                    isSalesTaxManual: false,
-                    isSalesTaxWithheldManual: false,
-                    isFurtherTaxManual: false,
-                    isFedPayableManual: false,
-                  },
-                ],
+          items: [
+            {
+              hsCode: "",
+              productDescription: "",
+              rate: "",
+              uoM: "",
+              quantity: "1",
+              unitPrice: "0.00", // Calculated field: Retail Price ÷ Quantity
+              retailPrice: "0", // User input field
+              totalValues: "0",
+              valueSalesExcludingST: "0",
+              salesTaxApplicable: "0",
+              salesTaxWithheldAtSource: "0",
+              sroScheduleNo: "",
+              sroItemSerialNo: "",
+              billOfLadingUoM: "",
+              saleType: "",
+              isSROScheduleEnabled: false,
+              isSROItemEnabled: false,
+              extraTax: "",
+              furtherTax: "0",
+              fedPayable: "0",
+              discount: "0",
+              isValueSalesManual: false,
+              isTotalValuesManual: false,
+              isSalesTaxManual: false,
+              isSalesTaxWithheldManual: false,
+              isFurtherTaxManual: false,
+              isFedPayableManual: false,
+            },
+          ],
         };
 
         setFormData(formDataFromInvoice);
+
+        // Set existing items to addedItems for editing
+        if (invoiceData.items && invoiceData.items.length > 0) {
+          const existingItems = invoiceData.items.map((item) => ({
+            id: item.id || `existing-${Date.now()}-${Math.random()}`, // Generate unique ID if not present
+            hsCode: item.hsCode || "",
+            productDescription: item.productDescription || "",
+            rate: item.rate || "",
+            uoM: item.uoM || "",
+            quantity: item.quantity || "1",
+            unitPrice: item.unitPrice
+              ? parseFloat(item.unitPrice).toFixed(2)
+              : "0.00",
+            retailPrice:
+              item.retailPrice || item.fixedNotifiedValueOrRetailPrice || "0",
+            totalValues: item.totalValues || "0",
+            valueSalesExcludingST: item.valueSalesExcludingST || "0",
+            salesTaxApplicable: item.salesTaxApplicable || "0",
+            salesTaxWithheldAtSource: item.salesTaxWithheldAtSource || "0",
+            sroScheduleNo: item.sroScheduleNo || "",
+            sroItemSerialNo: item.sroItemSerialNo || "",
+            billOfLadingUoM: item.billOfLadingUoM || "",
+            saleType: item.saleType || "",
+            isSROScheduleEnabled: item.rate ? true : false,
+            isSROItemEnabled: item.sroScheduleNo ? true : false,
+            extraTax: item.extraTax || "",
+            furtherTax: item.furtherTax || "0",
+            fedPayable: item.fedPayable || "0",
+            discount: item.discount || "0",
+            isValueSalesManual: false,
+            isTotalValuesManual: false,
+            isSalesTaxManual: false,
+            isSalesTaxWithheldManual: false,
+            isFurtherTaxManual: false,
+            isFedPayableManual: false,
+          }));
+          setAddedItems(existingItems);
+        }
 
         // Debug: Log the final form data
         console.log("Final form data set:", formDataFromInvoice);

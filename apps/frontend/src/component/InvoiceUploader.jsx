@@ -142,7 +142,11 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
   const expectedColumns = [
     "invoiceType",
     "invoiceDate",
-    // Seller columns removed
+    "sellerNTNCNIC",
+    "sellerFullNTN",
+    "sellerBusinessName",
+    "sellerProvince",
+    "sellerAddress",
     "buyerNTNCNIC",
     "buyerBusinessName",
     "buyerProvince",
@@ -323,8 +327,11 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       // Parse headers
       const headers = parseCSVLine(lines[0]);
 
-      // Validate headers
-      const missingHeaders = expectedColumns.filter(
+      // Validate headers - seller columns are optional as they will be populated automatically
+      const requiredColumns = expectedColumns.filter(
+        (col) => !col.startsWith("seller")
+      );
+      const missingHeaders = requiredColumns.filter(
         (col) => !headers.includes(col)
       );
       if (missingHeaders.length > 0) {
@@ -368,7 +375,6 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
             const invoiceType = String(filteredRow.invoiceType || "")
               .trim()
               .toLowerCase();
-            // Seller fields removed
             const invoiceDate = String(filteredRow.invoiceDate || "").trim();
 
             // Skip special rows
@@ -387,7 +393,6 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
               invoiceType !== "" &&
               (invoiceType.includes("sale") ||
                 invoiceType.includes("purchase"));
-            // Seller validations removed
 
             // Validate date format (YYYY-MM-DD)
             const hasValidDate =
@@ -426,8 +431,11 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
           String(header || "").trim()
         );
 
-        // Validate headers
-        const missingHeaders = expectedColumns.filter(
+        // Validate headers - seller columns are optional as they will be populated automatically
+        const requiredColumns = expectedColumns.filter(
+          (col) => !col.startsWith("seller")
+        );
+        const missingHeaders = requiredColumns.filter(
           (col) => !headers.includes(col)
         );
         if (missingHeaders.length > 0) {
@@ -493,7 +501,6 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
               const invoiceType = String(filteredRow.invoiceType || "")
                 .trim()
                 .toLowerCase();
-              // Seller fields removed
               const invoiceDate = String(filteredRow.invoiceDate || "").trim();
 
               // Skip special rows
@@ -512,7 +519,6 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
                 invoiceType !== "" &&
                 (invoiceType.includes("sale") ||
                   invoiceType.includes("purchase"));
-              // Seller validations removed
 
               // Validate date format (YYYY-MM-DD)
               const hasValidDate =
@@ -571,13 +577,12 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     console.log(`Raw data rows received: ${data.length}`);
 
     // Filter out completely empty rows and special rows
-    const validData = data
+    let validData = data
       .filter((row, index) => {
         // Skip rows that are clearly not invoice data
         const invoiceType = String(row.invoiceType || "")
           .trim()
           .toLowerCase();
-        // Seller fields removed
         const invoiceDate = String(row.invoiceDate || "").trim();
 
         // Exclude special rows
@@ -595,7 +600,6 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
           invoiceType &&
           invoiceType !== "" &&
           (invoiceType.includes("sale") || invoiceType.includes("purchase"));
-        // Seller validations removed
 
         // Validate date format (YYYY-MM-DD)
         const hasValidDate =
@@ -629,6 +633,22 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       });
 
     console.log(`Valid data rows after filtering: ${validData.length}`);
+
+    // Populate seller details from selected tenant
+    if (selectedTenant) {
+      validData = validData.map((row) => ({
+        ...row,
+        sellerNTNCNIC:
+          selectedTenant.seller_ntn_cnic || row.sellerNTNCNIC || "",
+        sellerFullNTN:
+          selectedTenant.seller_full_ntn || row.sellerFullNTN || "",
+        sellerBusinessName:
+          selectedTenant.seller_business_name || row.sellerBusinessName || "",
+        sellerProvince:
+          selectedTenant.seller_province || row.sellerProvince || "",
+        sellerAddress: selectedTenant.seller_address || row.sellerAddress || "",
+      }));
+    }
 
     // Pre-check buyer registration via backend proxy and validate against sheet selection
     const precheckErrors = [];
@@ -903,7 +923,8 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             Upload a CSV or Excel file with invoice data. All invoices will be
             saved with "draft" status. Invoice numbers will be generated
-            automatically by the system. All data from the file will be
+            automatically by the system. Seller details will be automatically
+            populated from the selected tenant. All data from the file will be
             accepted.
           </Typography>
 
@@ -1018,6 +1039,20 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
                 {showPreview ? "Hide" : "Show"} Preview
               </Button>
             </Box>
+
+            {/* Seller Details Info */}
+            {selectedTenant && (
+              <Alert severity="info" sx={{ mb: 2 }}>
+                <Typography variant="subtitle2" gutterBottom>
+                  Seller details will be automatically populated from tenant:{" "}
+                  {selectedTenant.seller_business_name}
+                </Typography>
+                <Typography variant="body2">
+                  NTN: {selectedTenant.seller_ntn_cnic} | Province:{" "}
+                  {selectedTenant.seller_province || "Not specified"}
+                </Typography>
+              </Alert>
+            )}
 
             {showPreview && (
               <TableContainer
