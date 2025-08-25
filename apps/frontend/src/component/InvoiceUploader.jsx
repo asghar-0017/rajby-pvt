@@ -1025,20 +1025,6 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
               </Button>
             </Box>
 
-            {/* Seller Details Info */}
-            {selectedTenant && (
-              <Alert severity="info" sx={{ mb: 2 }}>
-                <Typography variant="subtitle2" gutterBottom>
-                  Seller details will be automatically populated from tenant:{" "}
-                  {selectedTenant.seller_business_name}
-                </Typography>
-                <Typography variant="body2">
-                  NTN: {selectedTenant.seller_ntn_cnic} | Province:{" "}
-                  {selectedTenant.seller_province || "Not specified"}
-                </Typography>
-              </Alert>
-            )}
-
             {showPreview && (
               <TableContainer
                 component={Paper}
