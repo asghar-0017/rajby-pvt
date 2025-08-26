@@ -17,7 +17,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "https://paramount-corp.inplsoftwares.online",
+        target: "https://aja-enterprises.inplsoftwares.online",
         changeOrigin: true,
         secure: false,
       },
