@@ -1,4 +1,3 @@
-
 name: Deploy Node.js Backend App via PM2
 
 on:
@@ -26,4 +25,4 @@ jobs:
       - name: Start or restart backend with PM2
         run: |
           cd ${{ github.workspace }}/apps/backend
-          /usr/bin/pm2 start index.js --name hub-poly || /usr/bin/pm2 restart hub-poly
+          /usr/bin/pm2 start index.js --name mayani-poly || /usr/bin/pm2 restart mayani-poly
