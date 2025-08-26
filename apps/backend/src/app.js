@@ -44,7 +44,7 @@ app.use(
         connectSrc: [
           "'self'",
           "https://gw.fbr.gov.pk",
-          "https://syahimpex.inplsoftwares.online",
+          "https://biomedics.inplsoftwares.online",
         ],
         scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
@@ -58,8 +58,8 @@ app.use(
   cors({
     origin: [
       "http://localhost:5174",
-      "https://syahimpex.inplsoftwares.online",
-      "https://syahimpex.inplsoftwares.online",
+      "https://biomedics.inplsoftwares.online",
+      "https://biomedics.inplsoftwares.online",
       "https://fbrtestcase.inplsoftwares.online",
       "*",
     ],
