@@ -44,7 +44,7 @@ app.use(
         connectSrc: [
           "'self'",
           "https://gw.fbr.gov.pk",
-          "https://adnan-power.inplsoftwares.online",
+          "https://united-tubes.inplsoftwares.online",
         ],
         scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
@@ -58,8 +58,8 @@ app.use(
   cors({
     origin: [
       "http://localhost:5174",
-      "https://adnan-power.inplsoftwares.online",
-      "https://adnan-power.inplsoftwares.online",
+      "https://united-tubes.inplsoftwares.online",
+      "https://united-tubes.inplsoftwares.online",
       "https://fbrtestcase.inplsoftwares.online",
       "*",
     ],
