@@ -17,7 +17,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "https://biomedics.inplsoftwares.online",
+        target: "https://anjum-parts.inplsoftwares.online",
         changeOrigin: true,
         secure: false,
       },
