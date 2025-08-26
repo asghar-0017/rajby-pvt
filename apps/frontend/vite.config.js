@@ -17,7 +17,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "https://premierpipe.inplsoftwares.online",
+        target: "https://diyanah.inplsoftwares.online",
         changeOrigin: true,
         secure: false,
       },

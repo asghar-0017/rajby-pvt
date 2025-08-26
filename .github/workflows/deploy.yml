@@ -25,4 +25,4 @@ jobs:
       - name: Start or restart backend with PM2
         run: |
           cd ${{ github.workspace }}/apps/backend
-          /usr/bin/pm2 start index.js --name premierpipe || /usr/bin/pm2 restart premierpipe
+          /usr/bin/pm2 start index.js --name diyanah || /usr/bin/pm2 restart diyanah
