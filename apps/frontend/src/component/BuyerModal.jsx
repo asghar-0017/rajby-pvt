@@ -215,7 +215,7 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
       setBuyerRegistrationHint("");
 
       const response = await fetch(
-        "https://aferoz.inplsoftwares.online/api/buyer-check",
+        "https://anjum-parts.inplsoftwares.online/api/buyer-check",
         {
           method: "POST",
           headers: {
