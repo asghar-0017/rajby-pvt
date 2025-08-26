@@ -17,7 +17,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "https://anjum-marketing.inplsoftwares.online",
+        target: "https://spoltlit.inplsoftwares.online",
         changeOrigin: true,
         secure: false,
       },
