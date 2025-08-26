@@ -1,3 +1,4 @@
+
 name: Deploy Node.js Backend App via PM2
 
 on:
@@ -25,4 +26,4 @@ jobs:
       - name: Start or restart backend with PM2
         run: |
           cd ${{ github.workspace }}/apps/backend
-          /usr/bin/pm2 start index.js --name anwer-tex  || /usr/bin/pm2 restart anwer-tex 
+          /usr/bin/pm2 start index.js --name chinayoun-cheng || /usr/bin/pm2 restart chinayoun-cheng
