@@ -17,7 +17,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "https://hubpoly-packages.inplsoftwares.online",
+        target: "https://machinery-zone.inplsoftwares.online",
         changeOrigin: true,
         secure: false,
       },
