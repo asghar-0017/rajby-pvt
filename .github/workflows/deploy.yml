@@ -1,3 +1,4 @@
+
 name: Deploy Node.js Backend App via PM2
  
 on:
@@ -40,5 +41,5 @@ jobs:
 
           cd ${{ github.workspace }}/apps/backend
 
-          /usr/bin/pm2 start index.js --name central-timber || /usr/bin/pm2 restart central-timber
+          /usr/bin/pm2 start index.js --name sign-now || /usr/bin/pm2 restart sign-now
  
