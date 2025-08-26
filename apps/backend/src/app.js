@@ -44,7 +44,7 @@ app.use(
         connectSrc: [
           "'self'",
           "https://gw.fbr.gov.pk",
-          "https://anjum-parts.inplsoftwares.online",
+          "https://biomedics.inplsoftwares.online",
         ],
         scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
@@ -58,8 +58,8 @@ app.use(
   cors({
     origin: [
       "http://localhost:5174",
-      "https://anjum-parts.inplsoftwares.online",
-      "https://anjum-parts.inplsoftwares.online",
+      "https://biomedics.inplsoftwares.online",
+      "https://biomedics.inplsoftwares.online",
       "https://fbrtestcase.inplsoftwares.online",
       "*",
     ],
