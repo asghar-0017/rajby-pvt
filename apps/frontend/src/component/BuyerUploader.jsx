@@ -44,6 +44,7 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
   const [existingBuyers, setExistingBuyers] = useState([]);
   const [newBuyers, setNewBuyers] = useState([]);
   const [checkingExisting, setCheckingExisting] = useState(false);
+  const [checkingRegistration, setCheckingRegistration] = useState(false);
   const fileInputRef = useRef(null);
 
   // Expected columns for buyer data
@@ -52,84 +53,97 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     "buyerBusinessName",
     "buyerProvince",
     "buyerAddress",
-    "buyerRegistrationType",
   ];
 
-  const downloadTemplate = () => {
-    // Create Excel template using xlsx library
-    const workbook = XLSX.utils.book_new();
+  const downloadTemplate = async () => {
+    try {
+      const ExcelJS = (await import("exceljs")).default;
 
-    // Create sample data
-    const sampleData = [
-      expectedColumns, // Header row
-      [
-        "1234567890123",
-        "ABC Trading Company",
-        "PUNJAB",
-        "123 Main Street Lahore",
-        "Registered",
-      ],
-      [
-        "9876543210987",
-        "XYZ Import Export",
-        "SINDH",
-        "456 Business Avenue Karachi",
-        "Unregistered",
-      ],
-      [
-        "4567891230456",
-        "Global Traders Ltd",
-        "KHYBER PAKHTUNKHWA",
-        "789 Commerce Road Peshawar",
-        "Registered",
-      ],
-      [
-        "7891234560789",
-        "Metro Traders",
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet("Buyers", {
+        views: [{ state: "frozen", ySplit: 1 }],
+      });
+
+      // Header row
+      worksheet.addRow(expectedColumns);
+      worksheet.getRow(1).font = { bold: true };
+
+      // Ensure NTN/CNIC column is treated as text and readable
+      const ntnIdx = expectedColumns.indexOf("buyerNTNCNIC") + 1;
+      if (ntnIdx > 0) {
+        const col = worksheet.getColumn(ntnIdx);
+        col.numFmt = "@";
+        col.alignment = { horizontal: "left" };
+        if (!col.width || col.width < 18) col.width = 20;
+      }
+
+      // Lists kept on a hidden worksheet to power dropdowns (not visible to user)
+      const provinces = [
         "BALOCHISTAN",
-        "321 Industrial Zone Quetta",
-        "Registered",
-      ],
-      [
-        "3216549870321",
-        "Capital Enterprises",
-        "ISLAMABAD CAPITAL TERRITORY",
-        "654 Blue Area Islamabad",
-        "Unregistered",
-      ],
-      [
-        "6543219870654",
-        "Mountain Traders",
-        "GILGIT-BALTISTAN",
-        "123 Valley Road Gilgit",
-        "Registered",
-      ],
-    ];
+        "AZAD JAMMU AND KASHMIR",
+        "CAPITAL TERRITORY",
+        "PUNJAB",
+        "KHYBER PAKHTUNKHWA",
+        "GILGIT BALTISTAN",
+        "SINDH",
+      ];
+      // Create a veryHidden worksheet to store the lists
+      const listsSheet = workbook.addWorksheet("Lists");
+      listsSheet.state = "veryHidden"; // cannot be unhidden via Excel UI
+      provinces.forEach((p, i) => {
+        listsSheet.getCell(1 + i, 1).value = p; // Column A
+      });
 
-    const worksheet = XLSX.utils.aoa_to_sheet(sampleData);
+      // Helper to convert column index to Excel letter
+      const getColLetter = (col) => {
+        let temp = "";
+        let n = col;
+        while (n > 0) {
+          const rem = (n - 1) % 26;
+          temp = String.fromCharCode(65 + rem) + temp;
+          n = Math.floor((n - 1) / 26);
+        }
+        return temp;
+      };
 
-    // Add the worksheet to the workbook
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Buyers");
+      const provinceColIdx = expectedColumns.indexOf("buyerProvince") + 1;
+      const maxRows = 1000; // allow up to 999 rows of data
 
-    // Generate Excel file
-    const excelBuffer = XLSX.write(workbook, {
-      bookType: "xlsx",
-      type: "array",
-    });
-    const blob = new Blob([excelBuffer], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    });
+      const provinceRange = `'Lists'!$A$1:$A$${provinces.length}`;
 
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "buyer_template.xlsx";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
+      // Apply data validations row-wise
+      for (let r = 2; r <= maxRows; r++) {
+        if (provinceColIdx > 0) {
+          worksheet.getCell(r, provinceColIdx).dataValidation = {
+            type: "list",
+            allowBlank: true,
+            formulae: [provinceRange],
+            showErrorMessage: true,
+          };
+        }
+      }
 
-    toast.success("Excel template downloaded successfully!");
+      // Start with empty body rows; users will fill data beneath the headers
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "buyer_template.xlsx";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      toast.success("Excel template downloaded successfully!");
+    } catch (err) {
+      console.error("Error generating Excel template:", err);
+      toast.error("Failed to generate Excel template.");
+    }
   };
 
   const handleFileSelect = (event) => {
@@ -353,10 +367,6 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         rowErrors.push("Province is required");
       }
 
-      if (!row.buyerRegistrationType || !row.buyerRegistrationType.trim()) {
-        rowErrors.push("Registration Type is required");
-      }
-
       // Validate NTN/CNIC format (if provided)
       if (row.buyerNTNCNIC && row.buyerNTNCNIC.trim()) {
         const ntnCnic = row.buyerNTNCNIC.trim();
@@ -392,16 +402,7 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         );
       }
 
-      // Validate registration type
-      const validRegistrationTypes = ["Registered", "Unregistered"];
-      if (
-        row.buyerRegistrationType &&
-        !validRegistrationTypes.includes(row.buyerRegistrationType.trim())
-      ) {
-        rowErrors.push(
-          "Registration Type must be 'Registered' or 'Unregistered'"
-        );
-      }
+      // Registration type column removed from template
 
       if (rowErrors.length > 0) {
         validationErrors.push({
@@ -444,6 +445,11 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
           `${existing.length} buyers already exist and will be skipped during upload`
         );
       }
+
+      // After determining new buyers, check registration type from FBR API
+      if (newBuyersData && newBuyersData.length > 0) {
+        await checkRegistrationTypes(newBuyersData);
+      }
     } catch (error) {
       console.error("Error checking existing buyers:", error);
       toast.error(
@@ -451,6 +457,95 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       );
     } finally {
       setCheckingExisting(false);
+    }
+  };
+
+  // Call external API to check buyer registration type for each NTN/CNIC
+  const checkRegistrationTypes = async (newBuyersData) => {
+    setCheckingRegistration(true);
+    try {
+      const updated = [];
+      for (const item of newBuyersData) {
+        const registrationNo = item?.buyerData?.buyerNTNCNIC
+          ?.toString()
+          ?.trim();
+        let buyerRegistrationType = "Unregistered";
+
+        if (registrationNo) {
+          try {
+            // Use backend proxy to avoid CORS and ensure server-side token usage
+            const resp = await api.post("/buyer-check", { registrationNo });
+            const data = resp?.data ?? {};
+
+            // Heuristic mapping for various possible response shapes
+            const normalized = (val) =>
+              String(val || "")
+                .toLowerCase()
+                .trim();
+
+            if (typeof data?.REGISTRATION_TYPE === "string") {
+              buyerRegistrationType =
+                normalized(data.REGISTRATION_TYPE) === "registered"
+                  ? "Registered"
+                  : "Unregistered";
+            } else if (
+              data === true ||
+              data?.success === true ||
+              data?.status === true ||
+              normalized(data?.status) === "registered" ||
+              normalized(data?.registration) === "registered" ||
+              normalized(data?.registrationType) === "registered" ||
+              normalized(data?.buyerRegistrationType) === "registered" ||
+              data?.isRegistered === true ||
+              data?.registered === true
+            ) {
+              buyerRegistrationType = "Registered";
+            } else if (
+              data === false ||
+              data?.success === false ||
+              data?.status === false ||
+              normalized(data?.status) === "unregistered" ||
+              normalized(data?.registration) === "unregistered" ||
+              normalized(data?.registrationType) === "unregistered" ||
+              normalized(data?.buyerRegistrationType) === "unregistered" ||
+              data?.isRegistered === false ||
+              data?.registered === false
+            ) {
+              buyerRegistrationType = "Unregistered";
+            }
+          } catch (err) {
+            // Network or parsing error -> default to Unregistered, continue
+            console.error("FBR check error for", registrationNo, err);
+          }
+        }
+
+        updated.push({
+          ...item,
+          buyerData: { ...item.buyerData, buyerRegistrationType },
+        });
+      }
+
+      // Update new buyers with registration type
+      setNewBuyers(updated);
+
+      // Also reflect registration type in preview table rows
+      setPreviewData((prev) => {
+        const byKey = new Map(
+          updated.map((u) => [u.buyerData.buyerNTNCNIC, u.buyerData])
+        );
+        return prev.map((row) => {
+          const match = byKey.get(row.buyerNTNCNIC);
+          if (match) {
+            return {
+              ...row,
+              buyerRegistrationType: match.buyerRegistrationType,
+            };
+          }
+          return row;
+        });
+      });
+    } finally {
+      setCheckingRegistration(false);
     }
   };
 
@@ -462,8 +557,12 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
 
     setUploading(true);
     try {
-      // Only upload new buyers
-      const buyersToUpload = newBuyers.map((item) => item.buyerData);
+      // Only upload new buyers using discovered buyerRegistrationType (default to 'Unregistered' if missing)
+      const buyersToUpload = newBuyers.map((item) => ({
+        ...item.buyerData,
+        buyerRegistrationType:
+          item.buyerData.buyerRegistrationType || "Unregistered",
+      }));
       const result = await onUpload(buyersToUpload);
 
       // Check if there were any errors in the upload
@@ -572,8 +671,7 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         <Box sx={{ mb: 3 }}>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             Upload a CSV or Excel file with the following columns: buyerNTNCNIC,
-            buyerBusinessName, buyerProvince, buyerAddress,
-            buyerRegistrationType
+            buyerBusinessName, buyerProvince, buyerAddress
           </Typography>
 
           {/* Download Template Button */}
@@ -721,17 +819,19 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
                       >
                         Status
                       </TableCell>
-                      {expectedColumns.map((column) => (
-                        <TableCell
-                          key={column}
-                          sx={{
-                            fontWeight: "bold",
-                            backgroundColor: "#f5f5f5",
-                          }}
-                        >
-                          {column}
-                        </TableCell>
-                      ))}
+                      {[...expectedColumns, "buyerRegistrationType"].map(
+                        (column) => (
+                          <TableCell
+                            key={column}
+                            sx={{
+                              fontWeight: "bold",
+                              backgroundColor: "#f5f5f5",
+                            }}
+                          >
+                            {column}
+                          </TableCell>
+                        )
+                      )}
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -771,11 +871,13 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
                               />
                             )}
                           </TableCell>
-                          {expectedColumns.map((column) => (
-                            <TableCell key={column}>
-                              {row[column] || "-"}
-                            </TableCell>
-                          ))}
+                          {[...expectedColumns, "buyerRegistrationType"].map(
+                            (column) => (
+                              <TableCell key={column}>
+                                {row[column] || "-"}
+                              </TableCell>
+                            )
+                          )}
                         </TableRow>
                       ))}
                     {getCombinedPreviewData().length > 10 && (

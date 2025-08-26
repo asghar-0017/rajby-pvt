@@ -159,14 +159,14 @@ export default function BuyerTable({
               Buyer Management
             </Typography>
             <Box sx={{ flexGrow: 1 }} />
-            {/* <Button 
+            <Button 
               variant="outlined" 
               color="primary" 
               onClick={() => onUpload()}
               sx={{ mr: 1 }}
             >
               Upload CSV
-            </Button> */}
+            </Button>
             <Button variant="contained" color="primary" onClick={() => onAdd()}>
               Add Buyer
             </Button>

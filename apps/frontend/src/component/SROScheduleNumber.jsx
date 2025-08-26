@@ -14,6 +14,7 @@ const SROScheduleNumber = ({
 }) => {
   const { tokensLoaded } = useTenantSelection();
   const [sro, setSro] = useState([]);
+  const [rateId, setRateId] = useState(null);
 
   const getSRO = async () => {
     try {
@@ -121,10 +122,43 @@ const SROScheduleNumber = ({
     }
   };
 
-  // Fetch SRO on component mount and when rate changes
+  // Track per-item RateId changes from localStorage (especially during edit flow)
   useEffect(() => {
+    // Initialize from storage
+    setRateId(localStorage.getItem(`selectedRateId_${index}`));
+
+    const handleStorage = (e) => {
+      if (e.key === `selectedRateId_${index}`) {
+        setRateId(e.newValue);
+      }
+    };
+
+    window.addEventListener("storage", handleStorage);
+
+    // Polling fallback for same-tab localStorage writes
+    const interval = setInterval(() => {
+      const current = localStorage.getItem(`selectedRateId_${index}`);
+      setRateId((prev) => (prev !== current ? current : prev));
+    }, 500);
+
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+      clearInterval(interval);
+    };
+  }, [index]);
+
+  // Fetch SRO when inputs or detected rateId change
+  useEffect(() => {
+    if (!tokensLoaded) return;
     getSRO();
-  }, [selectedProvince, sellerProvince, tokensLoaded, index, item.rate]);
+  }, [
+    selectedProvince,
+    sellerProvince,
+    tokensLoaded,
+    index,
+    item.rate,
+    rateId,
+  ]);
 
   // Handle editing case - set SROId when editing an invoice
   useEffect(() => {

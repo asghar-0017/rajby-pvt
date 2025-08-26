@@ -897,12 +897,7 @@ export const saveAndValidateInvoice = async (req, res) => {
       validationErrors.push("At least one item is required");
     } else {
       items.forEach((item, index) => {
-        if (
-          !item.hsCode ||
-          !item.productDescription ||
-          !item.rate ||
-          !item.uoM
-        ) {
+        if (!item.hsCode || !item.rate || !item.uoM) {
           validationErrors.push(`Item ${index + 1} has incomplete information`);
         }
       });
@@ -1177,21 +1172,18 @@ export const getAllInvoices = async (req, res) => {
 
     const {
       page = 1,
-
       limit = 10,
-
       search,
-
       start_date,
-
       end_date,
-
       sale_type,
-
       status,
     } = req.query;
 
-    const offset = (page - 1) * limit;
+    // Ensure numeric pagination params
+    const pageNumber = parseInt(page, 10) || 1;
+    const limitNumber = parseInt(limit, 10) || 10;
+    const offset = (pageNumber - 1) * limitNumber;
 
     const whereClause = {};
 
@@ -1258,9 +1250,12 @@ export const getAllInvoices = async (req, res) => {
         },
       ],
 
-      limit: parseInt(limit),
+      // Fix incorrect counts and pagination when using includes
+      distinct: true,
 
-      offset: parseInt(offset),
+      limit: limitNumber,
+
+      offset: offset,
 
       order: [["created_at", "DESC"]],
     });
@@ -1355,13 +1350,10 @@ export const getAllInvoices = async (req, res) => {
         invoices: transformedInvoices,
 
         pagination: {
-          current_page: parseInt(page),
-
-          total_pages: Math.ceil(count / limit),
-
+          current_page: pageNumber,
+          total_pages: Math.ceil(count / limitNumber),
           total_records: count,
-
-          records_per_page: parseInt(limit),
+          records_per_page: limitNumber,
         },
       },
     });
@@ -1560,7 +1552,7 @@ export const printInvoice = async (req, res) => {
       return res.status(404).json({ message: "Invoice not found" });
     }
 
-    const { invoice, tenantDb } = result;
+    const { invoice, tenantDb, tenant } = result;
 
     const { InvoiceItem } = tenantDb.models;
 
@@ -1644,8 +1636,21 @@ export const printInvoice = async (req, res) => {
 
     plainInvoice.invoiceDate = formatDate(plainInvoice.invoiceDate);
 
-    // Add seller_full_ntn from tenant context to the invoice data
-    plainInvoice.seller_full_ntn = req.tenant?.seller_full_ntn;
+    // Ensure latest seller details from master tenant record are used
+    if (tenant) {
+      // When coming from findInvoiceAcrossTenants, tenant fields are camelCase
+      plainInvoice.sellerBusinessName =
+        tenant.sellerBusinessName || plainInvoice.sellerBusinessName;
+      plainInvoice.sellerAddress =
+        tenant.sellerAddress || plainInvoice.sellerAddress;
+      plainInvoice.sellerProvince =
+        tenant.sellerProvince || plainInvoice.sellerProvince;
+      plainInvoice.sellerFullNTN =
+        tenant.sellerFullNTN || plainInvoice.sellerFullNTN;
+      // Some templates read underscore variant
+      plainInvoice.seller_full_ntn =
+        tenant.sellerFullNTN || plainInvoice.seller_full_ntn;
+    }
 
     // Render EJS HTML
 
@@ -5459,13 +5464,49 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
         error: "Discount must be between 0 and 100 percent.",
       };
 
-      // Auto-calculations removed: leave cells empty for manual entry
-
-      // Clear calculated cells (unitPrice, valueSalesExcludingST, salesTaxApplicable, totalValues)
-      template.getCell(r, headerIndex("item_unitPrice")).value = "";
-      template.getCell(r, headerIndex("item_valueSalesExcludingST")).value = "";
-      template.getCell(r, headerIndex("item_salesTaxApplicable")).value = "";
-      template.getCell(r, headerIndex("item_totalValues")).value = "";
+      // Auto-calculate Unit Price as Retail Price ÷ Quantity; leave other calculated cells empty
+      const qtyColLetter = getColLetter(headerIndex("item_quantity"));
+      const retailColLetter = getColLetter(
+        headerIndex("item_fixedNotifiedValueOrRetailPrice")
+      );
+      // Only first data row shows 0 by default; others stay blank until inputs are provided
+      if (r === 2) {
+        template.getCell(r, headerIndex("item_unitPrice")).value = {
+          formula: `IFERROR($${retailColLetter}${r}/$${qtyColLetter}${r},0)`,
+        };
+      } else {
+        template.getCell(r, headerIndex("item_unitPrice")).value = {
+          formula: `IF(OR($${retailColLetter}${r}="",$${qtyColLetter}${r}=""),"",IFERROR($${retailColLetter}${r}/$${qtyColLetter}${r},0))`,
+        };
+      }
+      // Auto-copy Value Sales (Excl. ST) from Retail Price; blank if Retail Price is blank
+      template.getCell(r, headerIndex("item_valueSalesExcludingST")).value = {
+        formula: `IF($${retailColLetter}${r}="","",$${retailColLetter}${r})`,
+      };
+      // Auto-calculate Sales Tax Applicable = Retail Price × (Rate ÷ 100)
+      const rateColLetter = getColLetter(headerIndex("item_rate"));
+      template.getCell(r, headerIndex("item_salesTaxApplicable")).value = {
+        formula: `IF($${retailColLetter}${r}="","",
+IF($${rateColLetter}${r}="","",
+IF(ISNUMBER(SEARCH("exempt",LOWER($${rateColLetter}${r}))),0,
+$${retailColLetter}${r}*(VALUE(SUBSTITUTE($${rateColLetter}${r},"%",""))/100))))`,
+      };
+      // Auto-calculate Total Values = (Value Excl. ST + Sales Tax + FED + ST W/H + Further Tax) minus Discount%
+      const vsColLetter = getColLetter(
+        headerIndex("item_valueSalesExcludingST")
+      );
+      const staColLetter = getColLetter(headerIndex("item_salesTaxApplicable"));
+      const fedColLetter = getColLetter(headerIndex("item_fedPayable"));
+      const stwColLetter = getColLetter(
+        headerIndex("item_salesTaxWithheldAtSource")
+      );
+      const ftrColLetter = getColLetter(headerIndex("item_furtherTax"));
+      const dscColLetter = getColLetter(headerIndex("item_discount"));
+      template.getCell(r, headerIndex("item_totalValues")).value = {
+        formula: `IF($${retailColLetter}${r}="","",
+SUM($${vsColLetter}${r},$${staColLetter}${r},$${fedColLetter}${r},$${stwColLetter}${r},$${ftrColLetter}${r})*
+(1-IF($${dscColLetter}${r}="",0,VALUE($${dscColLetter}${r})/100)))`,
+      };
 
       // Also clear helper columns to avoid hidden computed values
       template.getCell(r, subtotalCol).value = "";
@@ -5492,12 +5533,11 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
     };
 
     const instructions = [
-      "1. Fill all values manually (no auto-calculations).",
-
-      "4. item_totalValues includes all taxes and applies discount automatically",
-
-      "5. All calculations update automatically when you modify values",
-
+      "1. Unit Price auto-calculates as Retail Price ÷ Quantity.",
+      "2. Value Sales (Excl. ST) auto-copies from Retail Price.",
+      "3. Sales Tax Applicable auto-calculates: Retail Price × (rate ÷ 100).",
+      "4. Total Values = (Value Excl. ST + Sales Tax + FED + ST W/H + Further Tax) minus Discount%.",
+      "5. Enter Quantity and Retail Price to compute Unit Price.",
       "6. Use the dropdowns for validated selections (HS Code, UoM, Rate, etc.)",
     ];
 

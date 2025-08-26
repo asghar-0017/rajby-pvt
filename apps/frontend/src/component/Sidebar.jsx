@@ -32,11 +32,19 @@ import {
 } from "react-router-dom";
 import YourInvoices from "../pages/YourInvoices";
 import LogoutIcon from "@mui/icons-material/Logout";
-import { Button, Chip } from "@mui/material";
+import {
+  Button,
+  Chip,
+  Avatar,
+  Menu,
+  MenuItem,
+  ListItemAvatar,
+} from "@mui/material";
 import { useAuth } from "../Context/AuthProvider";
 import { useTenantSelection } from "../Context/TenantSelectionProvider";
 import { FaBusinessTime } from "react-icons/fa6";
 import Footer from "./Footer";
+import ProfileMenuMount from "./ProfileMenuMount";
 // import productionForm  from "../pages/productionForm"
 
 const drawerWidth = 240;
@@ -129,6 +137,20 @@ export default function Sidebar({ onLogout }) {
     navigate("/"); // return to login screen
   };
 
+  const [anchorEl, setAnchorEl] = React.useState(null);
+  const [profileOpen, setProfileOpen] = React.useState(false);
+
+  const handleMenuOpen = (event) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleMenuClose = () => setAnchorEl(null);
+
+  const handleOpenProfile = () => {
+    setProfileOpen(true);
+    handleMenuClose();
+  };
+
   return (
     <Box sx={{ display: "flex" }}>
       <CssBaseline />
@@ -144,6 +166,31 @@ export default function Sidebar({ onLogout }) {
             FBR Invoices
           </Typography>
           <Box sx={{ flexGrow: 1 }} />
+          <IconButton onClick={handleMenuOpen} color="inherit">
+            <Avatar
+              sx={{ width: 32, height: 32 }}
+              src={user?.photo_profile || undefined}
+            >
+              {user?.email ? user.email.charAt(0).toUpperCase() : "U"}
+            </Avatar>
+          </IconButton>
+          <Menu
+            anchorEl={anchorEl}
+            open={Boolean(anchorEl)}
+            onClose={handleMenuClose}
+            transformOrigin={{ horizontal: "right", vertical: "top" }}
+            anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
+          >
+            <MenuItem disabled>
+              <ListItemAvatar>
+                <Avatar src={user?.photo_profile || undefined} />
+              </ListItemAvatar>
+              <Typography variant="body2">{user?.email}</Typography>
+            </MenuItem>
+            <Divider />
+            <MenuItem onClick={handleOpenProfile}>Update Profile</MenuItem>
+            <MenuItem onClick={handleLogoutClick}>Logout</MenuItem>
+          </Menu>
         </Toolbar>
       </AppBar>
       <Drawer
@@ -169,8 +216,7 @@ export default function Sidebar({ onLogout }) {
               width: "100%",
               padding: "16px",
             }}
-          >
-          </Box>
+          ></Box>
         </DrawerHeader>
         <List>
           {navItems.map((item, index) => {
@@ -276,6 +322,8 @@ export default function Sidebar({ onLogout }) {
       <Main open={open}>
         <DrawerHeader />
         <Outlet />
+        {/* Profile Modal */}
+        <ProfileMenuMount open={profileOpen} setOpen={setProfileOpen} />
         <Footer />
       </Main>
     </Box>

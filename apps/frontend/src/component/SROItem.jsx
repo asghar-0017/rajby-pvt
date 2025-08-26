@@ -6,6 +6,7 @@ import { useTenantSelection } from "../Context/TenantSelectionProvider";
 const SROItem = ({ index, item, handleItemChange, disabled }) => {
   const { tokensLoaded } = useTenantSelection();
   const [sro, setSro] = useState([]);
+  const [sroId, setSroId] = useState(null);
 
   useEffect(() => {
     const getSROItem = async () => {
@@ -36,7 +37,30 @@ const SROItem = ({ index, item, handleItemChange, disabled }) => {
     };
 
     getSROItem();
-  }, [tokensLoaded, index, item.sroScheduleNo]);
+  }, [tokensLoaded, index, item.sroScheduleNo, sroId]);
+
+  // Track per-item SROId changes from localStorage (especially during edit flow)
+  useEffect(() => {
+    setSroId(localStorage.getItem(`SROId_${index}`));
+
+    const handleStorage = (e) => {
+      if (e.key === `SROId_${index}`) {
+        setSroId(e.newValue);
+      }
+    };
+
+    window.addEventListener("storage", handleStorage);
+
+    const interval = setInterval(() => {
+      const current = localStorage.getItem(`SROId_${index}`);
+      setSroId((prev) => (prev !== current ? current : prev));
+    }, 500);
+
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+      clearInterval(interval);
+    };
+  }, [index]);
 
   // Handle editing case - ensure SRO item is properly set when editing
   useEffect(() => {

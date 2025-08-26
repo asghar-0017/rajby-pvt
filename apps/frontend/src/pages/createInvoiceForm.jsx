@@ -582,11 +582,7 @@ export default function CreateInvoice() {
           buyerRegistrationType: invoiceData.buyerRegistrationType || "",
           invoiceRefNo: invoiceData.invoiceRefNo || "",
           companyInvoiceRefNo: invoiceData.companyInvoiceRefNo || "",
-          transctypeId:
-            invoiceData.transctypeId ||
-            invoiceData.scenario_id ||
-            invoiceData.scenarioId ||
-            "",
+          transctypeId: "",
           items: [
             {
               hsCode: "",
@@ -670,44 +666,9 @@ export default function CreateInvoice() {
         // Set the transactionTypeId and other required data for editing
         const scenarioId = invoiceData.scenario_id || invoiceData.scenarioId;
 
-        // Also set transactionTypeId directly from transctypeId if available
-        const directTransctypeId =
-          invoiceData.transctypeId ||
-          invoiceData.scenario_id ||
-          invoiceData.scenarioId;
-        if (directTransctypeId) {
-          localStorage.setItem("transactionTypeId", directTransctypeId);
-          setTransactionTypeId(directTransctypeId);
-        }
-        if (scenarioId) {
-          // Set transactionTypeId based on scenario
-          let transactionTypeId = null;
-          if (scenarioId === "SN016") {
-            transactionTypeId = "25";
-          } else if (scenarioId === "SN024") {
-            transactionTypeId = "139";
-          } else if (scenarioId === "SN002") {
-            transactionTypeId = "75";
-          } else if (scenarioId === "SN007") {
-            transactionTypeId = "80"; // Zero rated sale
-          } else {
-            // For other scenarios, try to find from scenario data
-            const scenarioData = JSON.parse(
-              localStorage.getItem("scenarioData") || "[]"
-            );
-            const matchingScenario = scenarioData.find(
-              (scenario) => scenario.scenarioId === scenarioId
-            );
-            if (matchingScenario) {
-              transactionTypeId = matchingScenario.transactionTypeId;
-            }
-          }
-
-          if (transactionTypeId) {
-            localStorage.setItem("transactionTypeId", transactionTypeId);
-            setTransactionTypeId(transactionTypeId);
-          }
-        }
+        // Ensure transaction type is cleared when editing
+        localStorage.removeItem("transactionTypeId");
+        setTransactionTypeId(null);
 
         // Set saleType if available from items
         if (
@@ -1086,13 +1047,13 @@ export default function CreateInvoice() {
     }
   }, [selectedTenant, allLoading, tokensLoaded]);
 
-  // Handle editing when scenario data is loaded
+  // Handle scenario data changes (skip setting transaction type while editing)
   useEffect(() => {
     const isEditing = localStorage.getItem("editingInvoice") === "true";
     const currentTransctypeId = formData.transctypeId;
 
-    if (isEditing && currentTransctypeId && transactionTypes.length > 0) {
-      // Set transactionTypeId based on transctypeId
+    if (!isEditing && currentTransctypeId && transactionTypes.length > 0) {
+      // Set transactionTypeId based on transctypeId only when not editing
       const newTransactionTypeId = currentTransctypeId;
 
       if (newTransactionTypeId) {
@@ -1102,14 +1063,14 @@ export default function CreateInvoice() {
     }
   }, [transactionTypes, formData.transctypeId]);
 
-  // Additional fallback for setting transactionTypeId during editing
+  // Additional fallback (skip while editing)
   useEffect(() => {
     const isEditing = localStorage.getItem("editingInvoice") === "true";
     const currentTransctypeId = formData.transctypeId;
     const storedTransactionTypeId = localStorage.getItem("transactionTypeId");
 
-    if (isEditing && currentTransctypeId && !transactionTypeId) {
-      // Try to set from stored value first, then from form data
+    if (!isEditing && currentTransctypeId && !transactionTypeId) {
+      // Try to set from stored value first, then from form data when not editing
       const newTransactionTypeId =
         storedTransactionTypeId || currentTransctypeId;
 
@@ -1452,12 +1413,12 @@ export default function CreateInvoice() {
   const addNewItem = () => {
     // Check if current item has required fields filled
     const currentItem = formData.items[0];
-    if (!currentItem.hsCode || !currentItem.productDescription) {
+    if (!currentItem.hsCode) {
       // Show error message if required fields are empty
       Swal.fire({
         icon: "warning",
         title: "Required Fields Missing",
-        text: "Please fill in HS Code and Product Description before adding item.",
+        text: "Please fill in HS Code before adding item.",
         confirmButtonColor: "#2A69B0",
       });
       return;
@@ -1467,11 +1428,47 @@ export default function CreateInvoice() {
     const itemToAdd = { ...currentItem, id: Date.now() }; // Add unique ID
     setAddedItems((prev) => [...prev, itemToAdd]);
 
-    // Reset the form to initial state
-    const saleType =
-      localStorage.getItem("saleType") || "Goods at Standard Rate (default)";
+    // Clear Transaction Type completely when an item is added
+    // First clear localStorage to prevent useEffect from restoring values
+    localStorage.removeItem("saleType");
+    localStorage.removeItem("transactionTypeId");
+    localStorage.removeItem("editingInvoice"); // Clear editing flag to prevent auto-restoration
+
+    // Also clear any scenario-related data that might interfere
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (
+        key &&
+        (key.startsWith("scenario") ||
+          key.startsWith("selectedRateId_") ||
+          key.startsWith("SROId_"))
+      ) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach((key) => localStorage.removeItem(key));
+
+    // Clear state variables
+    setTransactionTypeId(null);
+    setTransactionTypeDropdownOpen(false); // Close dropdown immediately
+
+    // Small delay to ensure state updates are processed
+    setTimeout(() => {
+      // Force a re-render of the transaction type dropdown
+      setTransactionTypeDropdownOpen(false);
+
+      // Additional cleanup to ensure transaction type is completely cleared
+      setFormData((prev) => ({
+        ...prev,
+        transctypeId: "", // Ensure this is cleared
+      }));
+    }, 100);
+
+    // Reset the form to initial state with cleared transaction type
     setFormData((prev) => ({
       ...prev,
+      transctypeId: "", // Clear transaction type ID
       items: [
         {
           hsCode: "",
@@ -1493,7 +1490,7 @@ export default function CreateInvoice() {
           fedPayable: "0",
           discount: "0",
           advanceIncomeTax: "0",
-          saleType,
+          saleType: "", // Clear Sales Type on add item
           isSROScheduleEnabled: false,
           isSROItemEnabled: false,
           isValueSalesManual: false,
@@ -1568,7 +1565,7 @@ export default function CreateInvoice() {
   };
 
   // Function to edit item from addedItems list
-  const editAddedItem = (itemId) => {
+  const editAddedItem = async (itemId) => {
     const itemToEdit = addedItems.find((item) => item.id === itemId);
     if (itemToEdit) {
       // Remove the item from addedItems
@@ -1579,6 +1576,80 @@ export default function CreateInvoice() {
         ...prev,
         items: [itemToEdit],
       }));
+
+      // Prefill Transaction Type based on item's saleType
+      try {
+        let types = transactionTypes;
+        if (!types || types.length === 0) {
+          const data = await getTransactionTypes();
+          let arr = [];
+          if (Array.isArray(data)) {
+            arr = data;
+          } else if (data && typeof data === "object") {
+            if (data.data && Array.isArray(data.data)) {
+              arr = data.data;
+            } else if (
+              data.transactionTypes &&
+              Array.isArray(data.transactionTypes)
+            ) {
+              arr = data.transactionTypes;
+            } else if (data.results && Array.isArray(data.results)) {
+              arr = data.results;
+            } else {
+              arr = [data];
+            }
+          }
+          types = arr;
+          if (arr.length > 0) {
+            setTransactionTypes(arr);
+          }
+        }
+
+        const getTransactionTypeId = (type) => {
+          return (
+            type.transactioN_TYPE_ID ||
+            type.transactionTypeId ||
+            type.transaction_type_id ||
+            type.transactionTypeID ||
+            type.id ||
+            type.typeId ||
+            type.transTypeId
+          );
+        };
+        const getTransactionTypeDesc = (type) => {
+          return (
+            type.transactioN_DESC ||
+            type.transactionDesc ||
+            type.description ||
+            type.desc ||
+            type.name
+          );
+        };
+
+        const match = types.find(
+          (t) =>
+            (getTransactionTypeDesc(t) || "").trim() ===
+            (itemToEdit.saleType || "").trim()
+        );
+        if (match) {
+          const id = getTransactionTypeId(match);
+          if (id) {
+            localStorage.setItem("transactionTypeId", id);
+            if (itemToEdit.saleType) {
+              localStorage.setItem("saleType", itemToEdit.saleType);
+            }
+            setTransactionTypeId(id);
+            setFormData((prev) => ({ ...prev, transctypeId: id }));
+          }
+        } else {
+          // If no match, clear transaction type selection
+          localStorage.removeItem("transactionTypeId");
+          setTransactionTypeId(null);
+          setFormData((prev) => ({ ...prev, transctypeId: "" }));
+        }
+      } catch (e) {
+        // Silently fail; user can select manually
+      }
 
       // Set editing state
       setEditingItemIndex(itemId);
@@ -1599,42 +1670,12 @@ export default function CreateInvoice() {
         transctypeId: "",
       }));
       localStorage.removeItem("saleType");
+      localStorage.removeItem("transactionTypeId");
       setTransactionTypeId(null);
       return;
     }
 
-    // Check if there are added items and show warning
-    if (addedItems.length > 0) {
-      Swal.fire({
-        title: "Warning",
-        text: "Changing the transaction type will reset your list of added items. Are you sure you want to continue?",
-        icon: "warning",
-        showCancelButton: true,
-        confirmButtonColor: "#d33",
-        cancelButtonColor: "#3085d6",
-        confirmButtonText: "Yes, change it!",
-        cancelButtonText: "Cancel",
-      }).then((result) => {
-        if (result.isConfirmed) {
-          // User confirmed - proceed with transaction type change and clear added items
-          proceedWithTransactionTypeChange(transctypeId);
-          // Clear added items
-          setAddedItems([]);
-          Swal.fire({
-            title: "Items Cleared",
-            text: "Your added items have been cleared due to transaction type change.",
-            icon: "info",
-            confirmButtonColor: "#2A69B0",
-            timer: 2000,
-            showConfirmButton: false,
-          });
-        }
-        // If user cancels, do nothing - the transaction type remains unchanged
-      });
-      return;
-    }
-
-    // If no added items, proceed normally
+    // Proceed without clearing items
     proceedWithTransactionTypeChange(transctypeId);
   };
 
@@ -1946,9 +1987,7 @@ export default function CreateInvoice() {
       errors.push("HS Code must be 50 characters or less");
     }
 
-    if (!item.productDescription || item.productDescription.trim() === "") {
-      errors.push("Product Description is required");
-    }
+    // productDescription is optional
 
     if (!item.rate || item.rate.trim() === "") {
       errors.push("Rate is required");
@@ -2391,10 +2430,7 @@ export default function CreateInvoice() {
             field: "hsCode",
             message: `HS Code is required for item ${index + 1}`,
           },
-          {
-            field: "productDescription",
-            message: `Product Description is required for item ${index + 1}`,
-          },
+          // productDescription is optional
           { field: "rate", message: `Rate is required for item ${index + 1}` },
           {
             field: "uoM",
@@ -3218,47 +3254,6 @@ export default function CreateInvoice() {
               />
             </Box>
             <Box sx={{ position: "relative" }}>
-              <Box
-                sx={{
-                  position: "absolute",
-                  top: -31,
-                  right: 0,
-                  zIndex: 2,
-                  display: "none",
-                }}
-              >
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={handleTransactionTypeButtonClick}
-                  disabled={transactionTypesLoading}
-                  startIcon={
-                    transactionTypesLoading ? (
-                      <CircularProgress size={14} />
-                    ) : null
-                  }
-                  sx={{
-                    color: "#007AFF",
-                    borderColor: "#007AFF",
-                    backgroundColor: "rgba(0, 122, 255, 0.05)",
-                    fontSize: "0.75rem",
-                    padding: "2px 4px",
-                    minWidth: "auto",
-                    height: "23px",
-                    "&:hover": {
-                      backgroundColor: "rgba(0, 122, 255, 0.1)",
-                      borderColor: "#0056CC",
-                    },
-                    "&:disabled": {
-                      color: "#9ca3af",
-                      borderColor: "#9ca3af",
-                      backgroundColor: "rgba(156, 163, 175, 0.05)",
-                    },
-                  }}
-                >
-                  Choose Transaction Type
-                </Button>
-              </Box>
               {/* Transaction Type Error Display */}
               {transactionTypesError && (
                 <Box
@@ -3366,87 +3361,22 @@ export default function CreateInvoice() {
                 </Box>
               )} */}
 
-              <Autocomplete
-                options={transactionTypes}
-                disabled={
-                  transactionTypesLoading ||
-                  !!transactionTypesError ||
-                  transactionTypes.length === 0
-                }
-                loading={transactionTypesLoading}
-                open={transactionTypeDropdownOpen}
-                onOpen={() => setTransactionTypeDropdownOpen(true)}
-                onClose={() => setTransactionTypeDropdownOpen(false)}
-                getOptionLabel={(option) => {
-                  if (typeof option === "string") return option;
+              <Box>
+                <Autocomplete
+                  key={`transaction-type-${transactionTypeId || "empty"}-${formData.transctypeId || "empty"}`}
+                  options={transactionTypes}
+                  disabled={
+                    transactionTypesLoading ||
+                    !!transactionTypesError ||
+                    transactionTypes.length === 0
+                  }
+                  loading={transactionTypesLoading}
+                  open={transactionTypeDropdownOpen}
+                  onOpen={() => setTransactionTypeDropdownOpen(true)}
+                  onClose={() => setTransactionTypeDropdownOpen(false)}
+                  getOptionLabel={(option) => {
+                    if (typeof option === "string") return option;
 
-                  const getTransactionTypeId = (type) => {
-                    return (
-                      type.transactioN_TYPE_ID ||
-                      type.transactionTypeId ||
-                      type.transaction_type_id ||
-                      type.transactionTypeID ||
-                      type.id ||
-                      type.typeId ||
-                      type.transTypeId
-                    );
-                  };
-
-                  const getTransactionTypeDesc = (type) => {
-                    return (
-                      type.transactioN_DESC ||
-                      type.transactionDesc ||
-                      type.description ||
-                      type.desc ||
-                      type.name
-                    );
-                  };
-
-                  return `${getTransactionTypeId(option)} - ${getTransactionTypeDesc(option)}`;
-                }}
-                value={(() => {
-                  const effectiveId =
-                    transactionTypeId || formData.transctypeId;
-
-                  // Helper function to get the ID from a transaction type object
-                  const getTransactionTypeId = (type) => {
-                    return (
-                      type.transactioN_TYPE_ID ||
-                      type.transactionTypeId ||
-                      type.transaction_type_id ||
-                      type.transactionTypeID ||
-                      type.id ||
-                      type.typeId ||
-                      type.transTypeId
-                    );
-                  };
-
-                  // Helper function to get the description from a transaction type object
-                  const getTransactionTypeDesc = (type) => {
-                    return (
-                      type.transactioN_DESC ||
-                      type.transactionDesc ||
-                      type.description ||
-                      type.desc ||
-                      type.name
-                    );
-                  };
-
-                  // Try to find the matching transaction type
-                  const foundType = transactionTypes.find((type) => {
-                    const typeId = getTransactionTypeId(type);
-                    return (
-                      typeId === effectiveId ||
-                      typeId === String(effectiveId) ||
-                      typeId === Number(effectiveId)
-                    );
-                  });
-
-                  // Autocomplete value calculation completed
-                  return foundType || null;
-                })()}
-                onChange={(event, newValue) => {
-                  if (newValue) {
                     const getTransactionTypeId = (type) => {
                       return (
                         type.transactioN_TYPE_ID ||
@@ -3458,100 +3388,171 @@ export default function CreateInvoice() {
                         type.transTypeId
                       );
                     };
-                    handleTransactionTypeChange(getTransactionTypeId(newValue));
-                  } else {
-                    handleTransactionTypeChange("");
-                  }
-                }}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    label={
-                      transactionTypesLoading
-                        ? "Loading Transaction Types..."
-                        : transactionTypesError
-                          ? "Transaction Type (Error)"
-                          : "Transaction Type"
+
+                    const getTransactionTypeDesc = (type) => {
+                      return (
+                        type.transactioN_DESC ||
+                        type.transactionDesc ||
+                        type.description ||
+                        type.desc ||
+                        type.name
+                      );
+                    };
+
+                    return `${getTransactionTypeId(option)} - ${getTransactionTypeDesc(option)}`;
+                  }}
+                  value={(() => {
+                    const effectiveId =
+                      transactionTypeId || formData.transctypeId;
+
+                    // Helper function to get the ID from a transaction type object
+                    const getTransactionTypeId = (type) => {
+                      return (
+                        type.transactioN_TYPE_ID ||
+                        type.transactionTypeId ||
+                        type.transaction_type_id ||
+                        type.transactionTypeID ||
+                        type.id ||
+                        type.typeId ||
+                        type.transTypeId
+                      );
+                    };
+
+                    // Helper function to get the description from a transaction type object
+                    const getTransactionTypeDesc = (type) => {
+                      return (
+                        type.transactioN_DESC ||
+                        type.transactionDesc ||
+                        type.description ||
+                        type.desc ||
+                        type.name
+                      );
+                    };
+
+                    // Try to find the matching transaction type
+                    const foundType = transactionTypes.find((type) => {
+                      const typeId = getTransactionTypeId(type);
+                      return (
+                        typeId === effectiveId ||
+                        typeId === String(effectiveId) ||
+                        typeId === Number(effectiveId)
+                      );
+                    });
+
+                    // Autocomplete value calculation completed
+                    return foundType || null;
+                  })()}
+                  onChange={(event, newValue) => {
+                    if (newValue) {
+                      const getTransactionTypeId = (type) => {
+                        return (
+                          type.transactioN_TYPE_ID ||
+                          type.transactionTypeId ||
+                          type.transaction_type_id ||
+                          type.transactionTypeID ||
+                          type.id ||
+                          type.typeId ||
+                          type.transTypeId
+                        );
+                      };
+                      handleTransactionTypeChange(
+                        getTransactionTypeId(newValue)
+                      );
+                    } else {
+                      handleTransactionTypeChange("");
                     }
-                    size="small"
-                    sx={{
-                      "& .MuiOutlinedInput-root": {
-                        "& fieldset": {
-                          borderColor: transactionTypesError
-                            ? "#dc2626"
-                            : "#e5e7eb",
+                  }}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label={
+                        transactionTypesLoading
+                          ? "Loading Transaction Types..."
+                          : transactionTypesError
+                            ? "Transaction Type (Error)"
+                            : "Transaction Type"
+                      }
+                      size="small"
+                      sx={{
+                        "& .MuiOutlinedInput-root": {
+                          "& fieldset": {
+                            borderColor: transactionTypesError
+                              ? "#dc2626"
+                              : "#e5e7eb",
+                          },
                         },
-                      },
-                    }}
-                    InputProps={{
-                      ...params.InputProps,
-                      endAdornment: (
-                        <>
-                          {transactionTypesLoading ? (
-                            <CircularProgress color="inherit" size={20} />
-                          ) : null}
-                          <Button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleTransactionTypeButtonClick();
-                            }}
-                            disabled={transactionTypesLoading}
-                            size="small"
-                            sx={{
-                              ml: 1,
-                              minWidth: "auto",
-                              height: 24,
-                              px: 1,
-                              fontSize: "0.72rem",
-                              color: "#007AFF",
-                              borderColor: "#007AFF",
-                              border: "1px solid",
-                              backgroundColor: "rgba(0, 122, 255, 0.05)",
-                              "&:hover": {
-                                backgroundColor: "rgba(0, 122, 255, 0.1)",
-                                borderColor: "#0056CC",
-                              },
-                              "&:disabled": {
-                                color: "#9ca3af",
-                                borderColor: "#9ca3af",
-                                backgroundColor: "rgba(156, 163, 175, 0.05)",
-                              },
-                            }}
-                            startIcon={
-                              transactionTypesLoading ? (
-                                <CircularProgress size={12} color="inherit" />
-                              ) : null
-                            }
-                          >
-                            Choose
-                          </Button>
-                          {params.InputProps.endAdornment}
-                        </>
-                      ),
-                    }}
-                  />
-                )}
-                isOptionEqualToValue={(option, value) => {
-                  const getTransactionTypeId = (type) => {
+                      }}
+                      InputProps={{
+                        ...params.InputProps,
+                        endAdornment: (
+                          <>
+                            {transactionTypesLoading ? (
+                              <CircularProgress color="inherit" size={20} />
+                            ) : null}
+                            <Button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleTransactionTypeButtonClick();
+                              }}
+                              disabled={transactionTypesLoading}
+                              size="small"
+                              sx={{
+                                ml: 1,
+                                minWidth: "auto",
+                                height: 24,
+                                px: 1,
+                                fontSize: "0.72rem",
+                                color: "#007AFF",
+                                borderColor: "#007AFF",
+                                border: "1px solid",
+                                backgroundColor: "rgba(0, 122, 255, 0.05)",
+                                "&:hover": {
+                                  backgroundColor: "rgba(0, 122, 255, 0.1)",
+                                  borderColor: "#0056CC",
+                                },
+                                "&:disabled": {
+                                  color: "#9ca3af",
+                                  borderColor: "#9ca3af",
+                                  backgroundColor: "rgba(156, 163, 175, 0.05)",
+                                },
+                              }}
+                              startIcon={
+                                transactionTypesLoading ? (
+                                  <CircularProgress size={12} color="inherit" />
+                                ) : null
+                              }
+                            >
+                              Choose
+                            </Button>
+                            {params.InputProps.endAdornment}
+                          </>
+                        ),
+                      }}
+                    />
+                  )}
+                  isOptionEqualToValue={(option, value) => {
+                    const getTransactionTypeId = (type) => {
+                      return (
+                        type.transactioN_TYPE_ID ||
+                        type.transactionTypeId ||
+                        type.transaction_type_id ||
+                        type.transactionTypeID ||
+                        type.id ||
+                        type.typeId ||
+                        type.transTypeId
+                      );
+                    };
                     return (
-                      type.transactioN_TYPE_ID ||
-                      type.transactionTypeId ||
-                      type.transaction_type_id ||
-                      type.transactionTypeID ||
-                      type.id ||
-                      type.typeId ||
-                      type.transTypeId
+                      getTransactionTypeId(option) ===
+                      getTransactionTypeId(value)
                     );
-                  };
-                  return (
-                    getTransactionTypeId(option) === getTransactionTypeId(value)
-                  );
-                }}
-                freeSolo
-                selectOnFocus
-                clearOnBlur={false}
-                handleHomeEndKeys
-              />
+                  }}
+                  freeSolo
+                  selectOnFocus
+                  clearOnBlur={false}
+                  handleHomeEndKeys
+                />
+              </Box>
             </Box>
           </Box>
 
@@ -3620,12 +3621,20 @@ export default function CreateInvoice() {
                     gap: 1,
                   }}
                 >
-                  <OptimizedHSCodeSelector
-                    index={index}
-                    item={item}
-                    handleItemChange={handleItemChange}
-                    environment="sandbox"
-                  />
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr",
+                      gap: 1,
+                    }}
+                  >
+                    <OptimizedHSCodeSelector
+                      index={index}
+                      item={item}
+                      handleItemChange={handleItemChange}
+                      environment="sandbox"
+                    />
+                  </Box>
                 </Box>
               </Box>
 

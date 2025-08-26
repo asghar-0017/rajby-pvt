@@ -171,7 +171,8 @@ export const getTenantById = async (req, res) => {
 export const updateTenant = async (req, res) => {
   try {
     const { tenantId } = req.params;
-    const { sellerBusinessName, sellerProvince, sellerAddress } = req.body;
+    const { sellerBusinessName, sellerProvince, sellerAddress, sellerFullNTN } =
+      req.body;
 
     const tenant = await Tenant.findOne({
       where: { tenant_id: tenantId },
@@ -188,12 +189,29 @@ export const updateTenant = async (req, res) => {
       seller_business_name: sellerBusinessName,
       seller_province: sellerProvince,
       seller_address: sellerAddress,
+      ...(sellerFullNTN !== undefined && { seller_full_ntn: sellerFullNTN }),
     });
+
+    // Map fields to camelCase for consistency with frontend
+    const mapped = {
+      id: tenant.id,
+      tenant_id: tenant.tenant_id,
+      sellerNTNCNIC: tenant.seller_ntn_cnic,
+      sellerFullNTN: tenant.seller_full_ntn,
+      sellerBusinessName: tenant.seller_business_name,
+      sellerProvince: tenant.seller_province,
+      sellerAddress: tenant.seller_address,
+      database_name: tenant.database_name,
+      sandboxTestToken: tenant.sandbox_test_token,
+      sandboxProductionToken: tenant.sandbox_production_token,
+      is_active: tenant.is_active,
+      created_at: tenant.created_at,
+    };
 
     res.status(200).json({
       success: true,
       message: "Tenant updated successfully",
-      data: tenant,
+      data: mapped,
     });
   } catch (error) {
     console.error("Error updating tenant:", error);
