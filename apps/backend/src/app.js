@@ -44,7 +44,7 @@ app.use(
         connectSrc: [
           "'self'",
           "https://gw.fbr.gov.pk",
-          "https://machinery-zone.inplsoftwares.online",
+          "https://signs-now.inplsoftwares.online",
         ],
         scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
@@ -58,8 +58,8 @@ app.use(
   cors({
     origin: [
       "http://localhost:5174",
-      "https://machinery-zone.inplsoftwares.online",
-      "https://machinery-zone.inplsoftwares.online",
+      "https://signs-now.inplsoftwares.online",
+      "https://signs-now.inplsoftwares.online",
       "https://fbrtestcase.inplsoftwares.online",
       "*",
     ],
