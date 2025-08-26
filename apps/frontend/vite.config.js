@@ -17,7 +17,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "https://anwer-tex.inplsoftwares.online",
+        target: "https://central-timber.inplsoftwares.online",
         changeOrigin: true,
         secure: false,
       },
