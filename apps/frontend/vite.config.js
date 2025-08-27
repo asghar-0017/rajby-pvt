@@ -17,7 +17,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "maritimeseafood.inplsoftwares.online",
+        target: "https://maritimeseafood.inplsoftwares.online",
         changeOrigin: true,
         secure: false,
       },

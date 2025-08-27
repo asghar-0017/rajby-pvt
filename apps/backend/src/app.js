@@ -44,7 +44,7 @@ app.use(
         connectSrc: [
           "'self'",
           "https://gw.fbr.gov.pk",
-          "maritimeseafood.inplsoftwares.online",
+          "https://maritimeseafood.inplsoftwares.online",
         ],
         scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
@@ -58,8 +58,8 @@ app.use(
   cors({
     origin: [
       "http://localhost:5174",
-      "maritimeseafood.inplsoftwares.online",
-      "maritimeseafood.inplsoftwares.online",
+      "https://maritimeseafood.inplsoftwares.online",
+      "https://maritimeseafood.inplsoftwares.online",
       "https://fbrtestcase.inplsoftwares.online",
       "*",
     ],
