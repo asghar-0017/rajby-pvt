@@ -46009,7 +46009,7 @@ const mE = (e) => {
   },
   bn = {
     apiKey: "https://gw.fbr.gov.pk",
-    apiKeyLocal: "https://https://maritimeseafood.inplsoftwares.online/api",
+    apiKeyLocal: "https://maritimeseafood.inplsoftwares.online/api",
     get sandBoxTestToken() {
       const e = kd.getSandboxToken();
       return (
@@ -46044,7 +46044,7 @@ const mE = (e) => {
     },
   },
   rr = qr.create({
-    baseURL: "https://https://maritimeseafood.inplsoftwares.online/api",
+    baseURL: "https://maritimeseafood.inplsoftwares.online/api",
   });
 rr.interceptors.request.use(
   (e) => {
@@ -51578,7 +51578,7 @@ const Cy = new Nge(),
           try {
             (D(!0), M(""));
             const U = await fetch(
-              "https://https://maritimeseafood.inplsoftwares.online/api/buyer-check",
+              "https://maritimeseafood.inplsoftwares.online/api/buyer-check",
               {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
