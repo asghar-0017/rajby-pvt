@@ -1,3 +1,18 @@
+/**
+ * CreateInvoice Form Component
+ *
+ * This component handles invoice creation and editing, including:
+ * - Adding/editing invoice items
+ * - Buyer selection and management
+ * - Transaction type handling
+ * - Form validation and submission
+ *
+ * Recent fixes:
+ * - Fixed buyer field not being pre-filled when editing items from Added Items list
+ * - Enhanced buyer information storage and restoration during item editing
+ * - Added debugging logs for buyer selection tracking
+ * - Improved buyer field re-rendering when selection changes
+ */
 import * as React from "react";
 import {
   Box,
@@ -42,6 +57,7 @@ import SROItem from "../component/SROItem";
 import UnitOfMeasurement from "../component/UnitOfMeasurement";
 import BillOfLadingUoM from "../component/BillOfLadingUoM";
 import OptimizedHSCodeSelector from "../component/OptimizedHSCodeSelector";
+import ProductModal from "../component/ProductModal";
 import Swal from "sweetalert2";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
@@ -188,6 +204,7 @@ export default function CreateInvoice() {
     transctypeId: "",
     items: [
       {
+        name: "",
         hsCode: "",
         productDescription: "",
         rate: "",
@@ -224,6 +241,14 @@ export default function CreateInvoice() {
   const [addedItems, setAddedItems] = React.useState([]);
   const [editingItemIndex, setEditingItemIndex] = React.useState(null);
 
+  // Buyer and product related state - moved here to avoid initialization errors
+  const [buyers, setBuyers] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [selectedBuyerId, setSelectedBuyerId] = useState("");
+  const [isBuyerModalOpen, setIsBuyerModalOpen] = useState(false);
+  const [selectedProductIdByItem, setSelectedProductIdByItem] = useState({});
+  const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+
   const [transactionTypes, setTransactionTypes] = React.useState([]);
   const [transactionTypesError, setTransactionTypesError] =
     React.useState(null);
@@ -240,6 +265,92 @@ export default function CreateInvoice() {
     console.log("TransactionTypes length:", transactionTypes?.length || 0);
     console.log("TransactionTypes error:", transactionTypesError);
   }, [transactionTypes, transactionTypesError]);
+
+  // Debug effect to monitor selectedBuyerId changes
+  React.useEffect(() => {
+    console.log("SelectedBuyerId changed:", selectedBuyerId);
+    if (selectedBuyerId && buyers.length > 0) {
+      const buyer = buyers.find((b) => b.id === selectedBuyerId);
+      console.log("Selected buyer details:", buyer);
+    }
+  }, [selectedBuyerId, buyers]);
+
+  // Debug effect to monitor selectedProductIdByItem changes
+  React.useEffect(() => {
+    console.log("selectedProductIdByItem changed:", selectedProductIdByItem);
+    if (selectedProductIdByItem[0] && products.length > 0) {
+      const selectedProduct = products.find(
+        (p) => p.id === selectedProductIdByItem[0]
+      );
+      console.log("Selected product details:", selectedProduct);
+    }
+  }, [selectedProductIdByItem, products]);
+
+  // Effect to sync buyer selection with form data when editing
+  React.useEffect(() => {
+    if (
+      editingItemIndex &&
+      formData.buyerNTNCNIC &&
+      formData.buyerBusinessName &&
+      buyers.length > 0
+    ) {
+      console.log("Syncing buyer selection with form data during editing");
+      const matchingBuyer = buyers.find(
+        (buyer) =>
+          buyer.buyerNTNCNIC === formData.buyerNTNCNIC &&
+          buyer.buyerBusinessName === formData.buyerBusinessName
+      );
+      if (matchingBuyer && matchingBuyer.id !== selectedBuyerId) {
+        console.log(
+          "Updating buyer selection to match form data:",
+          matchingBuyer.id
+        );
+        setSelectedBuyerId(matchingBuyer.id);
+      }
+    }
+  }, [
+    editingItemIndex,
+    formData.buyerNTNCNIC,
+    formData.buyerBusinessName,
+    buyers,
+    selectedBuyerId,
+  ]);
+
+  // Sync product selection with form data during editing
+  React.useEffect(() => {
+    if (
+      editingItemIndex &&
+      formData.items[0]?.hsCode &&
+      formData.items[0]?.name &&
+      products.length > 0
+    ) {
+      console.log("Syncing product selection with form data during editing");
+      const matchingProduct = products.find(
+        (product) =>
+          product.hsCode === formData.items[0].hsCode &&
+          product.name === formData.items[0].name
+      );
+      if (
+        matchingProduct &&
+        matchingProduct.id !== selectedProductIdByItem[0]
+      ) {
+        console.log(
+          "Updating product selection to match form data:",
+          matchingProduct.id
+        );
+        setSelectedProductIdByItem((prev) => ({
+          ...prev,
+          0: matchingProduct.id,
+        }));
+      }
+    }
+  }, [
+    editingItemIndex,
+    formData.items[0]?.hsCode,
+    formData.items[0]?.name,
+    products,
+    selectedProductIdByItem,
+  ]);
 
   // Function to handle transaction type button click
   const handleTransactionTypeButtonClick = async () => {
@@ -381,9 +492,6 @@ export default function CreateInvoice() {
   const [province, setProvince] = React.useState([]);
   const [hsCodeList, setHsCodeList] = React.useState([]);
   const [invoiceTypes, setInvoiceTypes] = React.useState([]);
-  const [buyers, setBuyers] = useState([]);
-  const [selectedBuyerId, setSelectedBuyerId] = useState("");
-  const [isBuyerModalOpen, setIsBuyerModalOpen] = useState(false);
   const navigate = useNavigate();
   const [allLoading, setAllLoading] = React.useState(true);
   const [transactionTypeId, setTransactionTypeId] = React.useState(null);
@@ -585,6 +693,7 @@ export default function CreateInvoice() {
           transctypeId: "",
           items: [
             {
+              name: "",
               hsCode: "",
               productDescription: "",
               rate: "",
@@ -622,6 +731,7 @@ export default function CreateInvoice() {
         if (invoiceData.items && invoiceData.items.length > 0) {
           const existingItems = invoiceData.items.map((item) => ({
             id: item.id || `existing-${Date.now()}-${Math.random()}`, // Generate unique ID if not present
+            name: item.name || "",
             hsCode: item.hsCode || "",
             productDescription: item.productDescription || "",
             rate: item.rate || "",
@@ -807,7 +917,17 @@ export default function CreateInvoice() {
         localStorage.removeItem("editingBuyerData");
       }
     }
-  }, [buyers]);
+
+    // Also try to restore buyer information for items being edited when buyers are loaded
+    if (editingItemIndex && buyers.length > 0) {
+      console.log(
+        "Buyers loaded, attempting to restore buyer for editing item"
+      );
+      // This will trigger the buyer restoration logic in editAddedItem
+      // We don't need to do anything here as the buyer restoration is handled
+      // when the item is loaded for editing
+    }
+  }, [buyers, editingItemIndex]);
 
   // Fix unit cost calculation when editing - ensure unit cost is calculated from retail price and quantity
   useEffect(() => {
@@ -1108,6 +1228,25 @@ export default function CreateInvoice() {
     fetchBuyers();
   }, [selectedTenant]);
 
+  // Fetch existing products when component mounts
+  useEffect(() => {
+    const fetchProducts = async () => {
+      if (!selectedTenant) return;
+      try {
+        const response = await api.get(
+          `/tenant/${selectedTenant.tenant_id}/products`
+        );
+        if (response.data.success) {
+          setProducts(response.data.data || []);
+        }
+      } catch (error) {
+        console.error("Error fetching products:", error);
+        setProducts([]);
+      }
+    };
+    fetchProducts();
+  }, [selectedTenant]);
+
   // BuyerModal functions
   const openBuyerModal = () => {
     setIsBuyerModalOpen(true);
@@ -1183,6 +1322,41 @@ export default function CreateInvoice() {
         title: "Error",
         text: errorMessage,
       });
+    }
+  };
+
+  // Product modal handlers
+  const openProductModal = () => setIsProductModalOpen(true);
+  const closeProductModal = () => setIsProductModalOpen(false);
+  const handleSaveProduct = async (productData) => {
+    try {
+      const response = await api.post(
+        `/tenant/${selectedTenant.tenant_id}/products`,
+        {
+          name: productData.name,
+          description: productData.description,
+          hsCode: productData.hsCode,
+          uom: productData.uoM,
+        }
+      );
+      const saved = response.data.data;
+      setProducts((prev) => [...prev, saved]);
+      setSelectedProductIdByItem((prev) => ({ ...prev, 0: saved.id }));
+      setFormData((prev) => {
+        const updated = [...prev.items];
+        if (!updated[0]) updated[0] = {};
+        updated[0] = {
+          ...updated[0],
+          name: saved.name,
+          hsCode: saved.hsCode,
+          productDescription: saved.description,
+          uoM: saved.uom,
+        };
+        return { ...prev, items: updated };
+      });
+      setIsProductModalOpen(false);
+    } catch (e) {
+      console.error("Error saving product:", e);
     }
   };
 
@@ -1424,8 +1598,24 @@ export default function CreateInvoice() {
       return;
     }
 
-    // Add current item to addedItems list
-    const itemToAdd = { ...currentItem, id: Date.now() }; // Add unique ID
+    // Add current item to addedItems list with buyer and product information
+    const itemToAdd = {
+      ...currentItem,
+      id: Date.now(), // Add unique ID
+      buyerId: selectedBuyerId, // Store buyer ID for editing
+      buyerNTNCNIC: formData.buyerNTNCNIC, // Store buyer NTN/CNIC for editing
+      buyerBusinessName: formData.buyerBusinessName, // Store buyer business name for editing
+      productId: selectedProductIdByItem[0], // Store product ID for editing
+    };
+
+    console.log("Adding item with buyer and product info:", {
+      buyerId: selectedBuyerId,
+      buyerNTN: formData.buyerNTNCNIC,
+      buyerName: formData.buyerBusinessName,
+      productId: selectedProductIdByItem[0],
+      itemId: itemToAdd.id,
+    });
+
     setAddedItems((prev) => [...prev, itemToAdd]);
 
     // Clear Transaction Type completely when an item is added
@@ -1471,6 +1661,7 @@ export default function CreateInvoice() {
       transctypeId: "", // Clear transaction type ID
       items: [
         {
+          name: "",
           hsCode: "",
           productDescription: "",
           rate: "",
@@ -1502,6 +1693,9 @@ export default function CreateInvoice() {
         },
       ],
     }));
+
+    // Clear the product selection for the new item
+    setSelectedProductIdByItem((prev) => ({ ...prev, 0: undefined }));
 
     // Clear editing state
     setEditingItemIndex(null);
@@ -1576,6 +1770,106 @@ export default function CreateInvoice() {
         ...prev,
         items: [itemToEdit],
       }));
+
+      // Wait for buyers and products to be loaded if they're not already available
+      if (buyers.length === 0) {
+        console.log("Buyers not loaded yet, waiting...");
+        // Wait a bit for buyers to load
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+
+      if (products.length === 0) {
+        console.log("Products not loaded yet, waiting...");
+        // Wait a bit for products to load
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+
+      // Small delay to ensure form data is properly set before restoring buyer and product
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // Restore buyer and product information if available in the item
+      console.log("Editing item with buyer and product info:", {
+        itemBuyerId: itemToEdit.buyerId,
+        itemBuyerNTN: itemToEdit.buyerNTNCNIC,
+        itemBuyerName: itemToEdit.buyerBusinessName,
+        itemProductId: itemToEdit.productId,
+        currentFormBuyerNTN: formData.buyerNTNCNIC,
+        currentFormBuyerName: formData.buyerBusinessName,
+        buyersCount: buyers.length,
+        productsCount: products.length,
+      });
+
+      if (itemToEdit.buyerId) {
+        console.log("Setting buyer ID from item:", itemToEdit.buyerId);
+        setSelectedBuyerId(itemToEdit.buyerId);
+      } else if (itemToEdit.buyerNTNCNIC && itemToEdit.buyerBusinessName) {
+        // Try to find the buyer by NTN/CNIC and business name
+        const matchingBuyer = buyers.find(
+          (buyer) =>
+            buyer.buyerNTNCNIC === itemToEdit.buyerNTNCNIC &&
+            buyer.buyerBusinessName === itemToEdit.buyerBusinessName
+        );
+        if (matchingBuyer) {
+          console.log("Found matching buyer by NTN/Name:", matchingBuyer.id);
+          setSelectedBuyerId(matchingBuyer.id);
+        } else {
+          console.log("No matching buyer found by NTN/Name");
+        }
+      } else {
+        // Fallback: try to restore buyer from current form state if available
+        if (
+          formData.buyerNTNCNIC &&
+          formData.buyerBusinessName &&
+          buyers.length > 0
+        ) {
+          const matchingBuyer = buyers.find(
+            (buyer) =>
+              buyer.buyerNTNCNIC === formData.buyerNTNCNIC &&
+              buyer.buyerBusinessName === formData.buyerBusinessName
+          );
+          if (matchingBuyer) {
+            console.log(
+              "Found matching buyer from form state:",
+              matchingBuyer.id
+            );
+            setSelectedBuyerId(matchingBuyer.id);
+          } else {
+            console.log("No matching buyer found from form state");
+          }
+        } else {
+          console.log("No buyer information available to restore");
+        }
+      }
+
+      // Restore product information if available in the item
+      if (itemToEdit.productId) {
+        console.log("Setting product ID from item:", itemToEdit.productId);
+        setSelectedProductIdByItem((prev) => ({
+          ...prev,
+          0: itemToEdit.productId,
+        }));
+      } else if (itemToEdit.hsCode && itemToEdit.name && products.length > 0) {
+        // Try to find the product by HS Code and name
+        const matchingProduct = products.find(
+          (product) =>
+            product.hsCode === itemToEdit.hsCode &&
+            product.name === itemToEdit.name
+        );
+        if (matchingProduct) {
+          console.log(
+            "Found matching product by HS Code/Name:",
+            matchingProduct.id
+          );
+          setSelectedProductIdByItem((prev) => ({
+            ...prev,
+            0: matchingProduct.id,
+          }));
+        } else {
+          console.log("No matching product found by HS Code/Name");
+        }
+      } else {
+        console.log("No product information available to restore");
+      }
 
       // Prefill Transaction Type based on item's saleType
       try {
@@ -1920,6 +2214,7 @@ export default function CreateInvoice() {
               sroScheduleNo: rest.sroScheduleNo?.trim() || null,
               sroItemSerialNo: rest.sroItemSerialNo?.trim() || null,
               uoM: uoMValue,
+              name: rest.name?.trim() || null,
               productDescription: rest.productDescription?.trim() || null,
               saleType:
                 rest.saleType?.trim() || "Goods at standard rate (default)",
@@ -1944,6 +2239,14 @@ export default function CreateInvoice() {
       const payload = editingId
         ? { id: editingId, ...cleanedData }
         : cleanedData;
+      console.log(
+        "Saving invoice with payload:",
+        JSON.stringify(payload, null, 2)
+      );
+      console.log(
+        "Items being saved:",
+        payload.items.map((item) => ({ name: item.name, hsCode: item.hsCode }))
+      );
       const response = await api.post(
         `/tenant/${selectedTenant.tenant_id}/invoices/save`,
         payload
@@ -2174,6 +2477,7 @@ export default function CreateInvoice() {
               sroScheduleNo: rest.sroScheduleNo?.trim() || null,
               sroItemSerialNo: rest.sroItemSerialNo?.trim() || null,
               uoM: uoMValue,
+              name: rest.name?.trim() || null,
               productDescription: rest.productDescription?.trim() || null,
               saleType:
                 rest.saleType?.trim() || "Goods at standard rate (default)",
@@ -2218,6 +2522,17 @@ export default function CreateInvoice() {
         const payload = editingId
           ? { id: editingId, ...cleanedData }
           : cleanedData;
+        console.log(
+          "Saving and validating invoice with payload:",
+          JSON.stringify(payload, null, 2)
+        );
+        console.log(
+          "Items being saved:",
+          payload.items.map((item) => ({
+            name: item.name,
+            hsCode: item.hsCode,
+          }))
+        );
         const response = await api.post(
           `/tenant/${selectedTenant.tenant_id}/invoices/save-validate`,
           payload
@@ -2802,6 +3117,7 @@ export default function CreateInvoice() {
       transctypeId: "",
       items: [
         {
+          name: "",
           hsCode: "",
           productDescription: "",
           rate: "",
@@ -3218,6 +3534,7 @@ export default function CreateInvoice() {
                 </Button>
               </Box>
               <Autocomplete
+                key={`buyer-autocomplete-${selectedBuyerId || "none"}-${buyers.length}`}
                 fullWidth
                 size="small"
                 options={buyers}
@@ -3227,9 +3544,10 @@ export default function CreateInvoice() {
                     : ""
                 }
                 value={buyers.find((b) => b.id === selectedBuyerId) || null}
-                onChange={(_, newValue) =>
-                  setSelectedBuyerId(newValue ? newValue.id : "")
-                }
+                onChange={(_, newValue) => {
+                  console.log("Buyer selection changed:", newValue);
+                  setSelectedBuyerId(newValue ? newValue.id : "");
+                }}
                 renderInput={(params) => (
                   <TextField
                     {...params}
@@ -3603,7 +3921,7 @@ export default function CreateInvoice() {
                 },
               }}
             >
-              {/* HS Code Section - Full Line */}
+              {/* Select Product Section (replaces HS Code section) */}
               <Box
                 sx={{
                   border: "none",
@@ -3619,20 +3937,75 @@ export default function CreateInvoice() {
                     display: "grid",
                     gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
                     gap: 1,
+                    alignItems: "center",
                   }}
                 >
-                  <Box
-                    sx={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr",
-                      gap: 1,
-                    }}
-                  >
-                    <OptimizedHSCodeSelector
-                      index={index}
-                      item={item}
-                      handleItemChange={handleItemChange}
-                      environment="sandbox"
+                  <Box sx={{ display: "flex", gap: 1 }}>
+                    <Autocomplete
+                      key={`product-autocomplete-${selectedProductIdByItem[index] || "none"}-${products.length}`}
+                      fullWidth
+                      size="small"
+                      options={[
+                        ...products,
+                        { id: "__add__", name: "Add Product" },
+                      ]}
+                      getOptionLabel={(option) => option?.name || ""}
+                      value={
+                        products.find(
+                          (p) => p.id === selectedProductIdByItem[index]
+                        ) || null
+                      }
+                      onChange={(_, newVal) => {
+                        console.log("Product selection changed:", {
+                          newVal,
+                          index,
+                        });
+                        if (newVal?.id === "__add__") {
+                          openProductModal();
+                          return;
+                        }
+                        setSelectedProductIdByItem((prev) => ({
+                          ...prev,
+                          [index]: newVal?.id || undefined,
+                        }));
+                        if (newVal) {
+                          handleItemChange(index, "name", newVal.name || "");
+                          handleItemChange(
+                            index,
+                            "hsCode",
+                            newVal.hsCode || ""
+                          );
+                          handleItemChange(
+                            index,
+                            "productDescription",
+                            newVal.description || ""
+                          );
+                          handleItemChange(index, "uoM", newVal.uoM || "");
+                        }
+                      }}
+                      renderInput={(params) => (
+                        <TextField {...params} label="Select Product" />
+                      )}
+                      renderOption={(props, option) => {
+                        const { key, ...rest } = props;
+                        if (option.id === "__add__") {
+                          return (
+                            <li
+                              key={key}
+                              {...rest}
+                              style={{ color: "#007AFF", fontWeight: 600 }}
+                            >
+                              + Add Product
+                            </li>
+                          );
+                        }
+                        return (
+                          <li key={key} {...rest}>
+                            {option.name}
+                          </li>
+                        );
+                      }}
+                      isOptionEqualToValue={(opt, val) => opt.id === val.id}
                     />
                   </Box>
                 </Box>
@@ -3684,26 +4057,6 @@ export default function CreateInvoice() {
                 <TextField
                   fullWidth
                   size="small"
-                  label="Product Description"
-                  value={item.productDescription || ""}
-                  onChange={(e) =>
-                    handleItemChange(
-                      index,
-                      "productDescription",
-                      e.target.value
-                    )
-                  }
-                  variant="outlined"
-                  sx={{
-                    "& .MuiOutlinedInput-root": {
-                      "& fieldset": { borderColor: "#e5e7eb" },
-                    },
-                    "& .MuiInputLabel-root": { color: "#6b7280" },
-                  }}
-                />
-                <TextField
-                  fullWidth
-                  size="small"
                   label="Sales Type"
                   type="text"
                   value={item.saleType || ""}
@@ -3722,6 +4075,7 @@ export default function CreateInvoice() {
                     "& .MuiInputLabel-root": { color: "#6b7280" },
                   }}
                 />
+                {/* UOM is now derived from selected product; keep component for dynamic updates */}
                 <UnitOfMeasurement
                   key={`UnitOfMeasurement-${index}`}
                   index={index}
@@ -4314,19 +4668,42 @@ export default function CreateInvoice() {
                         </TableCell>
                         <TableCell>
                           <Box sx={{ display: "flex", gap: 1 }}>
-                            <IconButton
-                              size="small"
-                              color="primary"
-                              onClick={() => editAddedItem(item.id)}
-                              sx={{
-                                borderRadius: 1,
-                                "&:hover": {
-                                  background: "rgba(99, 102, 241, 0.1)",
-                                },
-                              }}
+                            <Tooltip
+                              title={
+                                editingItemIndex && editingItemIndex !== item.id
+                                  ? "Save the current item first"
+                                  : "Edit item"
+                              }
+                              placement="top"
                             >
-                              <FaEdit size={16} />
-                            </IconButton>
+                              <span>
+                                <IconButton
+                                  size="small"
+                                  color="primary"
+                                  onClick={() => editAddedItem(item.id)}
+                                  disabled={
+                                    editingItemIndex &&
+                                    editingItemIndex !== item.id
+                                  }
+                                  sx={{
+                                    borderRadius: 1,
+                                    "&:hover": {
+                                      background:
+                                        editingItemIndex &&
+                                        editingItemIndex !== item.id
+                                          ? "rgba(0, 0, 0, 0.04)"
+                                          : "rgba(99, 102, 241, 0.1)",
+                                    },
+                                    "&.Mui-disabled": {
+                                      color: "rgba(0, 0, 0, 0.26)",
+                                      backgroundColor: "rgba(0, 0, 0, 0.04)",
+                                    },
+                                  }}
+                                >
+                                  <FaEdit size={16} />
+                                </IconButton>
+                              </span>
+                            </Tooltip>
                             <IconButton
                               size="small"
                               color="error"
@@ -4483,6 +4860,14 @@ export default function CreateInvoice() {
           onClose={closeBuyerModal}
           onSave={handleSaveBuyer}
           buyer={null}
+        />
+
+        {/* Product Modal */}
+        <ProductModal
+          isOpen={isProductModalOpen}
+          onClose={closeProductModal}
+          onSave={handleSaveProduct}
+          initialProduct={null}
         />
       </Box>
     </TenantSelectionPrompt>

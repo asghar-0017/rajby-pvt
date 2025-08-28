@@ -18,6 +18,10 @@ export const createInvoiceItemModel = (sequelize) => {
           key: "id",
         },
       },
+      name: {
+        type: DataTypes.STRING(255),
+        allowNull: true,
+      },
       hsCode: {
         type: DataTypes.STRING(50),
         allowNull: true,

@@ -393,6 +393,8 @@ export const createInvoice = async (req, res) => {
 
             hsCode: cleanHsCode(item.hsCode),
 
+            name: cleanValue(item.name),
+
             productDescription: cleanValue(item.productDescription),
 
             rate: cleanValue(item.rate),
@@ -730,6 +732,8 @@ export const saveInvoice = async (req, res) => {
             invoice_id: invoice.id,
 
             hsCode: cleanHsCode(item.hsCode),
+
+            name: cleanValue(item.name),
 
             productDescription: cleanValue(item.productDescription),
 
@@ -1077,6 +1081,8 @@ export const saveAndValidateInvoice = async (req, res) => {
             invoice_id: invoice.id,
 
             hsCode: cleanHsCode(item.hsCode),
+
+            name: cleanValue(item.name),
 
             productDescription: cleanValue(item.productDescription),
 
@@ -3039,6 +3045,8 @@ export const bulkCreateInvoices = async (req, res) => {
                 invoice_id: invoice.id,
 
                 hsCode: cleanHsCode(item.hsCode, group.rowNumbers[0]),
+
+                name: cleanValue(item.name),
 
                 productDescription: cleanValue(item.productDescription),
 

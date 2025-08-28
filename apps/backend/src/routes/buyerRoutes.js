@@ -1,5 +1,6 @@
 import express from "express";
 import * as buyerController from "../controller/mysql/buyerController.js";
+import * as productController from "../controller/mysql/productController.js";
 import { identifyTenant } from "../middleWare/tenantMiddleware.js";
 import { authenticateToken } from "../middleWare/authMiddleware.js";
 
@@ -19,5 +20,9 @@ router.get("/buyers/:id", buyerController.getBuyerById);
 router.put("/buyers/:id", buyerController.updateBuyer);
 router.delete("/buyers/:id", buyerController.deleteBuyer);
 router.get("/buyers/province/:province", buyerController.getBuyersByProvince);
+
+// Product routes (tenant-specific)
+router.get("/products", productController.listProducts);
+router.post("/products", productController.createProduct);
 
 export default router;

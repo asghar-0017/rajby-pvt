@@ -2,6 +2,7 @@ import { createTenantConnection } from "../config/mysql.js";
 import { createBuyerModel } from "../model/mysql/tenant/Buyer.js";
 import { createInvoiceModel } from "../model/mysql/tenant/Invoice.js";
 import { createInvoiceItemModel } from "../model/mysql/tenant/InvoiceItem.js";
+import { createProductModel } from "../model/mysql/tenant/Product.js";
 import Tenant from "../model/mysql/Tenant.js";
 import { masterSequelize } from "../config/mysql.js";
 
@@ -142,6 +143,7 @@ class TenantDatabaseService {
       const Buyer = createBuyerModel(sequelize);
       const Invoice = createInvoiceModel(sequelize);
       const InvoiceItem = createInvoiceItemModel(sequelize);
+      const Product = createProductModel(sequelize);
 
       // Define associations
       Invoice.hasMany(InvoiceItem, { foreignKey: "invoice_id" });
@@ -160,6 +162,7 @@ class TenantDatabaseService {
         Buyer,
         Invoice,
         InvoiceItem,
+        Product,
       });
 
       console.log(
@@ -231,6 +234,7 @@ class TenantDatabaseService {
       const Buyer = createBuyerModel(sequelize);
       const Invoice = createInvoiceModel(sequelize);
       const InvoiceItem = createInvoiceItemModel(sequelize);
+      const Product = createProductModel(sequelize);
 
       // Define associations
       Invoice.hasMany(InvoiceItem, { foreignKey: "invoice_id" });
@@ -242,6 +246,7 @@ class TenantDatabaseService {
         Buyer,
         Invoice,
         InvoiceItem,
+        Product,
       });
 
       return {
@@ -251,6 +256,7 @@ class TenantDatabaseService {
           Buyer,
           Invoice,
           InvoiceItem,
+          Product,
         },
       };
     } catch (error) {

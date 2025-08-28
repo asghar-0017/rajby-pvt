@@ -10,6 +10,7 @@ const OptimizedHSCodeSelector = ({
   environment = "sandbox",
   label = "HS Code",
   placeholder = "Search HS Code...",
+  sx = {},
 }) => {
   const [hsCodeList, setHsCodeList] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -115,7 +116,7 @@ const OptimizedHSCodeSelector = ({
   }, [hsCodeList, item.hsCode]);
 
   return (
-    <Box sx={{ width: "100%" }}>
+    <Box sx={{ width: "100%", ...sx }}>
       <Autocomplete
         fullWidth
         size="small"
@@ -132,6 +133,15 @@ const OptimizedHSCodeSelector = ({
         filterOptions={(options) => {
           return options;
         }}
+        sx={{
+          "& .MuiAutocomplete-paper": {
+            backgroundColor: "rgba(255, 255, 255, 0.9)",
+            backdropFilter: "blur(20px)",
+            border: "1px solid rgba(255, 255, 255, 0.3)",
+            borderRadius: 2,
+            boxShadow: "0 8px 32px rgba(0, 0, 0, 0.12)",
+          },
+        }}
         renderInput={(params) => (
           <TextField
             {...params}
@@ -139,6 +149,32 @@ const OptimizedHSCodeSelector = ({
             placeholder={placeholder}
             variant="outlined"
             size="small"
+            sx={{
+              "& .MuiOutlinedInput-root": {
+                backgroundColor: "rgba(255, 255, 255, 0.6)",
+                backdropFilter: "blur(10px)",
+                borderRadius: 2,
+                "& fieldset": {
+                  borderColor: "rgba(0, 0, 0, 0.12)",
+                  borderWidth: 1,
+                },
+                "&:hover fieldset": {
+                  borderColor: "rgba(0, 0, 0, 0.2)",
+                },
+                "&.Mui-focused fieldset": {
+                  borderColor: "#007AFF",
+                  borderWidth: 2,
+                },
+              },
+              "& .MuiInputLabel-root": {
+                color: "#1a1a1a",
+                fontWeight: 500,
+              },
+              "& .MuiOutlinedInput-input": {
+                color: "#1a1a1a",
+                fontWeight: 400,
+              },
+            }}
             InputProps={{
               ...params.InputProps,
               endAdornment: (
@@ -176,12 +212,6 @@ const OptimizedHSCodeSelector = ({
             : "No HS codes found"
         }
       />
-
-      {selectedDescription && (
-        <Typography variant="body2" sx={{ mt: 1, color: "text.secondary" }}>
-          {selectedDescription}
-        </Typography>
-      )}
 
       <Typography
         variant="caption"

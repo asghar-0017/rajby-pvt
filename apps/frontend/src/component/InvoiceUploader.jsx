@@ -647,11 +647,14 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         continue;
       }
       try {
-        const resp = await fetch("http://localhost:5150/api/buyer-check", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ registrationNo: ntn }),
-        });
+        const resp = await fetch(
+          "https://aqmsburhani.inplsoftwares.online/api/buyer-check",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ registrationNo: ntn }),
+          }
+        );
         const data = await resp.json().catch(() => ({}));
         let derived = "";
         if (data && typeof data.REGISTRATION_TYPE === "string") {
