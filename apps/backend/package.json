@@ -19,7 +19,9 @@
     "fix-buyer-indexes": "node scripts/fix-buyer-indexes.js",
     "fix-buyer-indexes-simple": "node scripts/fix-buyer-indexes-simple.js",
     "fix-buyer-indexes-final": "node scripts/fix-buyer-indexes-final.js",
-    "test-database": "node scripts/test-database-state.js"
+    "test-database": "node scripts/test-database-state.js",
+    "monitor-performance": "node scripts/performance-monitor.js",
+    "test-id-generation": "node test-id-generation.js"
   },
   "keywords": [],
   "author": "",

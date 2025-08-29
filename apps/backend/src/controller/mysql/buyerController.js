@@ -347,13 +347,8 @@ export const bulkCreateBuyers = async (req, res) => {
       });
     }
 
-    // Limit the number of buyers that can be uploaded at once
-    if (buyers.length > 1000) {
-      return res.status(400).json({
-        success: false,
-        message: "Maximum 1000 buyers can be uploaded at once",
-      });
-    }
+    // No limit on the number of buyers that can be uploaded at once
+    // Users can now upload unlimited buyers
 
     const results = {
       created: [],
@@ -593,13 +588,8 @@ export const checkExistingBuyers = async (req, res) => {
       });
     }
 
-    // Limit the number of buyers that can be checked at once
-    if (buyers.length > 1000) {
-      return res.status(400).json({
-        success: false,
-        message: "Maximum 1000 buyers can be checked at once",
-      });
-    }
+    // No limit on the number of buyers that can be checked at once
+    // Users can now check unlimited buyers
 
     const results = {
       existing: [],

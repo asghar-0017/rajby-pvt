@@ -215,8 +215,8 @@ const PerformanceDashboard = () => {
             <p className="font-medium">🚀 For Ultra-Fast Uploads:</p>
             <ul className="list-disc list-inside mt-1 space-y-1">
               <li>Use the Excel template format</li>
-              <li>Keep file size under 10MB</li>
-              <li>Upload during off-peak hours</li>
+              <li>No file size limits - upload unlimited invoices!</li>
+              <li>Upload during off-peak hours for best performance</li>
             </ul>
           </div>
           <div>

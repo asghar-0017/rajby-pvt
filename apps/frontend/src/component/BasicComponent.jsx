@@ -37,6 +37,7 @@ import InvoiceUploader from "./InvoiceUploader";
 
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
+import { toast } from "react-toastify";
 
 export default function BasicTable() {
   const [invoices, setInvoices] = useState([]);
@@ -173,7 +174,7 @@ export default function BasicTable() {
     } catch (error) {
       console.error("Error fetching invoices:", error);
       if (error.response?.status === 401) {
-        alert("Authentication failed. Please log in again.");
+        toast.error("Authentication failed. Please log in again.");
       }
       setInvoices([]);
     } finally {
@@ -198,7 +199,7 @@ export default function BasicTable() {
   const handleButtonClick = async (invoice) => {
     try {
       if (!selectedTenant) {
-        alert("No Company selected");
+        toast.error("No Company selected");
         return;
       }
 
@@ -206,7 +207,7 @@ export default function BasicTable() {
       const token =
         localStorage.getItem("tenantToken") || localStorage.getItem("token");
       if (!token) {
-        alert("Authentication token not found");
+        toast.error("Authentication token not found");
         return;
       }
 
@@ -216,9 +217,9 @@ export default function BasicTable() {
     } catch (error) {
       console.error("Error printing invoice:", error);
       if (error.response?.status === 401) {
-        alert("Authentication failed. Please log in again.");
+        toast.error("Authentication failed. Please log in again.");
       } else {
-        alert("Error printing invoice. Check console for details.");
+        toast.error("Error printing invoice. Check console for details.");
       }
     }
   };
@@ -226,7 +227,7 @@ export default function BasicTable() {
   const handleViewInvoice = async (invoice) => {
     try {
       if (!selectedTenant) {
-        alert("No Company selected");
+        toast.error("No Company selected");
         return;
       }
 
@@ -239,14 +240,14 @@ export default function BasicTable() {
         setViewModalOpen(true);
       } else {
         console.error("Failed to fetch invoice:", response.data.message);
-        alert("Failed to fetch invoice details");
+        toast.error("Failed to fetch invoice details");
       }
     } catch (error) {
       console.error("Error fetching invoice data:", error);
       if (error.response?.status === 401) {
-        alert("Authentication failed. Please log in again.");
+        toast.error("Authentication failed. Please log in again.");
       } else {
-        alert("Error fetching invoice details. Check console for details.");
+        toast.error("Error fetching invoice details. Check console for details.");
       }
     }
   };
@@ -254,7 +255,7 @@ export default function BasicTable() {
   const handleEditInvoice = async (invoice) => {
     try {
       if (!selectedTenant) {
-        alert("No Company selected");
+        toast.error("No Company selected");
         return;
       }
 
@@ -275,14 +276,14 @@ export default function BasicTable() {
         }
       } else {
         console.error("Failed to fetch invoice:", response.data.message);
-        alert("Failed to fetch invoice details");
+        toast.error("Failed to fetch invoice details");
       }
     } catch (error) {
       console.error("Error fetching invoice data:", error);
       if (error.response?.status === 401) {
-        alert("Authentication failed. Please log in again.");
+        toast.error("Authentication failed. Please log in again.");
       } else {
-        alert("Error fetching invoice details. Check console for details.");
+        toast.error("Error fetching invoice details. Check console for details.");
       }
     }
   };
@@ -308,14 +309,20 @@ export default function BasicTable() {
             errorDetails += `\n... and ${errors.length - 10} more errors`;
           }
 
-          // Show error details in an alert
-          alert(
-            `Upload completed with issues:\n\n${summary.successful} invoices added successfully\n${summary.failed} invoices failed\n\nError details:\n${errorDetails}`
+          // Show error details in a toast instead of alert
+          toast.warning(
+            `Upload completed with issues: ${summary.successful} invoices added successfully, ${summary.failed} invoices failed. Check console for error details.`,
+            {
+              autoClose: 8000,
+              closeOnClick: false,
+              pauseOnHover: true,
+            }
           );
+          console.error("Upload errors:", errors);
         } else {
           // Refresh the invoices list
           getMyInvoices();
-          alert(`Successfully uploaded ${summary.successful} invoices as drafts!`);
+          toast.success(`Successfully uploaded ${summary.successful} invoices as drafts!`);
         }
         
         return response.data;
@@ -338,7 +345,7 @@ export default function BasicTable() {
             data.message || "An error occurred while uploading invoices.";
         }
       }
-      alert(errorMessage);
+      toast.error(errorMessage);
       throw error;
     }
   };
@@ -766,16 +773,14 @@ export default function BasicTable() {
                                   navigator.clipboard.writeText(
                                     row.invoiceNumber
                                   );
-                                  Swal.fire({
-                                    title: "Copied!",
-                                    text: `Invoice Number "${row.invoiceNumber}" copied to clipboard.`,
-                                    icon: "success",
-                                    toast: true,
-                                    position: "top-end",
-                                    showConfirmButton: false,
-                                    timer: 3000,
-                                    timerProgressBar: true,
-                                  });
+                                  toast.success(
+                                    `Invoice Number "${row.invoiceNumber}" copied to clipboard.`,
+                                    {
+                                      autoClose: 3000,
+                                      closeOnClick: false,
+                                      pauseOnHover: true,
+                                    }
+                                  );
                                 }}
                                 sx={{
                                   minWidth: "24px",

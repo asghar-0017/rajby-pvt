@@ -107,12 +107,13 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       };
 
       const provinceColIdx = expectedColumns.indexOf("buyerProvince") + 1;
-      const maxRows = 1000; // allow up to 999 rows of data
+      // No row limit - allow unlimited rows of data
+      const maxRows = 100000; // allow up to 100,000 rows of data for template generation
 
       const provinceRange = `'Lists'!$A$1:$A$${provinces.length}`;
 
-      // Apply data validations row-wise
-      for (let r = 2; r <= maxRows; r++) {
+      // Apply data validations row-wise (limited to reasonable number for template)
+      for (let r = 2; r <= Math.min(maxRows, 10000); r++) {
         if (provinceColIdx > 0) {
           worksheet.getCell(r, provinceColIdx).dataValidation = {
             type: "list",
@@ -541,10 +542,16 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
             errorDetails += `\n... and ${errors.length - 10} more errors`;
           }
 
-          // Show error details in an alert
-          alert(
-            `Upload completed with issues:\n\n${summary.successful} buyers added successfully\n${summary.failed} buyers failed\n\nError details:\n${errorDetails}`
+          // Show error details in a toast instead of alert
+          toast.warning(
+            `Upload completed with issues: ${summary.successful} buyers added successfully, ${summary.failed} buyers failed. Check console for error details.`,
+            {
+              autoClose: 8000,
+              closeOnClick: false,
+              pauseOnHover: true,
+            }
           );
+          console.error("Upload errors:", errors);
         } else {
           toast.success(`Successfully uploaded ${summary.successful} buyers!`);
         }

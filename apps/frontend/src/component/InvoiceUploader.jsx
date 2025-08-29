@@ -137,7 +137,7 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
   const [existingInvoices, setExistingInvoices] = useState([]);
   const [newInvoices, setNewInvoices] = useState([]);
   const [checkingExisting, setCheckingExisting] = useState(false);
-  const [downloadButtonDisabled, setDownloadButtonDisabled] = useState(false);
+  // const [downloadButtonDisabled, setDownloadButtonDisabled] = useState(false);
   const [buyers, setBuyers] = useState([]);
   const [selectedBuyerId, setSelectedBuyerId] = useState("");
   const [loadingBuyers, setLoadingBuyers] = useState(false);
@@ -199,69 +199,87 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     fetchBuyers();
   }, [selectedTenant]);
 
-  const downloadTemplate = async () => {
-    try {
-      // Disable the button temporarily
-      setDownloadButtonDisabled(true);
+  // const downloadTemplate = async () => {
+  //   try {
+  //     // Disable the button temporarily
+  //     setDownloadButtonDisabled(true);
 
-      // Check if we have a selected tenant
-      if (!selectedTenant?.tenant_id) {
-        toast.error("Please select a tenant first");
-        return;
-      }
+  //     // Check if we have a selected tenant
+  //     if (!selectedTenant?.tenant_id) {
+  //       toast.error("Please select a tenant first");
+  //       return;
+  //     }
 
-      // Call the backend API to generate and download the template
-      const response = await api.get(`/tenant/${selectedTenant.tenant_id}/invoices/template.xlsx`, {
-        responseType: "blob", // Important: set response type to blob for file download
-      });
+  //     // Call the backend API to generate and download the template
+  //     const response = await api.get(`/tenant/${selectedTenant.tenant_id}/invoices/template.xlsx`, {
+  //       responseType: "blob", // Important: set response type to blob for file download
+  //     });
 
-      // Create a blob from the response data
-      const blob = new Blob([response.data], {
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      });
+  //     // Create a blob from the response data
+  //     const blob = new Blob([response.data], {
+  //       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  //     });
 
-      // Create download link
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "invoice_template.xlsx";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+  //     // Create download link
+  //     const url = window.URL.createObjectURL(blob);
+  //     const a = document.createElement("a");
+  //     a.href = url;
+  //     a.download = "invoice_template.xlsx";
+  //     document.body.appendChild(a);
+  //     a.click();
+  //     document.body.removeChild(a);
       
-      // Clean up the URL object
-      window.URL.revokeObjectURL(url);
+  //     // Clean up the URL object
+  //     window.URL.revokeObjectURL(url);
+      
+  //     toast.success("Excel template downloaded successfully!");
+  //   } catch (e) {
+  //     console.error("Template download error:", e);
+      
+  //     // Handle different types of errors
+  //     if (e.response) {
+  //       // Server responded with error status
+  //       if (e.response.status === 401) {
+  //         toast.error("Authentication failed. Please log in again.");
+  //       } else if (e.response.status === 403) {
+  //         toast.error("Access denied. You don't have permission to download this template.");
+  //       } else if (e.response.status === 404) {
+  //         toast.error("Template not found. Please check your tenant configuration.");
+  //       } else if (e.response.status === 500) {
+  //         toast.error("Server error. Please try again later.");
+  //       } else {
+  //         toast.error(`Download failed: ${e.response.status} - ${e.response.statusText}`);
+  //       }
+  //     } else if (e.request) {
+  //       // Request was made but no response received
+  //       toast.error("Network error. Please check your connection and try again.");
+  //       } else {
+  //       // Something else happened
+  //       toast.error("Could not download Excel template. Please try again.");
+  //     }
+  //   } finally {
+  //     // Re-enable the button after a short delay
+  //     setTimeout(() => {
+  //       setDownloadButtonDisabled(false);
+  //     }, 1000);
+  //   }
+  // };
+
+  // New function to download existing template file
+  const downloadExistingTemplate = () => {
+    try {
+      // Create a link to the existing template file in public folder
+      const link = document.createElement('a');
+      link.href = '/invoiceTemplate/invoice_template.xlsx';
+      link.download = 'invoice_template.xlsx';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
       
       toast.success("Excel template downloaded successfully!");
-    } catch (e) {
-      console.error("Template download error:", e);
-      
-      // Handle different types of errors
-      if (e.response) {
-        // Server responded with error status
-        if (e.response.status === 401) {
-          toast.error("Authentication failed. Please log in again.");
-        } else if (e.response.status === 403) {
-          toast.error("Access denied. You don't have permission to download this template.");
-        } else if (e.response.status === 404) {
-          toast.error("Template not found. Please check your tenant configuration.");
-        } else if (e.response.status === 500) {
-          toast.error("Server error. Please try again later.");
-        } else {
-          toast.error(`Download failed: ${e.response.status} - ${e.response.statusText}`);
-        }
-      } else if (e.request) {
-        // Request was made but no response received
-        toast.error("Network error. Please check your connection and try again.");
-      } else {
-        // Something else happened
-        toast.error("Could not download Excel template. Please try again.");
-      }
-    } finally {
-      // Re-enable the button after a short delay
-      setTimeout(() => {
-        setDownloadButtonDisabled(false);
-      }, 1000);
+    } catch (error) {
+      console.error("Error downloading template:", error);
+      toast.error("Failed to download template. Please try again.");
     }
   };
 
@@ -706,7 +724,7 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       }
       try {
         const resp = await fetch(
-          "http://localhost:5150/api/buyer-check",
+          "https://aqmsburhani.inplsoftwares.online/api/buyer-check",
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -796,8 +814,8 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         return cleanedInvoice;
       });
 
-      // Limit the number of invoices sent for checking to avoid payload size issues
-      const limitedData = cleanedData.slice(0, 100); // Only check first 100 invoices
+      // Check all invoices for existing ones - no limit
+      const limitedData = cleanedData; // Check all invoices
 
       const response = await api.post(
         `/tenant/${selectedTenant.tenant_id}/invoices/check-existing`,
@@ -892,10 +910,16 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
             errorDetails += `\n... and ${errors.length - 10} more errors`;
           }
 
-          // Show error details in an alert
-          alert(
-            `Upload completed with issues:\n\n${summary.successful} invoices added successfully\n${summary.failed} invoices failed\n\nError details:\n${errorDetails}`
+          // Show error details in a toast instead of alert
+          toast.warning(
+            `Upload completed with issues: ${summary.successful} invoices added successfully, ${summary.failed} invoices failed. Check console for error details.`,
+            {
+              autoClose: 8000,
+              closeOnClick: false,
+              pauseOnHover: true,
+            }
           );
+          console.error("Upload errors:", errors);
         } else {
           toast.success(
             `Successfully uploaded ${summary.successful} invoices as drafts!`
@@ -998,13 +1022,10 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
             <Button
               variant="outlined"
               startIcon={<Download />}
-              onClick={downloadTemplate}
-              disabled={downloadButtonDisabled}
+              onClick={downloadExistingTemplate}
               size="small"
             >
-              {downloadButtonDisabled
-                ? "Downloading..."
-                : "Download Excel Template"}
+              Download Excel Template
             </Button>
           </Box>
 
