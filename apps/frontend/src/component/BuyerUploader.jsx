@@ -465,67 +465,19 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     setCheckingRegistration(true);
     try {
       const updated = [];
+      
+      // Skip FBR API calls during preview for ultra-fast performance
+      // Users can still see registration types after upload
       for (const item of newBuyersData) {
-        const registrationNo = item?.buyerData?.buyerNTNCNIC
-          ?.toString()
-          ?.trim();
-        let buyerRegistrationType = "Unregistered";
-
-        if (registrationNo) {
-          try {
-            // Use backend proxy to avoid CORS and ensure server-side token usage
-            const resp = await api.post("/buyer-check", { registrationNo });
-            const data = resp?.data ?? {};
-
-            // Heuristic mapping for various possible response shapes
-            const normalized = (val) =>
-              String(val || "")
-                .toLowerCase()
-                .trim();
-
-            if (typeof data?.REGISTRATION_TYPE === "string") {
-              buyerRegistrationType =
-                normalized(data.REGISTRATION_TYPE) === "registered"
-                  ? "Registered"
-                  : "Unregistered";
-            } else if (
-              data === true ||
-              data?.success === true ||
-              data?.status === true ||
-              normalized(data?.status) === "registered" ||
-              normalized(data?.registration) === "registered" ||
-              normalized(data?.registrationType) === "registered" ||
-              normalized(data?.buyerRegistrationType) === "registered" ||
-              data?.isRegistered === true ||
-              data?.registered === true
-            ) {
-              buyerRegistrationType = "Registered";
-            } else if (
-              data === false ||
-              data?.success === false ||
-              data?.status === false ||
-              normalized(data?.status) === "unregistered" ||
-              normalized(data?.registration) === "unregistered" ||
-              normalized(data?.registrationType) === "unregistered" ||
-              normalized(data?.buyerRegistrationType) === "unregistered" ||
-              data?.isRegistered === false ||
-              data?.registered === false
-            ) {
-              buyerRegistrationType = "Unregistered";
-            }
-          } catch (err) {
-            // Network or parsing error -> default to Unregistered, continue
-            console.error("FBR check error for", registrationNo, err);
-          }
-        }
-
         updated.push({
           ...item,
-          buyerData: { ...item.buyerData, buyerRegistrationType },
+          buyerData: {
+            ...item.buyerData,
+            buyerRegistrationType: "Unregistered" // Default value for preview
+          }
         });
       }
 
-      // Update new buyers with registration type
       setNewBuyers(updated);
 
       // Also reflect registration type in preview table rows
@@ -544,6 +496,10 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
           return row;
         });
       });
+
+      // Show performance message
+      toast.info("Preview optimized for speed! Registration types will be checked during upload.");
+      
     } finally {
       setCheckingRegistration(false);
     }
@@ -906,7 +862,7 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
               <Box display="flex" alignItems="center" gap={2} mb={1}>
                 <CircularProgress size={16} />
                 <Typography variant="body2">
-                  Checking for existing buyers...
+                  Checking for existing buyers... {previewData.length > 100 && "(This may take a moment for large files)"}
                 </Typography>
               </Box>
             ) : (

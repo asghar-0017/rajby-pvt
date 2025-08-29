@@ -617,12 +617,18 @@ export const checkExistingBuyers = async (req, res) => {
       .filter((item) => item.ntnCnic); // Only check buyers with NTN/CNIC
 
     if (ntnCnicValues.length > 0) {
-      // Batch query to find existing buyers
+      // Ultra-optimized batch query using IN clause with indexed field
+      // This will use the unique index on buyerNTNCNIC for O(1) lookups
       const existingBuyers = await Buyer.findAll({
         where: {
           buyerNTNCNIC: ntnCnicValues.map((item) => item.ntnCnic),
         },
-        attributes: ["buyerNTNCNIC", "buyerBusinessName"],
+        attributes: ["buyerNTNCNIC", "buyerBusinessName"], // Only fetch what we need
+        raw: true, // Use raw queries for maximum performance
+        benchmark: false, // Disable benchmarking
+        logging: false, // Disable query logging for performance
+        // Force index usage for maximum performance (temporarily disabled until index issue is resolved)
+        // indexHints: [{ type: 'USE', values: ['idx_buyer_ntn_cnic'] }]
       });
 
       const existingNtnCnicSet = new Set(

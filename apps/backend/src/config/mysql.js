@@ -16,10 +16,18 @@ export const masterConfig = {
     max: 5,
     min: 0,
     acquire: 30000,
-    idle: 10000
+    idle: 10000,
   },
   dialectOptions: {
-    connectTimeout: 10000 // 10 seconds, increase if needed
+    charset: 'utf8mb4',
+    collate: 'utf8mb4_unicode_ci',
+  },
+  define: {
+    timestamps: true,
+    underscored: false,
+    freezeTableName: true,
+    charset: 'utf8mb4',
+    collate: 'utf8mb4_unicode_ci',
   },
 };
 
@@ -40,11 +48,19 @@ export const createTenantConnection = (databaseName) => {
       max: 5,
       min: 0,
       acquire: 30000,
-      idle: 10000
+      idle: 10000,
     },
     dialectOptions: {
-      connectTimeout: 10000
-    }
+      charset: 'utf8mb4',
+      collate: 'utf8mb4_unicode_ci',
+    },
+    define: {
+      timestamps: true,
+      underscored: false,
+      freezeTableName: true,
+      charset: 'utf8mb4',
+      collate: 'utf8mb4_unicode_ci',
+    },
   });
 };
 

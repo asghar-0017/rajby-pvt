@@ -13,7 +13,13 @@
     "auto-schema": "node auto-run-schema-check.js",
     "schema-check": "node check-missing-columns.js",
     "test-schema": "node test-auto-schema.js",
-    "test-fix": "node test-schema-fix.js"
+    "test-fix": "node test-schema-fix.js",
+    "optimize-buyers": "node scripts/add-buyer-indexes.js",
+    "optimize-buyers-simple": "node scripts/simple-buyer-optimization.js",
+    "fix-buyer-indexes": "node scripts/fix-buyer-indexes.js",
+    "fix-buyer-indexes-simple": "node scripts/fix-buyer-indexes-simple.js",
+    "fix-buyer-indexes-final": "node scripts/fix-buyer-indexes-final.js",
+    "test-database": "node scripts/test-database-state.js"
   },
   "keywords": [],
   "author": "",

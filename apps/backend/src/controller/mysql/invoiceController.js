@@ -4534,15 +4534,11 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
     // Lists sheet removed - no longer generating dropdown data in Excel template
 
     // Define expected columns (in the same order as CSV uploader expects)
+    // Buyer columns removed - will be selected from buyer dropdown during upload
 
     const columns = [
       "invoiceType",
       "invoiceDate",
-      "buyerNTNCNIC",
-      "buyerBusinessName",
-      "buyerProvince",
-      "buyerAddress",
-      "buyerRegistrationType",
       "invoiceRefNo",
       "companyInvoiceRefNo",
       "transctypeId",
@@ -4570,18 +4566,7 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
 
     template.getRow(1).font = { bold: true };
 
-    // Ensure Buyer NTN is treated as text (avoid scientific notation like 7.41E+12)
-    const buyerNtnColIndex = columns.indexOf("buyerNTNCNIC") + 1; // 1-based
-    if (buyerNtnColIndex > 0) {
-      const buyerNtnColumn = template.getColumn(buyerNtnColIndex);
-      buyerNtnColumn.numFmt = "@"; // Text format
-      buyerNtnColumn.alignment = { horizontal: "left" };
-      // Give enough width so full digits are visible
-      if (!buyerNtnColumn.width || buyerNtnColumn.width < 18) {
-        buyerNtnColumn.width = 20;
-      }
-    }
-
+    // Buyer columns were removed - no need to set formatting for non-existent columns
     // Lists sheet content removed - no longer generating dropdown data in Excel template
 
     // Also project lists into hidden columns on Template to avoid cross-sheet/named-range issues
@@ -5110,21 +5095,7 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
         error: "Select a value from the dropdown list.",
       };
 
-      // sellerProvince removed
-
-      // buyerProvince
-
-      template.getCell(r, headerIndex("buyerProvince")).dataValidation = {
-        type: "list",
-
-        allowBlank: true,
-
-        formulae: [
-          `$${getColLetter(provinceListCol)}$${provinceListRange.startRow}:$${getColLetter(provinceListCol)}$${provinceListRange.endRow}`,
-        ],
-
-        showErrorMessage: true,
-      };
+      // sellerProvince and buyerProvince removed - no longer needed in template
 
       // transctypeId -> list of Combined (ID - Desc) values for better UX
 
@@ -5353,16 +5324,7 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
         formula: `IFERROR(IF(FIND(" - ",$${ttColLetterForSalesType}${r})>0,MID($${ttColLetterForSalesType}${r},FIND(" - ",$${ttColLetterForSalesType}${r})+3,LEN($${ttColLetterForSalesType}${r})),""),"")`,
       };
 
-      // buyerRegistrationType
-
-      template.getCell(r, headerIndex("buyerRegistrationType")).dataValidation =
-        {
-          type: "list",
-
-          allowBlank: true,
-
-          formulae: ['="Registered,Unregistered"'],
-        };
+      // buyerRegistrationType removed - no longer needed in template
 
       // item_hsCode - HSCode dropdown
 

@@ -24,7 +24,7 @@ import PrintIcon from "@mui/icons-material/Print";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import UploadIcon from "@mui/icons-material/Upload";
+import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 
 import { api, API_CONFIG } from "../API/Api";
 import SearchIcon from "@mui/icons-material/Search";
@@ -34,6 +34,7 @@ import { useTenantSelection } from "../Context/TenantSelectionProvider";
 import InvoiceViewModal from "./InvoiceViewModal";
 import CustomPagination from "./CustomPagination";
 import InvoiceUploader from "./InvoiceUploader";
+
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 
@@ -42,7 +43,7 @@ export default function BasicTable() {
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
-  const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [uploaderOpen, setUploaderOpen] = useState(false);
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -286,6 +287,62 @@ export default function BasicTable() {
     }
   };
 
+  const handleBulkUpload = async (invoicesData) => {
+    try {
+      const response = await api.post(
+        `/tenant/${selectedTenant.tenant_id}/invoices/bulk`,
+        { invoices: invoicesData }
+      );
+      
+      if (response.data.success) {
+        const { summary, errors, warnings } = response.data.data;
+        
+        if (summary.failed > 0) {
+          // Show detailed error information
+          let errorDetails = errors
+            .slice(0, 10)
+            .map((err) => `Row ${err.row}: ${err.error}`)
+            .join("\n");
+
+          if (errors.length > 10) {
+            errorDetails += `\n... and ${errors.length - 10} more errors`;
+          }
+
+          // Show error details in an alert
+          alert(
+            `Upload completed with issues:\n\n${summary.successful} invoices added successfully\n${summary.failed} invoices failed\n\nError details:\n${errorDetails}`
+          );
+        } else {
+          // Refresh the invoices list
+          getMyInvoices();
+          alert(`Successfully uploaded ${summary.successful} invoices as drafts!`);
+        }
+        
+        return response.data;
+      } else {
+        throw new Error(response.data.message || "Upload failed");
+      }
+    } catch (error) {
+      console.error("Error in bulk upload:", error);
+      let errorMessage = "Error uploading invoices.";
+      if (error.response) {
+        const { status, data } = error.response;
+        if (status === 400) {
+          errorMessage =
+            data.message ||
+            "Invalid data provided. Please check your file format.";
+        } else if (status === 500) {
+          errorMessage = "Server error occurred. Please try again later.";
+        } else {
+          errorMessage =
+            data.message || "An error occurred while uploading invoices.";
+        }
+      }
+      alert(errorMessage);
+      throw error;
+    }
+  };
+
   const handleDeleteClick = async (invoice) => {
     const result = await Swal.fire({
       title: "Delete Invoice",
@@ -341,30 +398,7 @@ export default function BasicTable() {
     }
   };
 
-  // Handle invoice upload
-  const handleInvoiceUpload = async (invoicesData) => {
-    try {
-      if (!selectedTenant) {
-        throw new Error("No Company selected");
-      }
 
-      const response = await api.post(
-        `/tenant/${selectedTenant.tenant_id}/invoices/bulk`,
-        { invoices: invoicesData }
-      );
-
-      if (response.data.success) {
-        // Refresh the invoice list after successful upload
-        getMyInvoices();
-        return response;
-      } else {
-        throw new Error(response.data.message || "Upload failed");
-      }
-    } catch (error) {
-      console.error("Error uploading invoices:", error);
-      throw error;
-    }
-  };
 
   // Since we're using server-side pagination, we don't need client-side filtering
   // The server handles all filtering and pagination
@@ -500,23 +534,13 @@ export default function BasicTable() {
               Your Invoices
             </Typography>
             <Button
-              variant="contained"
-              startIcon={<UploadIcon />}
-              onClick={() => setUploadModalOpen(true)}
-              sx={{
-                borderRadius: 2,
-                textTransform: "none",
-                fontWeight: 600,
-                px: 3,
-                py: 1,
-                backgroundColor: "#1976d2",
-                color: "white",
-                "&:hover": {
-                  backgroundColor: "#1565c0",
-                },
-              }}
+              variant="outlined"
+              color="primary"
+              startIcon={<CloudUploadIcon />}
+              onClick={() => setUploaderOpen(true)}
+              sx={{ mr: 1 }}
             >
-              Upload Invoice
+              Bulk Upload CSV/Excel
             </Button>
           </Box>
           {/* Search and Filter Controls */}
@@ -982,11 +1006,12 @@ export default function BasicTable() {
 
           {/* Invoice Uploader Modal */}
           <InvoiceUploader
-            isOpen={uploadModalOpen}
-            onClose={() => setUploadModalOpen(false)}
-            onUpload={handleInvoiceUpload}
+            isOpen={uploaderOpen}
+            onClose={() => setUploaderOpen(false)}
+            onUpload={handleBulkUpload}
             selectedTenant={selectedTenant}
           />
+
         </Box>
       )}
     </>
