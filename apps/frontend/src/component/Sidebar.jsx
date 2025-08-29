@@ -208,7 +208,7 @@ export default function Sidebar({ onLogout }) {
       >
         <DrawerHeader>
           {/* Logo at the top of sidebar */}
-          {/* <Box
+          <Box
             sx={{
               display: "flex",
               justifyContent: "center",
@@ -227,7 +227,7 @@ export default function Sidebar({ onLogout }) {
                 objectFit: "contain",
               }}
             />
-          </Box> */}
+          </Box>
         </DrawerHeader>
         <List>
           {navItems.map((item, index) => {
