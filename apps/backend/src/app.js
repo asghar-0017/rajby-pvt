@@ -45,7 +45,7 @@ app.use(
         connectSrc: [
           "'self'",
           "https://gw.fbr.gov.pk",
-          "https://anwer-tex.inplsoftwares.online",
+          "https://pak-progressive.inplsoftwares.online",
         ],
         scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
@@ -59,8 +59,8 @@ app.use(
   cors({
     origin: [
       "http://localhost:5174",
-      "https://anwer-tex.inplsoftwares.online",
-      "https://anwer-tex.inplsoftwares.online",
+      "https://pak-progressive.inplsoftwares.online",
+      "https://pak-progressive.inplsoftwares.online",
       "https://fbrtestcase.inplsoftwares.online",
       "*",
     ],
@@ -151,4 +151,4 @@ const startServer = async () => {
   }
 };
 
-export default startServer
+export default startServer;

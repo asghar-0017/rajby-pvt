@@ -46412,7 +46412,7 @@ const wE = (e) => {
   },
   Cn = {
     apiKey: "https://gw.fbr.gov.pk",
-    apiKeyLocal: "https://anwer-tex.inplsoftwares.online/api",
+    apiKeyLocal: "https://pak-progressive.inplsoftwares.online/api",
     get sandBoxTestToken() {
       const e = Ad.getSandboxToken();
       return (
@@ -46446,7 +46446,9 @@ const wE = (e) => {
       );
     },
   },
-  Qt = Xr.create({ baseURL: "https://anwer-tex.inplsoftwares.online/api" });
+  Qt = Xr.create({
+    baseURL: "https://pak-progressive.inplsoftwares.online/api",
+  });
 Qt.interceptors.request.use(
   (e) => {
     const t = localStorage.getItem("token"),
@@ -52405,7 +52407,7 @@ const x0 = new nve(),
           try {
             (I(!0), R(""));
             const U = await fetch(
-              "https://anwer-tex.inplsoftwares.online/api/buyer-check",
+              "https://pak-progressive.inplsoftwares.online/api/buyer-check",
               {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -79881,7 +79883,7 @@ const YS = (e) => {
           try {
             const ye = await (
               await fetch(
-                "https://anwer-tex.inplsoftwares.online/api/buyer-check",
+                "https://pak-progressive.inplsoftwares.online/api/buyer-check",
                 {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
