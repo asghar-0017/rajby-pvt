@@ -46412,7 +46412,7 @@ const wE = (e) => {
   },
   Cn = {
     apiKey: "https://gw.fbr.gov.pk",
-    apiKeyLocal: "https://aqmsburhani.inplsoftwares.online/api",
+    apiKeyLocal: "https://maritimeseafood.inplsoftwares.online/api",
     get sandBoxTestToken() {
       const e = Ad.getSandboxToken();
       return (
@@ -46446,7 +46446,9 @@ const wE = (e) => {
       );
     },
   },
-  Qt = Xr.create({ baseURL: "https://aqmsburhani.inplsoftwares.online/api" });
+  Qt = Xr.create({
+    baseURL: "https://maritimeseafood.inplsoftwares.online/api",
+  });
 Qt.interceptors.request.use(
   (e) => {
     const t = localStorage.getItem("token"),
@@ -52405,7 +52407,7 @@ const x0 = new nve(),
           try {
             (I(!0), R(""));
             const U = await fetch(
-              "https://aqmsburhani.inplsoftwares.online/api/buyer-check",
+              "https://maritimeseafood.inplsoftwares.online/api/buyer-check",
               {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -79881,7 +79883,7 @@ const YS = (e) => {
           try {
             const ye = await (
               await fetch(
-                "https://aqmsburhani.inplsoftwares.online/api/buyer-check",
+                "https://maritimeseafood.inplsoftwares.online/api/buyer-check",
                 {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
@@ -80251,29 +80253,27 @@ const YS = (e) => {
                       " invoices already exist and will be skipped:",
                     ],
                   }),
-                  g
-                    .slice(0, 3)
-                    .map((te, me) =>
-                      v.jsxs(
-                        je,
-                        {
-                          variant: "body2",
-                          children: [
-                            "Row ",
-                            te.row,
-                            ": ",
-                            te.invoiceData.invoice_number,
-                            " -",
-                            " ",
-                            te.invoiceData.sellerBusinessName,
-                            "(Already exists as: ",
-                            te.existingInvoice.sellerBusinessName,
-                            ")",
-                          ],
-                        },
-                        me
-                      )
-                    ),
+                  g.slice(0, 3).map((te, me) =>
+                    v.jsxs(
+                      je,
+                      {
+                        variant: "body2",
+                        children: [
+                          "Row ",
+                          te.row,
+                          ": ",
+                          te.invoiceData.invoice_number,
+                          " -",
+                          " ",
+                          te.invoiceData.sellerBusinessName,
+                          "(Already exists as: ",
+                          te.existingInvoice.sellerBusinessName,
+                          ")",
+                        ],
+                      },
+                      me
+                    )
+                  ),
                   g.length > 3 &&
                     v.jsxs(je, {
                       variant: "body2",
@@ -88370,22 +88370,18 @@ var bPe = (e, t, r, n, a) => {
           offset: x,
         }))
       : i.ticks && d != null
-        ? i
-            .ticks(d)
-            .map((S, E) => ({
-              coordinate: i(S) + x,
-              value: S,
-              offset: x,
-              index: E,
-            }))
-        : i
-            .domain()
-            .map((S, E) => ({
-              coordinate: i(S) + x,
-              value: n ? n[S] : S,
-              index: E,
-              offset: x,
-            }));
+        ? i.ticks(d).map((S, E) => ({
+            coordinate: i(S) + x,
+            value: S,
+            offset: x,
+            index: E,
+          }))
+        : i.domain().map((S, E) => ({
+            coordinate: i(S) + x,
+            value: n ? n[S] : S,
+            index: E,
+            offset: x,
+          }));
   },
   VF = 1e-4,
   SPe = (e) => {
@@ -96714,14 +96710,12 @@ var Ub = (e, t) => t,
           ? n
               .ticks(m)
               .map((S) => ({ coordinate: n(S) + g, value: S, offset: g }))
-          : n
-              .domain()
-              .map((S, E) => ({
-                coordinate: n(S) + g,
-                value: i ? i[S] : S,
-                index: E,
-                offset: g,
-              }));
+          : n.domain().map((S, E) => ({
+              coordinate: n(S) + g,
+              value: i ? i[S] : S,
+              index: E,
+              offset: g,
+            }));
     }
   },
   QV = Xe([Wr, ng, og, Rp, a_, ig, o_, i_, qn], uRe),
@@ -96743,14 +96737,12 @@ var Ub = (e, t) => t,
             ? r
                 .ticks(c)
                 .map((d) => ({ coordinate: r(d) + u, value: d, offset: u }))
-            : r
-                .domain()
-                .map((d, p) => ({
-                  coordinate: r(d) + u,
-                  value: a ? a[d] : d,
-                  index: p,
-                  offset: u,
-                }))
+            : r.domain().map((d, p) => ({
+                coordinate: r(d) + u,
+                value: a ? a[d] : d,
+                index: p,
+                offset: u,
+              }))
       );
     }
   },
@@ -97211,14 +97203,12 @@ var uW = (e, t, r, n, a, o, i) => {
                 index: y,
                 offset: p,
               }))
-            : n
-                .domain()
-                .map((m, y) => ({
-                  coordinate: n(m) + p,
-                  value: o ? o[m] : m,
-                  index: y,
-                  offset: p,
-                }))
+            : n.domain().map((m, y) => ({
+                coordinate: n(m) + p,
+                value: o ? o[m] : m,
+                index: y,
+                offset: p,
+              }))
         );
       }
     }
@@ -108938,18 +108928,16 @@ const OBe = ABe`
                       " rows with validation errors:",
                     ],
                   }),
-                  d
-                    .slice(0, 3)
-                    .map((K, q) =>
-                      v.jsxs(
-                        je,
-                        {
-                          variant: "body2",
-                          children: ["Row ", K.row, ": ", K.errors.join(", ")],
-                        },
-                        q
-                      )
-                    ),
+                  d.slice(0, 3).map((K, q) =>
+                    v.jsxs(
+                      je,
+                      {
+                        variant: "body2",
+                        children: ["Row ", K.row, ": ", K.errors.join(", ")],
+                      },
+                      q
+                    )
+                  ),
                   d.length > 3 &&
                     v.jsxs(je, {
                       variant: "body2",
@@ -108970,29 +108958,27 @@ const OBe = ABe`
                       " buyers already exist and will be skipped:",
                     ],
                   }),
-                  g
-                    .slice(0, 3)
-                    .map((K, q) =>
-                      v.jsxs(
-                        je,
-                        {
-                          variant: "body2",
-                          children: [
-                            "Row ",
-                            K.row,
-                            ": ",
-                            K.buyerData.buyerNTNCNIC,
-                            " -",
-                            " ",
-                            K.buyerData.buyerBusinessName,
-                            "(Already exists as: ",
-                            K.existingBuyer.buyerBusinessName,
-                            ")",
-                          ],
-                        },
-                        q
-                      )
-                    ),
+                  g.slice(0, 3).map((K, q) =>
+                    v.jsxs(
+                      je,
+                      {
+                        variant: "body2",
+                        children: [
+                          "Row ",
+                          K.row,
+                          ": ",
+                          K.buyerData.buyerNTNCNIC,
+                          " -",
+                          " ",
+                          K.buyerData.buyerBusinessName,
+                          "(Already exists as: ",
+                          K.existingBuyer.buyerBusinessName,
+                          ")",
+                        ],
+                      },
+                      q
+                    )
+                  ),
                   g.length > 3 &&
                     v.jsxs(je, {
                       variant: "body2",
