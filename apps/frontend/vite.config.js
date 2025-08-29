@@ -17,7 +17,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "https://adnan-power.inplsoftwares.online",
+        target: "https://anwer-tex.inplsoftwares.online",
         changeOrigin: true,
         secure: false,
       },
