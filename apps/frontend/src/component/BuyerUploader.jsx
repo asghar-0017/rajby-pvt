@@ -1,3 +1,24 @@
+/**
+ * BuyerUploader Component
+ *
+ * This component handles bulk buyer uploads from CSV/Excel files with automatic FBR registration verification.
+ *
+ * Features:
+ * - File upload (CSV/Excel)
+ * - Template download with validation
+ * - Duplicate buyer detection
+ * - Automatic FBR registration status checking via API
+ * - Preview with registration status indicators
+ * - Bulk upload with error handling
+ *
+ * FBR Integration:
+ * - Calls backend proxy /api/buyer-check (same as BuyerModal)
+ * - Backend calls https://buyercheckapi.inplsoftwares.online/checkbuyer.php
+ * - Checks each buyer's NTN/CNIC against FBR database
+ * - Shows "Registered" or "Unregistered" status
+ * - Falls back to "Unregistered" if API fails
+ */
+
 import React, { useState, useRef } from "react";
 import {
   Box,
@@ -46,6 +67,9 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
   const [checkingExisting, setCheckingExisting] = useState(false);
   const [checkingRegistration, setCheckingRegistration] = useState(false);
   const fileInputRef = useRef(null);
+
+  // FBR API configuration - using backend proxy like BuyerModal
+  const FBR_API_URL = "/api/buyer-check";
 
   // Expected columns for buyer data
   const expectedColumns = [
@@ -107,12 +131,13 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       };
 
       const provinceColIdx = expectedColumns.indexOf("buyerProvince") + 1;
-      const maxRows = 1000; // allow up to 999 rows of data
+      // No row limit - allow unlimited rows of data
+      const maxRows = 100000; // allow up to 100,000 rows of data for template generation
 
       const provinceRange = `'Lists'!$A$1:$A$${provinces.length}`;
 
-      // Apply data validations row-wise
-      for (let r = 2; r <= maxRows; r++) {
+      // Apply data validations row-wise (limited to reasonable number for template)
+      for (let r = 2; r <= Math.min(maxRows, 10000); r++) {
         if (provinceColIdx > 0) {
           worksheet.getCell(r, provinceColIdx).dataValidation = {
             type: "list",
@@ -465,67 +490,21 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     setCheckingRegistration(true);
     try {
       const updated = [];
+
+      // Check FBR registration status for each buyer
       for (const item of newBuyersData) {
-        const registrationNo = item?.buyerData?.buyerNTNCNIC
-          ?.toString()
-          ?.trim();
-        let buyerRegistrationType = "Unregistered";
-
-        if (registrationNo) {
-          try {
-            // Use backend proxy to avoid CORS and ensure server-side token usage
-            const resp = await api.post("/buyer-check", { registrationNo });
-            const data = resp?.data ?? {};
-
-            // Heuristic mapping for various possible response shapes
-            const normalized = (val) =>
-              String(val || "")
-                .toLowerCase()
-                .trim();
-
-            if (typeof data?.REGISTRATION_TYPE === "string") {
-              buyerRegistrationType =
-                normalized(data.REGISTRATION_TYPE) === "registered"
-                  ? "Registered"
-                  : "Unregistered";
-            } else if (
-              data === true ||
-              data?.success === true ||
-              data?.status === true ||
-              normalized(data?.status) === "registered" ||
-              normalized(data?.registration) === "registered" ||
-              normalized(data?.registrationType) === "registered" ||
-              normalized(data?.buyerRegistrationType) === "registered" ||
-              data?.isRegistered === true ||
-              data?.registered === true
-            ) {
-              buyerRegistrationType = "Registered";
-            } else if (
-              data === false ||
-              data?.success === false ||
-              data?.status === false ||
-              normalized(data?.status) === "unregistered" ||
-              normalized(data?.registration) === "unregistered" ||
-              normalized(data?.registrationType) === "unregistered" ||
-              normalized(data?.buyerRegistrationType) === "unregistered" ||
-              data?.isRegistered === false ||
-              data?.registered === false
-            ) {
-              buyerRegistrationType = "Unregistered";
-            }
-          } catch (err) {
-            // Network or parsing error -> default to Unregistered, continue
-            console.error("FBR check error for", registrationNo, err);
-          }
-        }
-
+        const registrationType = await checkFBRRegistration(
+          item.buyerData.buyerNTNCNIC
+        );
         updated.push({
           ...item,
-          buyerData: { ...item.buyerData, buyerRegistrationType },
+          buyerData: {
+            ...item.buyerData,
+            buyerRegistrationType: registrationType,
+          },
         });
       }
 
-      // Update new buyers with registration type
       setNewBuyers(updated);
 
       // Also reflect registration type in preview table rows
@@ -544,8 +523,79 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
           return row;
         });
       });
+
+      toast.success(`Registration status checked for ${updated.length} buyers`);
+    } catch (error) {
+      console.error("Error checking registration types:", error);
+      toast.error("Error checking registration types. Using default values.");
+
+      // Fallback to default values
+      const updated = newBuyersData.map((item) => ({
+        ...item,
+        buyerData: {
+          ...item.buyerData,
+          buyerRegistrationType: "Unregistered",
+        },
+      }));
+      setNewBuyers(updated);
     } finally {
       setCheckingRegistration(false);
+    }
+  };
+
+  // Check buyer registration status with FBR API - same implementation as BuyerModal
+  const checkFBRRegistration = async (registrationNo) => {
+    if (!registrationNo || !registrationNo.trim()) {
+      return "Unregistered";
+    }
+
+    try {
+      const response = await fetch(FBR_API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ registrationNo: registrationNo.trim() }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json().catch(() => ({}));
+
+      console.log(`FBR buyer check response for ${registrationNo}:`, data);
+
+      let derivedRegistrationType = "";
+      if (data && typeof data.REGISTRATION_TYPE === "string") {
+        derivedRegistrationType =
+          data.REGISTRATION_TYPE.toLowerCase() === "registered"
+            ? "Registered"
+            : "Unregistered";
+      } else {
+        let isRegistered = false;
+        if (typeof data === "boolean") {
+          isRegistered = data;
+        } else if (data) {
+          isRegistered =
+            data.isRegistered === true ||
+            data.registered === true ||
+            (typeof data.status === "string" &&
+              data.status.toLowerCase() === "registered") ||
+            (typeof data.registrationType === "string" &&
+              data.registrationType.toLowerCase() === "registered");
+        }
+        derivedRegistrationType = isRegistered ? "Registered" : "Unregistered";
+      }
+
+      return derivedRegistrationType;
+    } catch (error) {
+      console.error(
+        `Error checking FBR registration for ${registrationNo}:`,
+        error
+      );
+      // Return "Unregistered" as default if API call fails
+      return "Unregistered";
     }
   };
 
@@ -585,10 +635,16 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
             errorDetails += `\n... and ${errors.length - 10} more errors`;
           }
 
-          // Show error details in an alert
-          alert(
-            `Upload completed with issues:\n\n${summary.successful} buyers added successfully\n${summary.failed} buyers failed\n\nError details:\n${errorDetails}`
+          // Show error details in a toast instead of alert
+          toast.warning(
+            `Upload completed with issues: ${summary.successful} buyers added successfully, ${summary.failed} buyers failed. Check console for error details.`,
+            {
+              autoClose: 8000,
+              closeOnClick: false,
+              pauseOnHover: true,
+            }
           );
+          console.error("Upload errors:", errors);
         } else {
           toast.success(`Successfully uploaded ${summary.successful} buyers!`);
         }
@@ -671,7 +727,11 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         <Box sx={{ mb: 3 }}>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             Upload a CSV or Excel file with the following columns: buyerNTNCNIC,
-            buyerBusinessName, buyerProvince, buyerAddress
+            buyerBusinessName, buyerProvince, buyerAddress.
+            <br />
+            <strong>Note:</strong> Buyer registration status will be
+            automatically checked with FBR via backend proxy when you upload the
+            file.
           </Typography>
 
           {/* Download Template Button */}
@@ -791,6 +851,18 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
             >
               <Typography variant="h6">
                 Preview ({previewData.length} total rows)
+                {checkingRegistration && (
+                  <Box component="span" sx={{ ml: 1 }}>
+                    <CircularProgress size={16} />
+                    <Typography
+                      component="span"
+                      variant="caption"
+                      sx={{ ml: 0.5 }}
+                    >
+                      Checking FBR status...
+                    </Typography>
+                  </Box>
+                )}
               </Typography>
               <Button
                 startIcon={<Visibility />}
@@ -871,13 +943,27 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
                               />
                             )}
                           </TableCell>
-                          {[...expectedColumns, "buyerRegistrationType"].map(
-                            (column) => (
-                              <TableCell key={column}>
-                                {row[column] || "-"}
-                              </TableCell>
-                            )
-                          )}
+                          {expectedColumns.map((column) => (
+                            <TableCell key={column}>
+                              {row[column] || "-"}
+                            </TableCell>
+                          ))}
+                          <TableCell>
+                            {row.buyerRegistrationType ? (
+                              <Chip
+                                label={row.buyerRegistrationType}
+                                size="small"
+                                color={
+                                  row.buyerRegistrationType === "Registered"
+                                    ? "success"
+                                    : "default"
+                                }
+                                variant="outlined"
+                              />
+                            ) : (
+                              "-"
+                            )}
+                          </TableCell>
                         </TableRow>
                       ))}
                     {getCombinedPreviewData().length > 10 && (
@@ -906,7 +992,18 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
               <Box display="flex" alignItems="center" gap={2} mb={1}>
                 <CircularProgress size={16} />
                 <Typography variant="body2">
-                  Checking for existing buyers...
+                  Checking for existing buyers...{" "}
+                  {previewData.length > 100 &&
+                    "(This may take a moment for large files)"}
+                </Typography>
+              </Box>
+            ) : checkingRegistration ? (
+              <Box display="flex" alignItems="center" gap={2} mb={1}>
+                <CircularProgress size={16} />
+                <Typography variant="body2">
+                  Checking FBR registration status...{" "}
+                  {newBuyers.length > 50 &&
+                    "(This may take a moment for large files)"}
                 </Typography>
               </Box>
             ) : (
@@ -917,6 +1014,28 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
                     {newBuyers.length} new buyers ready to upload
                   </Typography>
                 </Box>
+                {newBuyers.length > 0 && (
+                  <Box display="flex" alignItems="center" gap={2} mb={1}>
+                    <Info color="info" />
+                    <Typography variant="body2" color="info.main">
+                      FBR Status:{" "}
+                      {
+                        newBuyers.filter(
+                          (b) =>
+                            b.buyerData.buyerRegistrationType === "Registered"
+                        ).length
+                      }{" "}
+                      Registered,{" "}
+                      {
+                        newBuyers.filter(
+                          (b) =>
+                            b.buyerData.buyerRegistrationType === "Unregistered"
+                        ).length
+                      }{" "}
+                      Unregistered
+                    </Typography>
+                  </Box>
+                )}
                 {existingBuyers.length > 0 && (
                   <Box display="flex" alignItems="center" gap={2} mb={1}>
                     <Warning color="warning" />
@@ -953,7 +1072,11 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
           onClick={handleUpload}
           variant="contained"
           disabled={
-            !file || newBuyers.length === 0 || uploading || checkingExisting
+            !file ||
+            newBuyers.length === 0 ||
+            uploading ||
+            checkingExisting ||
+            checkingRegistration
           }
           startIcon={
             uploading ? <CircularProgress size={20} /> : <FileUpload />

@@ -2,7 +2,7 @@ import { DataTypes } from 'sequelize';
 
 // This will be used as a factory function to create Buyer model for each tenant
 export const createBuyerModel = (sequelize) => {
-  return sequelize.define('Buyer', {
+  const Buyer = sequelize.define('Buyer', {
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
@@ -47,6 +47,26 @@ export const createBuyerModel = (sequelize) => {
     tableName: 'buyers',
     timestamps: true,
     createdAt: 'created_at',
-    updatedAt: 'updated_at'
+    updatedAt: 'updated_at',
+    indexes: [
+      // Primary index on buyerNTNCNIC for ultra-fast lookups
+      {
+        name: 'idx_buyer_ntn_cnic',
+        fields: ['buyerNTNCNIC'],
+        unique: true
+      },
+      // Index on buyerBusinessName for business name searches
+      {
+        name: 'idx_buyer_business_name',
+        fields: ['buyerBusinessName']
+      },
+      // Composite index for province-based queries
+      {
+        name: 'idx_buyer_province_ntn',
+        fields: ['buyerProvince', 'buyerNTNCNIC']
+      }
+    ]
   });
+
+  return Buyer;
 }; 

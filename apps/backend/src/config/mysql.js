@@ -13,14 +13,42 @@ export const masterConfig = {
   dialect: 'mysql',
   logging: process.env.NODE_ENV === 'development' ? console.log : false,
   pool: {
-    max: 5,
-    min: 0,
-    acquire: 30000,
-    idle: 10000
+    max: 20, // Increased from 5 for better concurrency
+    min: 5,  // Increased from 0 for faster response
+    acquire: 15000, // Reduced from 30000 for faster connection acquisition
+    idle: 5000,     // Reduced from 10000 for better resource management
+    evict: 1000,    // Check for dead connections every 1 second
   },
   dialectOptions: {
-    connectTimeout: 10000 // 10 seconds, increase if needed
+    charset: 'utf8mb4',
+    collate: 'utf8mb4_unicode_ci',
+    // Performance optimizations
+    connectTimeout: 10000,      // 10 seconds connection timeout
+    acquireTimeout: 15000,      // 15 seconds acquire timeout
+    timeout: 30000,             // 30 seconds query timeout
+    // Connection optimizations
+    multipleStatements: true,   // Allow multiple statements in one query
+    dateStrings: true,          // Handle dates as strings for better performance
+    // Buffer optimizations
+    bigNumberStrings: true,     // Handle big numbers as strings
+    supportBigNumbers: true,    // Support big numbers
+    // SSL and compression
+    ssl: false,                 // Disable SSL for local development (enable in production)
+    compress: true,             // Enable compression
   },
+  define: {
+    timestamps: true,
+    underscored: false,
+    freezeTableName: true,
+    charset: 'utf8mb4',
+    collate: 'utf8mb4_unicode_ci',
+    // Performance optimizations
+    hooks: false,               // Disable hooks for better performance
+    validate: false,            // Disable validation for better performance
+  },
+  // Query optimization
+  benchmark: process.env.NODE_ENV === 'development', // Show query execution time in development
+  isolationLevel: Sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED, // Better performance isolation level
 };
 
 // Master database connection
@@ -37,14 +65,42 @@ export const createTenantConnection = (databaseName) => {
     dialect: 'mysql',
     logging: process.env.NODE_ENV === 'development' ? console.log : false,
     pool: {
-      max: 5,
-      min: 0,
-      acquire: 30000,
-      idle: 10000
+      max: 20, // Increased from 5 for better concurrency
+      min: 5,  // Increased from 0 for faster response
+      acquire: 15000, // Reduced from 30000 for faster connection acquisition
+      idle: 5000,     // Reduced from 10000 for better resource management
+      evict: 1000,    // Check for dead connections every 1 second
     },
     dialectOptions: {
-      connectTimeout: 10000
-    }
+      charset: 'utf8mb4',
+      collate: 'utf8mb4_unicode_ci',
+      // Performance optimizations
+      connectTimeout: 10000,      // 10 seconds connection timeout
+      acquireTimeout: 15000,      // 15 seconds acquire timeout
+      timeout: 30000,             // 30 seconds query timeout
+      // Connection optimizations
+      multipleStatements: true,   // Allow multiple statements in one query
+      dateStrings: true,          // Handle dates as strings for better performance
+      // Buffer optimizations
+      bigNumberStrings: true,     // Handle big numbers as strings
+      supportBigNumbers: true,    // Support big numbers
+      // SSL and compression
+      ssl: false,                 // Disable SSL for local development (enable in production)
+      compress: true,             // Enable compression
+    },
+    define: {
+      timestamps: true,
+      underscored: false,
+      freezeTableName: true,
+      charset: 'utf8mb4',
+      collate: 'utf8mb4_unicode_ci',
+      // Performance optimizations
+      hooks: false,               // Disable hooks for better performance
+      validate: false,            // Disable validation for better performance
+    },
+    // Query optimization
+    benchmark: process.env.NODE_ENV === 'development', // Show query execution time in development
+    isolationLevel: Sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED, // Better performance isolation level
   });
 };
 

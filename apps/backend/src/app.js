@@ -18,6 +18,7 @@ import tenantRoutes from "./routes/tenantRoutes.js";
 import buyerRoutes from "./routes/buyerRoutes.js";
 import invoiceRoutes, { publicInvoiceRoutes } from "./routes/invoiceRoutes.js";
 import hsCodeRoutes from "./routes/hsCodeRoutes.js";
+import performanceRoutes from "./routes/performanceRoutes.js";
 
 dotenv.config();
 
@@ -44,7 +45,7 @@ app.use(
         connectSrc: [
           "'self'",
           "https://gw.fbr.gov.pk",
-          "http://localhost:5150",
+          "https://aqmsburhani.inplsoftwares.online",
         ],
         scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
@@ -58,8 +59,8 @@ app.use(
   cors({
     origin: [
       "http://localhost:5174",
-      "http://localhost:5150",
-      "http://localhost:5150",
+      "https://aqmsburhani.inplsoftwares.online",
+      "https://aqmsburhani.inplsoftwares.online",
       "https://fbrtestcase.inplsoftwares.online",
       "*",
     ],
@@ -81,6 +82,9 @@ app.use("/api/tenant-auth", tenantAuthRoutes);
 app.use("/api/admin", tenantRoutes);
 app.use("/api/tenant/:tenantId", buyerRoutes);
 app.use("/api/tenant/:tenantId", invoiceRoutes);
+
+// Performance monitoring routes
+app.use("/api/tenant/:tenantId/performance", performanceRoutes);
 
 // HS Code Routes (with caching)
 app.use("/api", hsCodeRoutes);

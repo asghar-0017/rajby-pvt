@@ -24,7 +24,7 @@ import PrintIcon from "@mui/icons-material/Print";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import UploadIcon from "@mui/icons-material/Upload";
+import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 
 import { api, API_CONFIG } from "../API/Api";
 import SearchIcon from "@mui/icons-material/Search";
@@ -34,15 +34,17 @@ import { useTenantSelection } from "../Context/TenantSelectionProvider";
 import InvoiceViewModal from "./InvoiceViewModal";
 import CustomPagination from "./CustomPagination";
 import InvoiceUploader from "./InvoiceUploader";
+
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
+import { toast } from "react-toastify";
 
 export default function BasicTable() {
   const [invoices, setInvoices] = useState([]);
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
-  const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [uploaderOpen, setUploaderOpen] = useState(false);
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -172,7 +174,7 @@ export default function BasicTable() {
     } catch (error) {
       console.error("Error fetching invoices:", error);
       if (error.response?.status === 401) {
-        alert("Authentication failed. Please log in again.");
+        toast.error("Authentication failed. Please log in again.");
       }
       setInvoices([]);
     } finally {
@@ -197,7 +199,7 @@ export default function BasicTable() {
   const handleButtonClick = async (invoice) => {
     try {
       if (!selectedTenant) {
-        alert("No Company selected");
+        toast.error("No Company selected");
         return;
       }
 
@@ -205,7 +207,7 @@ export default function BasicTable() {
       const token =
         localStorage.getItem("tenantToken") || localStorage.getItem("token");
       if (!token) {
-        alert("Authentication token not found");
+        toast.error("Authentication token not found");
         return;
       }
 
@@ -215,9 +217,9 @@ export default function BasicTable() {
     } catch (error) {
       console.error("Error printing invoice:", error);
       if (error.response?.status === 401) {
-        alert("Authentication failed. Please log in again.");
+        toast.error("Authentication failed. Please log in again.");
       } else {
-        alert("Error printing invoice. Check console for details.");
+        toast.error("Error printing invoice. Check console for details.");
       }
     }
   };
@@ -225,7 +227,7 @@ export default function BasicTable() {
   const handleViewInvoice = async (invoice) => {
     try {
       if (!selectedTenant) {
-        alert("No Company selected");
+        toast.error("No Company selected");
         return;
       }
 
@@ -238,14 +240,16 @@ export default function BasicTable() {
         setViewModalOpen(true);
       } else {
         console.error("Failed to fetch invoice:", response.data.message);
-        alert("Failed to fetch invoice details");
+        toast.error("Failed to fetch invoice details");
       }
     } catch (error) {
       console.error("Error fetching invoice data:", error);
       if (error.response?.status === 401) {
-        alert("Authentication failed. Please log in again.");
+        toast.error("Authentication failed. Please log in again.");
       } else {
-        alert("Error fetching invoice details. Check console for details.");
+        toast.error(
+          "Error fetching invoice details. Check console for details."
+        );
       }
     }
   };
@@ -253,7 +257,7 @@ export default function BasicTable() {
   const handleEditInvoice = async (invoice) => {
     try {
       if (!selectedTenant) {
-        alert("No Company selected");
+        toast.error("No Company selected");
         return;
       }
 
@@ -274,15 +278,81 @@ export default function BasicTable() {
         }
       } else {
         console.error("Failed to fetch invoice:", response.data.message);
-        alert("Failed to fetch invoice details");
+        toast.error("Failed to fetch invoice details");
       }
     } catch (error) {
       console.error("Error fetching invoice data:", error);
       if (error.response?.status === 401) {
-        alert("Authentication failed. Please log in again.");
+        toast.error("Authentication failed. Please log in again.");
       } else {
-        alert("Error fetching invoice details. Check console for details.");
+        toast.error(
+          "Error fetching invoice details. Check console for details."
+        );
       }
+    }
+  };
+
+  const handleBulkUpload = async (invoicesData) => {
+    try {
+      const response = await api.post(
+        `/tenant/${selectedTenant.tenant_id}/invoices/bulk`,
+        { invoices: invoicesData }
+      );
+
+      if (response.data.success) {
+        const { summary, errors, warnings } = response.data.data;
+
+        if (summary.failed > 0) {
+          // Show detailed error information
+          let errorDetails = errors
+            .slice(0, 10)
+            .map((err) => `Row ${err.row}: ${err.error}`)
+            .join("\n");
+
+          if (errors.length > 10) {
+            errorDetails += `\n... and ${errors.length - 10} more errors`;
+          }
+
+          // Show error details in a toast instead of alert
+          toast.warning(
+            `Upload completed with issues: ${summary.successful} invoices added successfully, ${summary.failed} invoices failed. Check console for error details.`,
+            {
+              autoClose: 8000,
+              closeOnClick: false,
+              pauseOnHover: true,
+            }
+          );
+          console.error("Upload errors:", errors);
+        } else {
+          // Refresh the invoices list
+          getMyInvoices();
+          toast.success(
+            `Successfully uploaded ${summary.successful} invoices as drafts!`
+          );
+        }
+
+        return response.data;
+      } else {
+        throw new Error(response.data.message || "Upload failed");
+      }
+    } catch (error) {
+      console.error("Error in bulk upload:", error);
+      let errorMessage = "Error uploading invoices.";
+      if (error.response) {
+        const { status, data } = error.response;
+        if (status === 400) {
+          errorMessage =
+            data.message ||
+            "Invalid data provided. Please check your file format.";
+        } else if (status === 500) {
+          errorMessage = "Server error occurred. Please try again later.";
+        } else {
+          errorMessage =
+            data.message || "An error occurred while uploading invoices.";
+        }
+      }
+      toast.error(errorMessage);
+      throw error;
     }
   };
 
@@ -338,31 +408,6 @@ export default function BasicTable() {
           );
         }
       }
-    }
-  };
-
-  // Handle invoice upload
-  const handleInvoiceUpload = async (invoicesData) => {
-    try {
-      if (!selectedTenant) {
-        throw new Error("No Company selected");
-      }
-
-      const response = await api.post(
-        `/tenant/${selectedTenant.tenant_id}/invoices/bulk`,
-        { invoices: invoicesData }
-      );
-
-      if (response.data.success) {
-        // Refresh the invoice list after successful upload
-        getMyInvoices();
-        return response;
-      } else {
-        throw new Error(response.data.message || "Upload failed");
-      }
-    } catch (error) {
-      console.error("Error uploading invoices:", error);
-      throw error;
     }
   };
 
@@ -500,23 +545,13 @@ export default function BasicTable() {
               Your Invoices
             </Typography>
             <Button
-              variant="contained"
-              startIcon={<UploadIcon />}
-              onClick={() => setUploadModalOpen(true)}
-              sx={{
-                borderRadius: 2,
-                textTransform: "none",
-                fontWeight: 600,
-                px: 3,
-                py: 1,
-                backgroundColor: "#1976d2",
-                color: "white",
-                "&:hover": {
-                  backgroundColor: "#1565c0",
-                },
-              }}
+              variant="outlined"
+              color="primary"
+              startIcon={<CloudUploadIcon />}
+              onClick={() => setUploaderOpen(true)}
+              sx={{ mr: 1 }}
             >
-              Upload Invoice
+              Bulk Upload CSV/Excel
             </Button>
           </Box>
           {/* Search and Filter Controls */}
@@ -742,16 +777,14 @@ export default function BasicTable() {
                                   navigator.clipboard.writeText(
                                     row.invoiceNumber
                                   );
-                                  Swal.fire({
-                                    title: "Copied!",
-                                    text: `Invoice Number "${row.invoiceNumber}" copied to clipboard.`,
-                                    icon: "success",
-                                    toast: true,
-                                    position: "top-end",
-                                    showConfirmButton: false,
-                                    timer: 3000,
-                                    timerProgressBar: true,
-                                  });
+                                  toast.success(
+                                    `Invoice Number "${row.invoiceNumber}" copied to clipboard.`,
+                                    {
+                                      autoClose: 3000,
+                                      closeOnClick: false,
+                                      pauseOnHover: true,
+                                    }
+                                  );
                                 }}
                                 sx={{
                                   minWidth: "24px",
@@ -982,9 +1015,9 @@ export default function BasicTable() {
 
           {/* Invoice Uploader Modal */}
           <InvoiceUploader
-            isOpen={uploadModalOpen}
-            onClose={() => setUploadModalOpen(false)}
-            onUpload={handleInvoiceUpload}
+            isOpen={uploaderOpen}
+            onClose={() => setUploaderOpen(false)}
+            onUpload={handleBulkUpload}
             selectedTenant={selectedTenant}
           />
         </Box>

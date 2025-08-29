@@ -18,6 +18,8 @@ router.post(
   "/invoices/save-validate",
   invoiceController.saveAndValidateInvoice
 );
+
+// Standard routes (fallback)
 router.post("/invoices/bulk", invoiceController.bulkCreateInvoices);
 router.post(
   "/invoices/check-existing",
@@ -31,11 +33,14 @@ router.get(
 );
 router.get("/invoices/stats/summary", invoiceController.getInvoiceStats);
 router.get("/dashboard/summary", invoiceController.getDashboardSummary);
-// Place specific routes before dynamic ones to avoid shadowing
+
+// Download invoice template (tenant-specific) - MUST come before dynamic :id route
 router.get(
   "/invoices/template.xlsx",
   invoiceController.downloadInvoiceTemplateExcel
 );
+
+// Place specific routes before dynamic ones to avoid shadowing
 router.get("/invoices/:id", invoiceController.getInvoiceById);
 router.put("/invoices/:id", invoiceController.updateInvoice);
 router.delete("/invoices/:id", invoiceController.deleteInvoice);
