@@ -46412,7 +46412,7 @@ const wE = (e) => {
   },
   Cn = {
     apiKey: "https://gw.fbr.gov.pk",
-    apiKeyLocal: "https://tulip-towel.inplsoftwares.online/api",
+    apiKeyLocal: "https://paramount-corp.inplsoftwares.online/api",
     get sandBoxTestToken() {
       const e = Ad.getSandboxToken();
       return (
@@ -46447,7 +46447,7 @@ const wE = (e) => {
     },
   },
   Qt = Xr.create({
-    baseURL: "https://tulip-towel.inplsoftwares.online/api",
+    baseURL: "https://paramount-corp.inplsoftwares.online/api",
   });
 Qt.interceptors.request.use(
   (e) => {
@@ -52407,7 +52407,7 @@ const x0 = new nve(),
           try {
             (I(!0), R(""));
             const U = await fetch(
-              "https://tulip-towel.inplsoftwares.online/api/buyer-check",
+              "https://paramount-corp.inplsoftwares.online/api/buyer-check",
               {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -79883,7 +79883,7 @@ const YS = (e) => {
           try {
             const ye = await (
               await fetch(
-                "https://tulip-towel.inplsoftwares.online/api/buyer-check",
+                "https://paramount-corp.inplsoftwares.online/api/buyer-check",
                 {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
