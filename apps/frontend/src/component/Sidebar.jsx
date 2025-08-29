@@ -216,7 +216,18 @@ export default function Sidebar({ onLogout }) {
               width: "100%",
               padding: "16px",
             }}
-          ></Box>
+          >
+            <img
+              src="/images/PakistanGumAndChemicals.png"
+              alt="Pakistan Gum and Chemicals"
+              style={{
+                maxWidth: "100%",
+                height: "auto",
+                maxHeight: "60px",
+                objectFit: "contain",
+              }}
+            />
+          </Box>
         </DrawerHeader>
         <List>
           {navItems.map((item, index) => {

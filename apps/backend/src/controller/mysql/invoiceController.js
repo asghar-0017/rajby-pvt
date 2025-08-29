@@ -1588,6 +1588,19 @@ export const printInvoice = async (req, res) => {
 
       .toString("base64");
 
+    const pakistanGumLogoBase64 = fs
+
+      .readFileSync(
+        path.join(
+          process.cwd(),
+          "public",
+          "images",
+          "PakistanGumAndChemicals.png"
+        )
+      )
+
+      .toString("base64");
+
     // Prepare paths
 
     const pdfFileName = `${invoiceWithItems.invoice_number}.pdf`;
@@ -1671,6 +1684,8 @@ export const printInvoice = async (req, res) => {
         fbrLogoBase64,
 
         companyLogoBase64,
+
+        pakistanGumLogoBase64,
 
         showFbrLogo: invoiceWithItems.status === "posted", // Only show FBR logo for posted invoices
 
