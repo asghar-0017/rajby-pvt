@@ -46412,7 +46412,7 @@ const wE = (e) => {
   },
   Cn = {
     apiKey: "https://gw.fbr.gov.pk",
-    apiKeyLocal: "https://united-tubes.inplsoftwares.online/api",
+    apiKeyLocal: "https://adnan-textile.inplsoftwares.online/api",
     get sandBoxTestToken() {
       const e = Ad.getSandboxToken();
       return (
@@ -46447,7 +46447,7 @@ const wE = (e) => {
     },
   },
   Qt = Xr.create({
-    baseURL: "https://united-tubes.inplsoftwares.online/api",
+    baseURL: "https://adnan-textile.inplsoftwares.online/api",
   });
 Qt.interceptors.request.use(
   (e) => {
@@ -52407,7 +52407,7 @@ const x0 = new nve(),
           try {
             (I(!0), R(""));
             const U = await fetch(
-              "https://united-tubes.inplsoftwares.online/api/buyer-check",
+              "https://adnan-textile.inplsoftwares.online/api/buyer-check",
               {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -79883,7 +79883,7 @@ const YS = (e) => {
           try {
             const ye = await (
               await fetch(
-                "https://united-tubes.inplsoftwares.online/api/buyer-check",
+                "https://adnan-textile.inplsoftwares.online/api/buyer-check",
                 {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
