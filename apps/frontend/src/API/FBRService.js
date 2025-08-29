@@ -428,9 +428,7 @@ export const getDocumentTypesFromBackend = async (tenantId) => {
 
     // Handle specific error cases and throw appropriate errors
     if (error.response?.status === 401) {
-      throw new Error(
-        "Authentication failed. Please check your credentials."
-      );
+      throw new Error("Authentication failed. Please check your credentials.");
     } else if (error.response?.status === 404) {
       throw new Error("Document types API endpoint not found.");
     } else if (error.response?.status === 500) {
@@ -443,9 +441,7 @@ export const getDocumentTypesFromBackend = async (tenantId) => {
           "Error fetching document types from backend API."
       );
     } else if (error.code === "ECONNABORTED") {
-      throw new Error(
-        "Request timeout. System may be slow. Please try again."
-      );
+      throw new Error("Request timeout. System may be slow. Please try again.");
     } else if (error.code === "ERR_NETWORK") {
       throw new Error(
         "Network error. Please check your internet connection and try again."
@@ -505,9 +501,7 @@ export const getProvincesFromBackend = async (tenantId) => {
 
     // Handle specific error cases and throw appropriate errors
     if (error.response?.status === 401) {
-      throw new Error(
-        "Authentication failed. Please check your credentials."
-      );
+      throw new Error("Authentication failed. Please check your credentials.");
     } else if (error.response?.status === 404) {
       throw new Error("Provinces API endpoint not found.");
     } else if (error.response?.status === 500) {
@@ -520,9 +514,7 @@ export const getProvincesFromBackend = async (tenantId) => {
           "Error fetching provinces from backend API."
       );
     } else if (error.code === "ECONNABORTED") {
-      throw new Error(
-        "Request timeout. System may be slow. Please try again."
-      );
+      throw new Error("Request timeout. System may be slow. Please try again.");
     } else if (error.code === "ERR_NETWORK") {
       throw new Error(
         "Network error. Please check your internet connection and try again."
@@ -583,9 +575,7 @@ export const validateInvoiceDataFromBackend = async (tenantId, invoiceData) => {
 
     // Handle specific error cases and throw appropriate errors
     if (error.response?.status === 401) {
-      throw new Error(
-        "Authentication failed. Please check your credentials."
-      );
+      throw new Error("Authentication failed. Please check your credentials.");
     } else if (error.response?.status === 400) {
       throw new Error(
         error.response.data.message || "Invalid invoice data provided."
@@ -602,9 +592,7 @@ export const validateInvoiceDataFromBackend = async (tenantId, invoiceData) => {
           "Error validating invoice data through backend API."
       );
     } else if (error.code === "ECONNABORTED") {
-      throw new Error(
-        "Request timeout. System may be slow. Please try again."
-      );
+      throw new Error("Request timeout. System may be slow. Please try again.");
     } else if (error.code === "ERR_NETWORK") {
       throw new Error(
         "Network error. Please check your internet connection and try again."
@@ -665,9 +653,7 @@ export const submitInvoiceDataFromBackend = async (tenantId, invoiceData) => {
 
     // Handle specific error cases and throw appropriate errors
     if (error.response?.status === 401) {
-      throw new Error(
-        "Authentication failed. Please check your credentials."
-      );
+      throw new Error("Authentication failed. Please check your credentials.");
     } else if (error.response?.status === 400) {
       throw new Error(
         error.response.data.message || "Invalid invoice data provided."
@@ -684,9 +670,7 @@ export const submitInvoiceDataFromBackend = async (tenantId, invoiceData) => {
           "Error submitting invoice data through backend API."
       );
     } else if (error.code === "ECONNABORTED") {
-      throw new Error(
-        "Request timeout. System may be slow. Please try again."
-      );
+      throw new Error("Request timeout. System may be slow. Please try again.");
     } else if (error.code === "ERR_NETWORK") {
       throw new Error(
         "Network error. Please check your internet connection and try again."

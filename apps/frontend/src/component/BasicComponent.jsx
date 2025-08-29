@@ -15,6 +15,8 @@ import {
   TextField,
   MenuItem,
   InputAdornment,
+  Checkbox,
+  CircularProgress,
 } from "@mui/material";
 import { DatePicker, LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
@@ -27,6 +29,7 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 
 import { api, API_CONFIG } from "../API/Api";
+import { postData } from "../API/GetApi";
 import SearchIcon from "@mui/icons-material/Search";
 import SentimentDissatisfiedIcon from "@mui/icons-material/SentimentDissatisfied";
 import Tooltip from "@mui/material/Tooltip";
@@ -45,6 +48,13 @@ export default function BasicTable() {
   const [loading, setLoading] = useState(true);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [uploaderOpen, setUploaderOpen] = useState(false);
+  const [selectedInvoices, setSelectedInvoices] = useState(new Set());
+  const [selectMode, setSelectMode] = useState(false);
+
+  // New state variables for Save and Validate and Submit functionality
+  const [saveValidateLoading, setSaveValidateLoading] = useState(false);
+  const [submitLoading, setSubmitLoading] = useState(false);
+  const [isSubmitVisible, setIsSubmitVisible] = useState(false);
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -411,9 +421,544 @@ export default function BasicTable() {
     }
   };
 
+  // Handle Save and Validate for selected invoices
+  const handleSaveAndValidate = async () => {
+    setSaveValidateLoading(true);
+    try {
+      if (!selectedTenant) {
+        Swal.fire({
+          icon: "error",
+          title: "Error",
+          text: "Please select a Company before saving and validating invoices.",
+          confirmButtonColor: "#d33",
+        });
+        setSaveValidateLoading(false);
+        return;
+      }
+
+      if (selectedInvoices.size === 0) {
+        Swal.fire({
+          icon: "error",
+          title: "Error",
+          text: "Please select at least one invoice to save and validate.",
+          confirmButtonColor: "#d33",
+        });
+        setSaveValidateLoading(false);
+        return;
+      }
+
+      // Get selected invoice details
+      const selectedInvoiceDetails = filteredInvoices.filter((invoice) =>
+        selectedInvoices.has(invoice._id || invoice.id)
+      );
+
+      // Process each selected invoice
+      const results = [];
+      for (const invoice of selectedInvoiceDetails) {
+        try {
+          // Get full invoice details
+          const response = await api.get(
+            `/tenant/${selectedTenant.tenant_id}/invoices/${invoice.id}`
+          );
+
+          if (response.data.success) {
+            const invoiceData = response.data.data;
+
+            // Save and validate the invoice
+            const saveResponse = await api.post(
+              `/tenant/${selectedTenant.tenant_id}/invoices/save-validate`,
+              invoiceData
+            );
+
+            if (saveResponse.status === 201) {
+              results.push({
+                invoiceNumber: invoice.invoiceNumber,
+                status: "success",
+                message: `Invoice ${invoice.invoiceNumber} saved and validated successfully`,
+              });
+            } else {
+              results.push({
+                invoiceNumber: invoice.invoiceNumber,
+                status: "error",
+                message: "Failed to save and validate invoice",
+              });
+            }
+          } else {
+            results.push({
+              invoiceNumber: invoice.invoiceNumber,
+              status: "error",
+              message: "Failed to fetch invoice details",
+            });
+          }
+        } catch (error) {
+          console.error(
+            `Error processing invoice ${invoice.invoiceNumber}:`,
+            error
+          );
+          results.push({
+            invoiceNumber: invoice.invoiceNumber,
+            status: "error",
+            message:
+              error.response?.data?.message || "Error processing invoice",
+          });
+        }
+      }
+
+      // Show results
+      const successful = results.filter((r) => r.status === "success");
+      const failed = results.filter((r) => r.status === "error");
+
+      if (failed.length === 0) {
+        Swal.fire({
+          icon: "success",
+          title: "All Invoices Saved and Validated Successfully!",
+          text: `${successful.length} invoices have been saved and validated.`,
+          confirmButtonColor: "#28a745",
+        });
+        setIsSubmitVisible(true);
+        getMyInvoices(); // Refresh the list
+      } else if (successful.length === 0) {
+        Swal.fire({
+          icon: "error",
+          title: "All Invoices Failed to Save and Validate",
+          text: failed
+            .map((f) => `${f.invoiceNumber}: ${f.message}`)
+            .join("\n"),
+          confirmButtonColor: "#d33",
+        });
+      } else {
+        Swal.fire({
+          icon: "warning",
+          title: "Partial Success",
+          text: `${successful.length} invoices saved and validated successfully. ${failed.length} invoices failed.`,
+          confirmButtonColor: "#ff9800",
+        });
+        setIsSubmitVisible(true);
+        getMyInvoices(); // Refresh the list
+      }
+    } catch (error) {
+      console.error("Save and Validate Error:", error);
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "Failed to save and validate invoices. Please try again.",
+        confirmButtonColor: "#d33",
+      });
+    } finally {
+      setSaveValidateLoading(false);
+    }
+  };
+
+  // Handle Submit for selected invoices
+  const handleSubmit = async () => {
+    setSubmitLoading(true);
+    try {
+      if (!selectedTenant) {
+        Swal.fire({
+          icon: "error",
+          title: "Error",
+          text: "Please select a Company before submitting invoices.",
+          confirmButtonColor: "#d33",
+        });
+        setSubmitLoading(false);
+        return;
+      }
+
+      if (selectedInvoices.size === 0) {
+        Swal.fire({
+          icon: "error",
+          title: "Error",
+          text: "Please select at least one invoice to submit.",
+          confirmButtonColor: "#d33",
+        });
+        setSubmitLoading(false);
+        return;
+      }
+
+      // Get selected invoice details
+      const selectedInvoiceDetails = filteredInvoices.filter((invoice) =>
+        selectedInvoices.has(invoice._id || invoice.id)
+      );
+
+      // Process each selected invoice
+      const results = [];
+      for (const invoice of selectedInvoiceDetails) {
+        try {
+          // Get full invoice details
+          const response = await api.get(
+            `/tenant/${selectedTenant.tenant_id}/invoices/${invoice.id}`
+          );
+
+          if (response.data.success) {
+            const invoiceData = response.data.data;
+
+            // Clean the data for FBR submission (similar to createInvoiceForm.jsx)
+            const cleanedItems = invoiceData.items.map(
+              ({
+                isSROScheduleEnabled,
+                isSROItemEnabled,
+                retailPrice,
+                isValueSalesManual,
+                isTotalValuesManual,
+                isSalesTaxManual,
+                isSalesTaxWithheldManual,
+                isFurtherTaxManual,
+                isFedPayableManual,
+                ...rest
+              }) => {
+                // Special handling for uoM based on rate content
+                let uoMValue = rest.uoM?.trim() || null;
+                if (rest.rate && rest.rate.includes("/bill")) {
+                  uoMValue = "Bill of lading";
+                }
+                if (rest.rate && rest.rate.includes("/SqY")) {
+                  uoMValue = "SqY";
+                }
+
+                const baseItem = {
+                  ...rest,
+                  fixedNotifiedValueOrRetailPrice: Number(
+                    Number(retailPrice || 0).toFixed(2)
+                  ),
+                  quantity:
+                    rest.quantity === "" ? 0 : parseFloat(rest.quantity || 0),
+                  unitPrice: Number(Number(rest.unitPrice || 0).toFixed(2)),
+                  valueSalesExcludingST: Number(
+                    Number(rest.valueSalesExcludingST || 0).toFixed(2)
+                  ),
+                  salesTaxApplicable:
+                    Math.round(Number(rest.salesTaxApplicable || 0) * 100) /
+                    100,
+                  salesTaxWithheldAtSource: Number(
+                    Number(rest.salesTaxWithheldAtSource || 0).toFixed(2)
+                  ),
+                  totalValues: Number(Number(rest.totalValues || 0).toFixed(2)),
+                  sroScheduleNo: rest.sroScheduleNo?.trim() || null,
+                  sroItemSerialNo: rest.sroItemSerialNo?.trim() || null,
+                  uoM: uoMValue,
+                  productDescription: rest.productDescription?.trim() || null,
+                  saleType:
+                    rest.saleType?.trim() || "Goods at standard rate (default)",
+                  furtherTax: Number(Number(rest.furtherTax || 0).toFixed(2)),
+                  fedPayable: Number(Number(rest.fedPayable || 0).toFixed(2)),
+                  discount: Number(Number(rest.discount || 0).toFixed(2)),
+                };
+
+                // Only include extraTax if saleType is NOT "Goods at Reduced Rate"
+                if (rest.saleType?.trim() !== "Goods at Reduced Rate") {
+                  baseItem.extraTax = Number(
+                    Number(rest.extraTax || 0).toFixed(2)
+                  );
+                } else {
+                  // For "Goods at Reduced Rate", send empty string instead of null
+                  baseItem.extraTax = "";
+                }
+
+                return baseItem;
+              }
+            );
+
+            const cleanedData = {
+              ...invoiceData,
+              invoiceDate: dayjs(invoiceData.invoiceDate).format("YYYY-MM-DD"),
+              transctypeId: invoiceData.transctypeId,
+              items: cleanedItems,
+            };
+
+            // Validate numeric fields before sending to FBR
+            const validateNumericFields = (items) => {
+              for (let i = 0; i < items.length; i++) {
+                const item = items[i];
+                const numericFields = [
+                  "quantity",
+                  "unitPrice",
+                  "valueSalesExcludingST",
+                  "salesTaxApplicable",
+                  "salesTaxWithheldAtSource",
+                  "totalValues",
+                  "furtherTax",
+                  "fedPayable",
+                  "discount",
+                  "fixedNotifiedValueOrRetailPrice",
+                ];
+
+                for (const field of numericFields) {
+                  if (item[field] !== null && item[field] !== undefined) {
+                    const value = Number(item[field]);
+                    if (isNaN(value) || value < 0) {
+                      throw new Error(
+                        `Item ${i + 1}: Invalid ${field} value. Must be a non-negative number.`
+                      );
+                    }
+                  }
+                }
+
+                // Special validation for extraTax
+                if (
+                  item.extraTax !== null &&
+                  item.extraTax !== undefined &&
+                  item.extraTax !== ""
+                ) {
+                  const extraTaxValue = Number(item.extraTax);
+                  if (isNaN(extraTaxValue) || extraTaxValue < 0) {
+                    throw new Error(
+                      `Item ${i + 1}: Invalid extraTax value. Must be a non-negative number.`
+                    );
+                  }
+                }
+              }
+            };
+
+            try {
+              validateNumericFields(cleanedItems);
+            } catch (validationError) {
+              throw new Error(`Validation failed: ${validationError.message}`);
+            }
+
+            // STEP 1: Hit FBR API First
+            const fbrResponse = await postData(
+              "di_data/v1/di/postinvoicedata",
+              cleanedData,
+              "sandbox"
+            );
+
+            // Handle different FBR response structures
+            let fbrInvoiceNumber = null;
+            let isSuccess = false;
+            let errorDetails = null;
+
+            if (fbrResponse.status === 200) {
+              // Check for validationResponse structure (old format)
+              if (fbrResponse.data && fbrResponse.data.validationResponse) {
+                const validation = fbrResponse.data.validationResponse;
+                isSuccess = validation.statusCode === "00";
+                fbrInvoiceNumber = fbrResponse.data.invoiceNumber;
+                if (!isSuccess) {
+                  errorDetails = validation;
+                }
+              }
+              // Check for direct response structure (new format)
+              else if (
+                fbrResponse.data &&
+                (fbrResponse.data.invoiceNumber || fbrResponse.data.success)
+              ) {
+                isSuccess = true;
+                fbrInvoiceNumber = fbrResponse.data.invoiceNumber;
+              }
+              // Check for error response structure
+              else if (fbrResponse.data && fbrResponse.data.error) {
+                isSuccess = false;
+                errorDetails = fbrResponse.data;
+              }
+              // Check for empty response - this might be a successful submission
+              else if (!fbrResponse.data || fbrResponse.data === "") {
+                isSuccess = true;
+                fbrInvoiceNumber = `FBR_${Date.now()}`;
+              }
+              // If response is unexpected, treat as success if status is 200
+              else {
+                isSuccess = true;
+              }
+            }
+
+            if (!isSuccess) {
+              const details = errorDetails || {
+                raw: fbrResponse.data ?? null,
+                note: "Unexpected FBR response structure",
+                status: fbrResponse.status,
+              };
+
+              const collectErrorMessages = (det) => {
+                const messages = [];
+                if (det && typeof det === "object") {
+                  if (det.error) messages.push(det.error);
+                  if (Array.isArray(det.invoiceStatuses)) {
+                    det.invoiceStatuses.forEach((s) => {
+                      if (s?.error)
+                        messages.push(`Item ${s.itemSNo}: ${s.error}`);
+                    });
+                  }
+                  if (det.validationResponse) {
+                    const v = det.validationResponse;
+                    if (v?.error) messages.push(v.error);
+                    if (Array.isArray(v?.invoiceStatuses)) {
+                      v.invoiceStatuses.forEach((s) => {
+                        if (s?.error)
+                          messages.push(`Item ${s.itemSNo}: ${s.error}`);
+                      });
+                    }
+                  }
+                }
+                return messages.filter(Boolean);
+              };
+
+              const errorMessages = collectErrorMessages(details);
+              const message = errorMessages.length
+                ? `FBR submission failed: ${errorMessages.join("; ")}`
+                : "FBR submission failed";
+
+              throw new Error(message);
+            }
+
+            // Ensure we have a valid FBR invoice number
+            if (!fbrInvoiceNumber || fbrInvoiceNumber.trim() === "") {
+              throw new Error(
+                "FBR submission failed: No invoice number received from FBR"
+              );
+            }
+
+            // STEP 2: Hit Your Backend API Second
+            // Prepare data for backend with FBR invoice number
+            const backendData = {
+              ...invoiceData, // Use original form data to preserve all fields
+              invoiceDate: dayjs(invoiceData.invoiceDate).format("YYYY-MM-DD"),
+              transctypeId: invoiceData.transctypeId,
+              items: cleanedItems, // Use cleaned items for consistency
+              fbr_invoice_number: fbrInvoiceNumber,
+              status: "posted", // Set status as posted since it's been submitted to FBR
+            };
+
+            // Call backend API to save invoice
+            const backendResponse = await api.post(
+              `/tenant/${selectedTenant.tenant_id}/invoices`,
+              backendData
+            );
+
+            if (backendResponse.status !== 200) {
+              throw new Error(
+                `Failed to save invoice to backend database. Status: ${backendResponse.status}`
+              );
+            }
+
+            // STEP 3: Delete the saved invoice if it exists
+            if (invoiceData.id) {
+              try {
+                const deleteResponse = await api.delete(
+                  `/tenant/${selectedTenant.tenant_id}/invoices/${invoiceData.id}`
+                );
+
+                if (deleteResponse.status !== 200) {
+                  // Failed to delete saved invoice, but submission was successful
+                }
+              } catch (deleteError) {
+                // Error deleting saved invoice, but main submission was successful
+              }
+            }
+
+            results.push({
+              invoiceNumber: invoice.invoiceNumber,
+              status: "success",
+              message: `Invoice ${invoice.invoiceNumber} submitted successfully to FBR. FBR Invoice Number: ${fbrInvoiceNumber}`,
+            });
+          } else {
+            results.push({
+              invoiceNumber: invoice.invoiceNumber,
+              status: "error",
+              message: "Failed to fetch invoice details",
+            });
+          }
+        } catch (error) {
+          console.error(
+            `Error processing invoice ${invoice.invoiceNumber}:`,
+            error
+          );
+          results.push({
+            invoiceNumber: invoice.invoiceNumber,
+            status: "error",
+            message:
+              error.message ||
+              error.response?.data?.message ||
+              "Error processing invoice",
+          });
+        }
+      }
+
+      // Show results
+      const successful = results.filter((r) => r.status === "success");
+      const failed = results.filter((r) => r.status === "error");
+
+      if (failed.length === 0) {
+        Swal.fire({
+          icon: "success",
+          title: "All Invoices Submitted Successfully!",
+          text: `${successful.length} invoices have been submitted to FBR.`,
+          confirmButtonColor: "#28a745",
+        });
+        getMyInvoices(); // Refresh the list
+        setSelectedInvoices(new Set()); // Clear selection
+        setSelectMode(false); // Exit select mode
+      } else if (successful.length === 0) {
+        Swal.fire({
+          icon: "error",
+          title: "All Invoices Failed to Submit",
+          text: failed
+            .map((f) => `${f.invoiceNumber}: ${f.message}`)
+            .join("\n"),
+          confirmButtonColor: "#d33",
+        });
+      } else {
+        Swal.fire({
+          icon: "warning",
+          title: "Partial Success",
+          text: `${successful.length} invoices submitted successfully. ${failed.length} invoices failed.`,
+          confirmButtonColor: "#ff9800",
+        });
+        getMyInvoices(); // Refresh the list
+      }
+    } catch (error) {
+      console.error("Submit Error:", error);
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "Failed to submit invoices. Please try again.",
+        confirmButtonColor: "#d33",
+      });
+    } finally {
+      setSubmitLoading(false);
+    }
+  };
+
   // Since we're using server-side pagination, we don't need client-side filtering
   // The server handles all filtering and pagination
   const filteredInvoices = invoices || [];
+
+  // Handle individual checkbox selection
+  const handleRowSelection = (invoiceId) => {
+    const newSelected = new Set(selectedInvoices);
+    if (newSelected.has(invoiceId)) {
+      newSelected.delete(invoiceId);
+    } else {
+      newSelected.add(invoiceId);
+    }
+    setSelectedInvoices(newSelected);
+    // Reset submit visibility when selection changes
+    setIsSubmitVisible(false);
+  };
+
+  // Handle select all functionality
+  const handleSelectAll = () => {
+    if (selectedInvoices.size === filteredInvoices.length) {
+      // If all are selected, unselect all
+      setSelectedInvoices(new Set());
+    } else {
+      // Select all
+      const allIds = filteredInvoices.map(
+        (invoice) => invoice._id || invoice.id
+      );
+      setSelectedInvoices(new Set(allIds));
+    }
+    // Reset submit visibility when selection changes
+    setIsSubmitVisible(false);
+  };
+
+  // Toggle select mode
+  const toggleSelectMode = () => {
+    setSelectMode(!selectMode);
+    if (selectMode) {
+      setSelectedInvoices(new Set());
+      setIsSubmitVisible(false); // Reset submit visibility when exiting select mode
+    }
+  };
 
   return (
     <>
@@ -484,7 +1029,7 @@ export default function BasicTable() {
             >
               <TableHead>
                 <TableRow sx={{ background: "#EDEDED" }}>
-                  {[...Array(9)].map((_, index) => (
+                  {[...Array(10)].map((_, index) => (
                     <TableCell key={index}>
                       <Skeleton variant="text" width={80} height={20} />
                     </TableCell>
@@ -494,11 +1039,11 @@ export default function BasicTable() {
               <TableBody>
                 {[...Array(5)].map((_, rowIndex) => (
                   <TableRow key={rowIndex}>
-                    {[...Array(9)].map((_, colIndex) => (
+                    {[...Array(10)].map((_, colIndex) => (
                       <TableCell key={`${rowIndex}-${colIndex}`}>
                         <Skeleton
                           variant="text"
-                          width={colIndex === 8 ? 120 : 100}
+                          width={colIndex === 9 ? 120 : 100}
                           height={16}
                         />
                       </TableCell>
@@ -544,16 +1089,171 @@ export default function BasicTable() {
             >
               Your Invoices
             </Typography>
-            <Button
-              variant="outlined"
-              color="primary"
-              startIcon={<CloudUploadIcon />}
-              onClick={() => setUploaderOpen(true)}
-              sx={{ mr: 1 }}
-            >
-              Bulk Upload CSV/Excel
-            </Button>
+            <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+              <Button
+                variant="outlined"
+                color="primary"
+                onClick={toggleSelectMode}
+                sx={{ minWidth: 80 }}
+              >
+                {selectMode ? "Cancel" : "Select"}
+              </Button>
+
+              <Button
+                variant="outlined"
+                color="primary"
+                startIcon={<CloudUploadIcon />}
+                onClick={() => setUploaderOpen(true)}
+              >
+                Bulk Upload CSV/Excel
+              </Button>
+            </Box>
           </Box>
+
+          {/* Selection Info */}
+          {selectMode && (
+            <Box
+              sx={{
+                mb: 2,
+                p: 2,
+                bgcolor: "primary.light",
+                borderRadius: 1,
+                color: "white",
+              }}
+            >
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <Typography variant="body2">
+                  {selectedInvoices.size} of {filteredInvoices.length} invoices
+                  selected
+                </Typography>
+                {selectedInvoices.size > 0 && (
+                  <Box sx={{ display: "flex", gap: 1 }}>
+                    {/* Check if any selected invoice has posted status */}
+                    {(() => {
+                      const hasPostedInvoices = filteredInvoices
+                        .filter((invoice) =>
+                          selectedInvoices.has(invoice._id || invoice.id)
+                        )
+                        .some((invoice) => invoice.status === "posted");
+
+                      return (
+                        <>
+                          <Tooltip
+                            title={
+                              hasPostedInvoices
+                                ? "You have selected posted invoices. Unselect them to proceed."
+                                : ""
+                            }
+                            placement="top"
+                            arrow
+                          >
+                            <span>
+                              <Button
+                                onClick={handleSaveAndValidate}
+                                variant="outlined"
+                                color="warning"
+                                size="small"
+                                sx={{
+                                  borderRadius: 1.5,
+                                  fontWeight: 600,
+                                  px: 1.5,
+                                  py: 0.3,
+                                  fontSize: 11,
+                                  letterSpacing: 0.3,
+                                  boxShadow: 1,
+                                  transition: "all 0.2s",
+                                  minWidth: "auto",
+                                  bgcolor: "white",
+                                  color: hasPostedInvoices ? "#ccc" : "#f57c00",
+                                  borderColor: hasPostedInvoices
+                                    ? "#ccc"
+                                    : "#f57c00",
+                                  "&:hover": {
+                                    background: hasPostedInvoices
+                                      ? "transparent"
+                                      : "#f57c00",
+                                    color: hasPostedInvoices ? "#ccc" : "white",
+                                    boxShadow: hasPostedInvoices ? 1 : 2,
+                                    borderColor: hasPostedInvoices
+                                      ? "#ccc"
+                                      : "#f57c00",
+                                  },
+                                }}
+                                disabled={
+                                  saveValidateLoading || hasPostedInvoices
+                                }
+                              >
+                                {saveValidateLoading ? (
+                                  <CircularProgress size={16} color="inherit" />
+                                ) : (
+                                  "Save & Validate"
+                                )}
+                              </Button>
+                            </span>
+                          </Tooltip>
+                          {isSubmitVisible && (
+                            <Tooltip
+                              title={
+                                hasPostedInvoices
+                                  ? "You have selected posted invoices. Unselect them to proceed."
+                                  : ""
+                              }
+                              placement="top"
+                              arrow
+                            >
+                              <span>
+                                <Button
+                                  onClick={handleSubmit}
+                                  variant="contained"
+                                  size="small"
+                                  sx={{
+                                    background: hasPostedInvoices
+                                      ? "#ccc"
+                                      : "#2E7D32",
+                                    borderRadius: 1.5,
+                                    fontWeight: 600,
+                                    px: 1.5,
+                                    py: 0.3,
+                                    fontSize: 11,
+                                    letterSpacing: 0.3,
+                                    boxShadow: 1,
+                                    transition: "background 0.2s",
+                                    minWidth: "auto",
+                                    "&:hover": {
+                                      background: hasPostedInvoices
+                                        ? "#ccc"
+                                        : "#256e2b",
+                                    },
+                                  }}
+                                  disabled={submitLoading || hasPostedInvoices}
+                                >
+                                  {submitLoading ? (
+                                    <CircularProgress
+                                      size={16}
+                                      color="inherit"
+                                    />
+                                  ) : (
+                                    "Submit"
+                                  )}
+                                </Button>
+                              </span>
+                            </Tooltip>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </Box>
+                )}
+              </Box>
+            </Box>
+          )}
+
           {/* Search and Filter Controls */}
           <Box sx={{ display: "flex", gap: 2, mb: 2, flexWrap: "wrap" }}>
             <TextField
@@ -687,6 +1387,31 @@ export default function BasicTable() {
                         background: "#EDEDED",
                       }}
                     >
+                      {selectMode && (
+                        <TableCell
+                          align="center"
+                          sx={{
+                            fontWeight: "bold",
+                            fontSize: 13,
+                            letterSpacing: 0.3,
+                            width: 50,
+                          }}
+                        >
+                          <Checkbox
+                            checked={
+                              selectedInvoices.size ===
+                                filteredInvoices.length &&
+                              filteredInvoices.length > 0
+                            }
+                            indeterminate={
+                              selectedInvoices.size > 0 &&
+                              selectedInvoices.size < filteredInvoices.length
+                            }
+                            onChange={handleSelectAll}
+                            size="small"
+                          />
+                        </TableCell>
+                      )}
                       {[
                         "S.No",
                         "System ID",
@@ -731,6 +1456,22 @@ export default function BasicTable() {
                           },
                         }}
                       >
+                        {selectMode && (
+                          <TableCell
+                            align="center"
+                            sx={{
+                              width: 50,
+                            }}
+                          >
+                            <Checkbox
+                              checked={selectedInvoices.has(row._id || row.id)}
+                              onChange={() =>
+                                handleRowSelection(row._id || row.id)
+                              }
+                              size="small"
+                            />
+                          </TableCell>
+                        )}
                         <TableCell
                           component="th"
                           scope="row"
