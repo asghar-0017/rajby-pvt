@@ -20,6 +20,7 @@ import ForgotPassword from "../pages/ForgotPassword";
 import RegisterUser from "../pages/RegisterUser";
 import { RegisteredUsers } from "../pages/RegisteredUsers";
 import Buyers from "../pages/Buyers";
+import Products from "../pages/Products";
 import TenantManagement from "../pages/TenantManagement";
 
 // import ProductionForm from "../pages/productionForm"
@@ -59,6 +60,7 @@ const AppRouter = () => {
                 <Route path="register-buyer" element={<RegisterUser />} />
                 <Route path="registered-users" element={<RegisteredUsers />} />
                 <Route path="buyers" element={<Buyers />} />
+                <Route path="products" element={<Products />} />
                 <Route
                   path="tenant-management"
                   element={<TenantManagement />}

@@ -24,5 +24,8 @@ router.get("/buyers/province/:province", buyerController.getBuyersByProvince);
 // Product routes (tenant-specific)
 router.get("/products", productController.listProducts);
 router.post("/products", productController.createProduct);
+router.get("/products/:id", productController.getProductById);
+router.put("/products/:id", productController.updateProduct);
+router.delete("/products/:id", productController.deleteProduct);
 
 export default router;

@@ -67,6 +67,7 @@ import { api, API_CONFIG, debugTokenManager } from "../API/Api";
 import TenantSelectionPrompt from "../component/TenantSelectionPrompt";
 import { useTenantSelection } from "../Context/TenantSelectionProvider";
 import BuyerModal from "../component/BuyerModal";
+import ProductTable from "../component/ProductTable";
 // import TenantDashboard from "../component/TenantDashboard";
 
 // Utility function to format numbers with commas and 2 decimal places
@@ -248,6 +249,11 @@ export default function CreateInvoice() {
   const [isBuyerModalOpen, setIsBuyerModalOpen] = useState(false);
   const [selectedProductIdByItem, setSelectedProductIdByItem] = useState({});
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+
+  // Products management state
+  const [isProductsSectionOpen, setIsProductsSectionOpen] = useState(false);
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
 
   const [transactionTypes, setTransactionTypes] = React.useState([]);
   const [transactionTypesError, setTransactionTypesError] =
@@ -1327,11 +1333,128 @@ export default function CreateInvoice() {
 
   // Product modal handlers
   const openProductModal = () => setIsProductModalOpen(true);
-  const closeProductModal = () => setIsProductModalOpen(false);
+  const closeProductModal = () => {
+    setIsProductModalOpen(false);
+    setEditingProduct(null);
+  };
   const handleSaveProduct = async (productData) => {
     try {
-      const response = await api.post(
-        `/tenant/${selectedTenant.tenant_id}/products`,
+      if (editingProduct) {
+        // Update existing product
+        await handleUpdateProduct(productData);
+      } else {
+        // Create new product
+        const response = await api.post(
+          `/tenant/${selectedTenant.tenant_id}/products`,
+          {
+            name: productData.name,
+            description: productData.description,
+            hsCode: productData.hsCode,
+            uom: productData.uoM,
+          }
+        );
+        const saved = response.data.data;
+        setProducts((prev) => [...prev, saved]);
+        setSelectedProductIdByItem((prev) => ({ ...prev, 0: saved.id }));
+        setFormData((prev) => {
+          const updated = [...prev.items];
+          if (!updated[0]) updated[0] = {};
+          updated[0] = {
+            ...updated[0],
+            name: saved.name,
+            hsCode: saved.hsCode,
+            productDescription: saved.description,
+            uoM: saved.uom,
+          };
+          return { ...prev, items: updated };
+        });
+        setIsProductModalOpen(false);
+
+        Swal.fire({
+          icon: "success",
+          title: "Product Added",
+          text: "Product has been added successfully.",
+          timer: 2000,
+          showConfirmButton: false,
+        });
+      }
+    } catch (e) {
+      console.error("Error saving product:", e);
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "Failed to save product. Please try again.",
+      });
+    }
+  };
+
+  // Products management functions
+  const toggleProductsSection = () => {
+    const newState = !isProductsSectionOpen;
+    setIsProductsSectionOpen(newState);
+    if (newState) {
+      refreshProducts();
+    }
+  };
+
+  const handleAddProduct = () => {
+    setEditingProduct(null);
+    setIsProductModalOpen(true);
+  };
+
+  const handleEditProduct = (product) => {
+    setEditingProduct(product);
+    setIsProductModalOpen(true);
+  };
+
+  const handleDeleteProduct = async (productId) => {
+    try {
+      const confirmed = await Swal.fire({
+        title: "Delete Product",
+        text: "Are you sure you want to delete this product?",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#dc2626",
+        cancelButtonColor: "#6b7280",
+        confirmButtonText: "Delete",
+        cancelButtonText: "Cancel",
+      });
+
+      if (confirmed.isConfirmed) {
+        setProductsLoading(true);
+        const response = await api.delete(
+          `/tenant/${selectedTenant.tenant_id}/products/${productId}`
+        );
+
+        if (response.data.success) {
+          setProducts(products.filter((p) => p.id !== productId));
+          Swal.fire({
+            icon: "success",
+            title: "Product Deleted",
+            text: "Product has been deleted successfully.",
+            timer: 2000,
+            showConfirmButton: false,
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error deleting product:", error);
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "Failed to delete product. Please try again.",
+      });
+    } finally {
+      setProductsLoading(false);
+    }
+  };
+
+  const handleUpdateProduct = async (productData) => {
+    try {
+      if (!editingProduct) return;
+
+      const response = await api.put(
+        `/tenant/${selectedTenant.tenant_id}/products/${editingProduct.id}`,
         {
           name: productData.name,
           description: productData.description,
@@ -1339,24 +1462,47 @@ export default function CreateInvoice() {
           uom: productData.uoM,
         }
       );
-      const saved = response.data.data;
-      setProducts((prev) => [...prev, saved]);
-      setSelectedProductIdByItem((prev) => ({ ...prev, 0: saved.id }));
-      setFormData((prev) => {
-        const updated = [...prev.items];
-        if (!updated[0]) updated[0] = {};
-        updated[0] = {
-          ...updated[0],
-          name: saved.name,
-          hsCode: saved.hsCode,
-          productDescription: saved.description,
-          uoM: saved.uom,
-        };
-        return { ...prev, items: updated };
+
+      if (response.data.success) {
+        setProducts(
+          products.map((p) =>
+            p.id === editingProduct.id ? response.data.data : p
+          )
+        );
+        setEditingProduct(null);
+        setIsProductModalOpen(false);
+
+        Swal.fire({
+          icon: "success",
+          title: "Product Updated",
+          text: "Product has been updated successfully.",
+          timer: 2000,
+          showConfirmButton: false,
+        });
+      }
+    } catch (error) {
+      console.error("Error updating product:", error);
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "Failed to update product. Please try again.",
       });
-      setIsProductModalOpen(false);
-    } catch (e) {
-      console.error("Error saving product:", e);
+    }
+  };
+
+  const refreshProducts = async () => {
+    try {
+      setProductsLoading(true);
+      const response = await api.get(
+        `/tenant/${selectedTenant.tenant_id}/products`
+      );
+      if (response.data.success) {
+        setProducts(response.data.data || []);
+      }
+    } catch (error) {
+      console.error("Error refreshing products:", error);
+    } finally {
+      setProductsLoading(false);
     }
   };
 
@@ -3876,6 +4022,74 @@ export default function CreateInvoice() {
 
           {/* Only keeping Select Buyer field; removing other buyer detail fields */}
         </Box>
+
+        {/* Products Management Section */}
+        <Box
+          className="form-section"
+          sx={{
+            border: "none",
+            borderRadius: 2,
+            p: { xs: 1.5, sm: 2 },
+            mb: 2,
+            background: "rgba(255, 255, 255, 0.95)",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+            backdropFilter: "blur(10px)",
+            transition: "all 0.3s ease",
+            position: "relative",
+            zIndex: 1,
+          }}
+        >
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              mb: 2,
+            }}
+          >
+            <Typography
+              className="section-title"
+              variant="h6"
+              sx={{
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: 1,
+                fontSize: "1rem",
+              }}
+            >
+              Products Management
+            </Typography>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={toggleProductsSection}
+              sx={{
+                color: "#007AFF",
+                borderColor: "#007AFF",
+                backgroundColor: "rgba(0, 122, 255, 0.05)",
+                fontSize: "0.75rem",
+                padding: "4px 12px",
+                "&:hover": {
+                  backgroundColor: "rgba(0, 122, 255, 0.1)",
+                  borderColor: "#0056CC",
+                },
+              }}
+            >
+              {isProductsSectionOpen ? "Hide Products" : "Manage Products"}
+            </Button>
+          </Box>
+
+          {isProductsSectionOpen && (
+            <ProductTable
+              products={products}
+              loading={productsLoading}
+              onEdit={handleEditProduct}
+              onDelete={handleDeleteProduct}
+              onAdd={handleAddProduct}
+            />
+          )}
+        </Box>
+
         {/* Items Section */}
         <Box
           sx={{
@@ -4867,7 +5081,7 @@ export default function CreateInvoice() {
           isOpen={isProductModalOpen}
           onClose={closeProductModal}
           onSave={handleSaveProduct}
-          initialProduct={null}
+          initialProduct={editingProduct}
         />
       </Box>
     </TenantSelectionPrompt>

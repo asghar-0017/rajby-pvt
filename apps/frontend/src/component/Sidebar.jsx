@@ -119,6 +119,7 @@ export default function Sidebar({ onLogout }) {
     { name: "Create Invoice", href: "/create-invoice", icon: <IoIosCreate /> },
     { name: "Invoice List", href: "/your-invoices", icon: <BsFileTextFill /> },
     { name: "Buyers", href: "/buyers", icon: <FaWallet /> },
+    { name: "Products", href: "/products", icon: <InboxIcon /> },
 
     { name: "logout" },
   ];
