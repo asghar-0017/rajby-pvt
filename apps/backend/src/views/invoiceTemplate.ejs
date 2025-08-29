@@ -121,8 +121,14 @@
     }
   %>
   
-  <div class="header">
-    <h2>Sales Tax Invoice</h2>
+  <div class="header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; position: relative;">
+    <div style="flex: 1;"></div>
+    <h2 style="position: absolute; left: 50%; transform: translateX(-50%);">Sales Tax Invoice</h2>
+    <img 
+      src="data:image/png;base64,<%= pakistanGumLogoBase64 %>" 
+      alt="Pakistan Gum and Chemicals" 
+      style="width: 120px; height: auto;"
+    />
   </div>
 
   <div class="flex-row">
@@ -141,7 +147,7 @@
         </p>
       <% } %>
     </div>
-    <div class="invoice-info">
+    <div class="invoice-info" style="text-align: right;">
       <p><strong>Date:</strong>
         <%= invoice.invoiceDate %>
       </p>
@@ -272,7 +278,7 @@
       </p>
       <p>Extra Tax: <%= formatNumber(extra) %>
       </p>
-      <p>fedPayable: <%= formatNumber(fed) %>
+      <p>FED Payable: <%= formatNumber(fed) %>
       </p>
       <p>Advance Income Tax: <%= formatNumber(advanceIncomeTax) %>
       </p>
@@ -283,7 +289,7 @@
               <p><strong>Grand Total (Incl. All Taxes): Rs. <%= formatNumber(grandTotal) %></strong></p>
     </div>
 
-   <div class="total-in-words" style="position: relative; bottom: 140px;">
+   <div class="total-in-words" style="position: relative; bottom: 140px; width: 50%;">
   <p>Total in words:<br/> <%= convertToWords(grandTotal) %></p>
 </div>
 
