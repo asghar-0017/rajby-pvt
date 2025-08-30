@@ -724,7 +724,7 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       }
       try {
         const resp = await fetch(
-          "https://central-timber.inplsoftwares.online/api/buyer-check",
+          "https://china-youncheng.inplsoftwares.online/api/buyer-check",
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
