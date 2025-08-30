@@ -17,7 +17,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "https://aja-enterprises.inplsoftwares.online",
+        target: "https://rainbow-textile.inplsoftwares.online",
         changeOrigin: true,
         secure: false,
       },
