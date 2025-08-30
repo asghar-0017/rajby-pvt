@@ -46412,7 +46412,7 @@ const wE = (e) => {
   },
   Cn = {
     apiKey: "https://gw.fbr.gov.pk",
-    apiKeyLocal: "https://signs-now.inplsoftwares.online/api",
+    apiKeyLocal: "https://central-timber.inplsoftwares.online/api",
     get sandBoxTestToken() {
       const e = Ad.getSandboxToken();
       return (
@@ -46447,7 +46447,7 @@ const wE = (e) => {
     },
   },
   Qt = Xr.create({
-    baseURL: "https://signs-now.inplsoftwares.online/api",
+    baseURL: "https://central-timber.inplsoftwares.online/api",
   });
 Qt.interceptors.request.use(
   (e) => {
@@ -52407,7 +52407,7 @@ const x0 = new nve(),
           try {
             (I(!0), R(""));
             const U = await fetch(
-              "https://signs-now.inplsoftwares.online/api/buyer-check",
+              "https://central-timber.inplsoftwares.online/api/buyer-check",
               {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -79883,7 +79883,7 @@ const YS = (e) => {
           try {
             const ye = await (
               await fetch(
-                "https://signs-now.inplsoftwares.online/api/buyer-check",
+                "https://central-timber.inplsoftwares.online/api/buyer-check",
                 {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
