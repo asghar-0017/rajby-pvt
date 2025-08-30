@@ -215,7 +215,7 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
       setBuyerRegistrationHint("");
 
       const response = await fetch(
-        "https://meditec.inplsoftwares.online/api/buyer-check",
+        "https://invoice-test.inplsoftwares.online/api/buyer-check",
         {
           method: "POST",
           headers: {

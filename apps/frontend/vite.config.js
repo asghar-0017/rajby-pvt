@@ -17,7 +17,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "https://meditec.inplsoftwares.online",
+        target: "https://invoice-test.inplsoftwares.online",
         changeOrigin: true,
         secure: false,
       },
