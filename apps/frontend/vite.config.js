@@ -17,7 +17,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "https://biomedics.inplsoftwares.online",
+        target: "https://aferoz.inplsoftwares.online",
         changeOrigin: true,
         secure: false,
       },
