@@ -724,7 +724,7 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       }
       try {
         const resp = await fetch(
-          "https://aferoz.inplsoftwares.online/api/buyer-check",
+          "https://meditec.inplsoftwares.online/api/buyer-check",
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
