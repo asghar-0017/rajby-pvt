@@ -1654,12 +1654,7 @@ export const printInvoice = async (req, res) => {
     const pakistanGumLogoBase64 = fs
 
       .readFileSync(
-        path.join(
-          process.cwd(),
-          "public",
-          "images",
-          "PakistanGumAndChemicals.png"
-        )
+        path.join(process.cwd(), "public", "images", "Pakprogressive.png")
       )
 
       .toString("base64");

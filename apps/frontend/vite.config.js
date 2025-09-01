@@ -17,7 +17,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "https://pakistan-gum.inplsoftwares.online",
+        target: "https://pak-progressive.inplsoftwares.online",
         changeOrigin: true,
         secure: false,
       },
