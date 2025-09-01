@@ -143,6 +143,8 @@ export const createInvoice = async (req, res) => {
 
       companyInvoiceRefNo,
 
+      internalInvoiceNo,
+
       transctypeId,
 
       items,
@@ -151,6 +153,14 @@ export const createInvoice = async (req, res) => {
 
       fbr_invoice_number = null,
     } = req.body;
+
+    // Debug: Log internal invoice number
+    console.log("🔍 Backend Debug: Internal Invoice No:", {
+      internalInvoiceNo: internalInvoiceNo,
+      hasValue: !!internalInvoiceNo,
+      trimmedValue: internalInvoiceNo?.trim(),
+      reqBodyKeys: Object.keys(req.body),
+    });
 
     // Use fbr_invoice_number as invoice_number if invoice_number is not provided
 
@@ -328,6 +338,8 @@ export const createInvoice = async (req, res) => {
           invoiceRefNo,
 
           companyInvoiceRefNo,
+
+          internal_invoice_no: internalInvoiceNo,
 
           transctypeId,
 
@@ -575,6 +587,8 @@ export const saveInvoice = async (req, res) => {
 
       companyInvoiceRefNo,
 
+      internalInvoiceNo,
+
       transctypeId,
 
       items,
@@ -645,6 +659,8 @@ export const saveInvoice = async (req, res) => {
 
             companyInvoiceRefNo,
 
+            internal_invoice_no: internalInvoiceNo,
+
             transctypeId,
 
             status: "draft",
@@ -710,6 +726,8 @@ export const saveInvoice = async (req, res) => {
             invoiceRefNo,
 
             companyInvoiceRefNo,
+
+            internal_invoice_no: internalInvoiceNo,
 
             transctypeId,
 
@@ -899,6 +917,8 @@ export const saveAndValidateInvoice = async (req, res) => {
 
       companyInvoiceRefNo,
 
+      internalInvoiceNo,
+
       transctypeId,
 
       items,
@@ -1006,6 +1026,8 @@ export const saveAndValidateInvoice = async (req, res) => {
 
             companyInvoiceRefNo,
 
+            internal_invoice_no: internalInvoiceNo,
+
             transctypeId,
 
             status: "draft",
@@ -1061,6 +1083,8 @@ export const saveAndValidateInvoice = async (req, res) => {
             invoiceRefNo,
 
             companyInvoiceRefNo,
+
+            internal_invoice_no: internalInvoiceNo,
 
             transctypeId,
 
@@ -2522,10 +2546,14 @@ export const bulkCreateInvoices = async (req, res) => {
             invoiceType: invoices[0].invoiceType,
             invoiceDate: invoices[0].invoiceDate,
             companyInvoiceRefNo: invoices[0].companyInvoiceRefNo,
+            internalInvoiceNo: invoices[0].internalInvoiceNo,
             buyerBusinessName: invoices[0].buyerBusinessName,
             itemsCount: invoices[0].items?.length || 0,
           }
         : null,
+      sampleInternalInvoiceNo: invoices[0]?.internalInvoiceNo,
+      hasInternalInvoiceNo: !!invoices[0]?.internalInvoiceNo,
+      internalInvoiceNoType: typeof invoices[0]?.internalInvoiceNo,
     });
 
     // PHASE 1: Data Preparation & Validation (Parallel)
@@ -2734,6 +2762,13 @@ export const bulkCreateInvoices = async (req, res) => {
         usedSystemIds.add(systemInvoiceId);
         nextSystemIdNumber += 1;
 
+        // Debug: Log internal invoice number for bulk create
+        console.log(`🔍 Backend Debug: Invoice ${i + 1} Internal Invoice No:`, {
+          internalInvoiceNo: invoiceData.internalInvoiceNo,
+          hasValue: !!invoiceData.internalInvoiceNo,
+          trimmedValue: invoiceData.internalInvoiceNo?.trim(),
+        });
+
         // Prepare invoice data for batch insert
         const invoiceRecord = {
           invoice_number: `DRAFT_${Date.now()}_${i}_${Math.random().toString(36).substr(2, 5)}`,
@@ -2753,6 +2788,7 @@ export const bulkCreateInvoices = async (req, res) => {
             invoiceData.buyerRegistrationType?.trim() || null,
           invoiceRefNo: invoiceData.invoiceRefNo?.trim() || null,
           companyInvoiceRefNo: invoiceData.companyInvoiceRefNo?.trim() || null,
+          internal_invoice_no: invoiceData.internalInvoiceNo?.trim() || null,
           transctypeId: null, // Will be set from items
           status: "draft",
           fbr_invoice_number: null,
@@ -4795,6 +4831,7 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
       "invoiceDate",
       "invoiceRefNo",
       "companyInvoiceRefNo",
+      "internalInvoiceNo",
       // Buyer details
       "buyerNTNCNIC",
       "buyerBusinessName",

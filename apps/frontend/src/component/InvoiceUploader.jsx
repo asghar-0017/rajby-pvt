@@ -145,6 +145,7 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     "invoiceDate",
     "invoiceRefNo",
     "companyInvoiceRefNo",
+    "internalInvoiceNo",
     // Buyer details
     "buyerNTNCNIC",
     "buyerBusinessName",
@@ -183,7 +184,7 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
 
       // Check if we have a selected tenant
       if (!selectedTenant?.tenant_id) {
-        toast.error("Please select a tenant first");
+        toast.error("Please select a company first");
         return;
       }
 
@@ -544,6 +545,17 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
                 rowData[header] = value;
               });
 
+              // Debug: Log raw parsed data for first few rows
+              if (i <= 3) {
+                console.log(`🔍 Raw Excel Row ${i}:`, {
+                  headers: headers,
+                  rawRow: row,
+                  parsedRowData: rowData,
+                  internalInvoiceNo: rowData.internalInvoiceNo,
+                  hasInternalInvoiceNo: !!rowData.internalInvoiceNo,
+                });
+              }
+
               // Only include expected columns
               const filteredRow = {};
               expectedColumns.forEach((col) => {
@@ -689,14 +701,27 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
 
     // Populate seller details from selected tenant
     if (selectedTenant) {
+      // Validate that tenant has required seller information
+      if (!selectedTenant.sellerNTNCNIC || !selectedTenant.sellerBusinessName) {
+        toast.error(
+          "Selected company is missing required seller information (NTN/CNIC or Business Name)"
+        );
+        setPreviewData([]);
+        return;
+      }
+
       validData = validData.map((row) => ({
         ...row,
-        sellerNTNCNIC: selectedTenant.seller_ntn_cnic || "",
-        sellerFullNTN: selectedTenant.seller_full_ntn || "",
-        sellerBusinessName: selectedTenant.seller_business_name || "",
-        sellerProvince: selectedTenant.seller_province || "",
-        sellerAddress: selectedTenant.seller_address || "",
+        sellerNTNCNIC: selectedTenant.sellerNTNCNIC || "",
+        sellerFullNTN: selectedTenant.sellerFullNTN || "",
+        sellerBusinessName: selectedTenant.sellerBusinessName || "",
+        sellerProvince: selectedTenant.sellerProvince || "",
+        sellerAddress: selectedTenant.sellerAddress || "",
       }));
+    } else {
+      toast.error("Please select a tenant before uploading invoices");
+      setPreviewData([]);
+      return;
     }
 
     // Pre-check buyer registration via backend proxy and validate against sheet selection
@@ -774,7 +799,7 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
 
   const checkExistingInvoices = async (invoicesData) => {
     if (!selectedTenant) {
-      toast.error("No tenant selected");
+      toast.error("No company selected");
       return;
     }
 
@@ -977,127 +1002,242 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
 
     setUploading(true);
     try {
-      // Group rows by invoice-level fields
-      const groupedInvoices = groupRowsByInvoiceFields(previewData);
+      // Group rows by internalInvoiceNo to combine multiple items into single invoices
+      const groupedInvoices = new Map();
+      const groupingErrors = [];
 
-      // Clean the grouped data before uploading
-      const invoicesToUpload = groupedInvoices.map((group) => {
-        const items = group.items.map((item) => {
-          const cleanedItem = { ...item };
+      previewData.forEach((row, index) => {
+        // Clean the row data before processing
+        const cleanedItem = { ...row };
 
-          // Clean transctypeId - extract only the ID part
-          if (cleanedItem.transctypeId) {
-            cleanedItem.transctypeId = cleanTransctypeId(
-              cleanedItem.transctypeId
-            );
-          }
+        // Clean transctypeId - extract only the ID part
+        if (cleanedItem.transctypeId) {
+          cleanedItem.transctypeId = cleanTransctypeId(
+            cleanedItem.transctypeId
+          );
+        }
 
-          // Clean item_hsCode - extract only the code part
-          if (cleanedItem.item_hsCode) {
-            cleanedItem.item_hsCode = cleanHsCode(cleanedItem.item_hsCode);
-          }
+        // Clean item_hsCode - extract only the code part
+        if (cleanedItem.item_hsCode) {
+          cleanedItem.item_hsCode = cleanHsCode(cleanedItem.item_hsCode);
+        }
 
-          // Map Excel field names to backend expected field names
-          // Backend expects productName or name, but Excel sends item_productName
-          console.log("🔍 Frontend Debug: Before mapping:", {
-            item_productName: cleanedItem.item_productName,
-            name: cleanedItem.name,
-            productName: cleanedItem.productName,
-          });
-
-          if (
-            cleanedItem.item_productName &&
-            cleanedItem.item_productName.trim() !== ""
-          ) {
-            cleanedItem.productName = cleanedItem.item_productName;
-            cleanedItem.name = cleanedItem.item_productName;
-            console.log(
-              "✅ Frontend: Mapped product name:",
-              cleanedItem.item_productName
-            );
-          } else {
-            console.log("❌ Frontend: No valid item_productName found");
-          }
-
-          console.log("🔍 Frontend Debug: After mapping:", {
-            name: cleanedItem.name,
-            productName: cleanedItem.productName,
-          });
-
-          // Map other item fields to remove the 'item_' prefix
-          if (cleanedItem.item_hsCode) {
-            cleanedItem.hsCode = cleanedItem.item_hsCode;
-          }
-          if (cleanedItem.item_productDescription) {
-            cleanedItem.productDescription =
-              cleanedItem.item_productDescription;
-          }
-          if (cleanedItem.item_rate) {
-            cleanedItem.rate = cleanedItem.item_rate;
-          }
-          if (cleanedItem.item_uoM) {
-            cleanedItem.uoM = cleanedItem.item_uoM;
-          }
-          if (cleanedItem.item_quantity) {
-            cleanedItem.quantity = cleanedItem.item_quantity;
-          }
-          if (cleanedItem.item_unitPrice) {
-            cleanedItem.unitPrice = cleanedItem.item_unitPrice;
-          }
-          if (cleanedItem.item_totalValues) {
-            cleanedItem.totalValues = cleanedItem.item_totalValues;
-          }
-          if (cleanedItem.item_valueSalesExcludingST) {
-            cleanedItem.valueSalesExcludingST =
-              cleanedItem.item_valueSalesExcludingST;
-          }
-          if (cleanedItem.item_fixedNotifiedValueOrRetailPrice) {
-            cleanedItem.fixedNotifiedValueOrRetailPrice =
-              cleanedItem.item_fixedNotifiedValueOrRetailPrice;
-          }
-          if (cleanedItem.item_salesTaxApplicable) {
-            cleanedItem.salesTaxApplicable =
-              cleanedItem.item_salesTaxApplicable;
-          }
-          if (cleanedItem.item_salesTaxWithheldAtSource) {
-            cleanedItem.salesTaxWithheldAtSource =
-              cleanedItem.item_salesTaxWithheldAtSource;
-          }
-          if (cleanedItem.item_extraTax) {
-            cleanedItem.extraTax = cleanedItem.item_extraTax;
-          }
-          if (cleanedItem.item_furtherTax) {
-            cleanedItem.furtherTax = cleanedItem.item_furtherTax;
-          }
-          if (cleanedItem.item_sroScheduleNo) {
-            cleanedItem.sroScheduleNo = cleanedItem.item_sroScheduleNo;
-          }
-          if (cleanedItem.item_fedPayable) {
-            cleanedItem.fedPayable = cleanedItem.item_fedPayable;
-          }
-          if (cleanedItem.item_discount) {
-            cleanedItem.discount = cleanedItem.item_discount;
-          }
-          if (cleanedItem.item_saleType) {
-            cleanedItem.saleType = cleanedItem.item_saleType;
-          }
-          if (cleanedItem.item_sroItemSerialNo) {
-            cleanedItem.sroItemSerialNo = cleanedItem.item_sroItemSerialNo;
-          }
-
-          return cleanedItem;
+        // Map Excel field names to backend expected field names
+        // Backend expects productName or name, but Excel sends item_productName
+        console.log("🔍 Frontend Debug: Before mapping:", {
+          item_productName: cleanedItem.item_productName,
+          name: cleanedItem.name,
+          productName: cleanedItem.productName,
         });
 
-        return {
-          ...group.invoiceData,
-          items: items,
-        };
+        if (
+          cleanedItem.item_productName &&
+          cleanedItem.item_productName.trim() !== ""
+        ) {
+          cleanedItem.productName = cleanedItem.item_productName;
+          cleanedItem.name = cleanedItem.item_productName;
+          console.log(
+            "✅ Frontend: Mapped product name:",
+            cleanedItem.item_productName
+          );
+        } else {
+          console.log("❌ Frontend: No valid item_productName found");
+        }
+
+        console.log("🔍 Frontend Debug: After mapping:", {
+          name: cleanedItem.name,
+          productName: cleanedItem.productName,
+        });
+
+        // Map other item fields to remove the 'item_' prefix
+        if (cleanedItem.item_hsCode) {
+          cleanedItem.hsCode = cleanedItem.item_hsCode;
+        }
+        if (cleanedItem.item_productDescription) {
+          cleanedItem.productDescription = cleanedItem.item_productDescription;
+        }
+        if (cleanedItem.item_rate) {
+          cleanedItem.rate = cleanedItem.item_rate;
+        }
+        if (cleanedItem.item_uoM) {
+          cleanedItem.uoM = cleanedItem.item_uoM;
+        }
+        if (cleanedItem.item_quantity) {
+          cleanedItem.quantity = cleanedItem.item_quantity;
+        }
+        if (cleanedItem.item_unitPrice) {
+          cleanedItem.unitPrice = cleanedItem.item_unitPrice;
+        }
+        if (cleanedItem.item_totalValues) {
+          cleanedItem.totalValues = cleanedItem.item_totalValues;
+        }
+        if (cleanedItem.item_valueSalesExcludingST) {
+          cleanedItem.valueSalesExcludingST =
+            cleanedItem.item_valueSalesExcludingST;
+        }
+        if (cleanedItem.item_fixedNotifiedValueOrRetailPrice) {
+          cleanedItem.fixedNotifiedValueOrRetailPrice =
+            cleanedItem.item_fixedNotifiedValueOrRetailPrice;
+        }
+        if (cleanedItem.item_salesTaxApplicable) {
+          cleanedItem.salesTaxApplicable = cleanedItem.item_salesTaxApplicable;
+        }
+        if (cleanedItem.item_extraTax) {
+          cleanedItem.extraTax = cleanedItem.item_extraTax;
+        }
+        if (cleanedItem.item_furtherTax) {
+          cleanedItem.furtherTax = cleanedItem.item_furtherTax;
+        }
+        if (cleanedItem.item_sroScheduleNo) {
+          cleanedItem.sroScheduleNo = cleanedItem.item_sroScheduleNo;
+        }
+        if (cleanedItem.item_fedPayable) {
+          cleanedItem.fedPayable = cleanedItem.item_fedPayable;
+        }
+        if (cleanedItem.item_discount) {
+          cleanedItem.discount = cleanedItem.item_discount;
+        }
+        if (cleanedItem.item_saleType) {
+          cleanedItem.saleType = cleanedItem.item_saleType;
+        }
+        if (cleanedItem.item_sroItemSerialNo) {
+          cleanedItem.sroItemSerialNo = cleanedItem.item_sroItemSerialNo;
+        }
+
+        // Get the internalInvoiceNo for grouping
+        const internalInvoiceNo =
+          cleanedItem.internalInvoiceNo?.trim() || `row_${index + 1}`;
+
+        // Add row number for tracking
+        cleanedItem._row = index + 1;
+
+        if (groupedInvoices.has(internalInvoiceNo)) {
+          // Add item to existing invoice group
+          const existingInvoice = groupedInvoices.get(internalInvoiceNo);
+
+          // Validate consistency of invoice-level data
+          const consistencyErrors = [];
+
+          if (existingInvoice.invoiceType !== cleanedItem.invoiceType) {
+            consistencyErrors.push(
+              `Invoice Type mismatch: ${existingInvoice.invoiceType} vs ${cleanedItem.invoiceType}`
+            );
+          }
+          if (existingInvoice.invoiceDate !== cleanedItem.invoiceDate) {
+            consistencyErrors.push(
+              `Invoice Date mismatch: ${existingInvoice.invoiceDate} vs ${cleanedItem.invoiceDate}`
+            );
+          }
+          if (existingInvoice.buyerNTNCNIC !== cleanedItem.buyerNTNCNIC) {
+            consistencyErrors.push(
+              `Buyer NTN/CNIC mismatch: ${existingInvoice.buyerNTNCNIC} vs ${cleanedItem.buyerNTNCNIC}`
+            );
+          }
+          if (
+            existingInvoice.buyerBusinessName !== cleanedItem.buyerBusinessName
+          ) {
+            consistencyErrors.push(
+              `Buyer Business Name mismatch: ${existingInvoice.buyerBusinessName} vs ${cleanedItem.buyerBusinessName}`
+            );
+          }
+          if (existingInvoice.buyerProvince !== cleanedItem.buyerProvince) {
+            consistencyErrors.push(
+              `Buyer Province mismatch: ${existingInvoice.buyerProvince} vs ${cleanedItem.buyerProvince}`
+            );
+          }
+          if (existingInvoice.buyerAddress !== cleanedItem.buyerAddress) {
+            consistencyErrors.push(
+              `Buyer Address mismatch: ${existingInvoice.buyerAddress} vs ${cleanedItem.buyerAddress}`
+            );
+          }
+          if (
+            existingInvoice.buyerRegistrationType !==
+            cleanedItem.buyerRegistrationType
+          ) {
+            consistencyErrors.push(
+              `Buyer Registration Type mismatch: ${existingInvoice.buyerRegistrationType} vs ${cleanedItem.buyerRegistrationType}`
+            );
+          }
+
+          if (consistencyErrors.length > 0) {
+            groupingErrors.push({
+              row: index + 1,
+              internalInvoiceNo: internalInvoiceNo,
+              errors: consistencyErrors,
+              message: `Row ${index + 1} has different invoice-level data than other rows with internalInvoiceNo: ${internalInvoiceNo}`,
+            });
+          }
+
+          existingInvoice.items.push(cleanedItem);
+        } else {
+          // Create new invoice group
+          groupedInvoices.set(internalInvoiceNo, {
+            invoiceType: cleanedItem.invoiceType,
+            invoiceDate: cleanedItem.invoiceDate,
+            invoiceRefNo: cleanedItem.invoiceRefNo,
+            companyInvoiceRefNo: cleanedItem.companyInvoiceRefNo,
+            internalInvoiceNo: internalInvoiceNo,
+            // Seller details from selected tenant
+            sellerNTNCNIC: selectedTenant?.sellerNTNCNIC || "",
+            sellerFullNTN: selectedTenant?.sellerFullNTN || "",
+            sellerBusinessName: selectedTenant?.sellerBusinessName || "",
+            sellerProvince: selectedTenant?.sellerProvince || "",
+            sellerAddress: selectedTenant?.sellerAddress || "",
+            // Buyer details
+            buyerNTNCNIC: cleanedItem.buyerNTNCNIC,
+            buyerBusinessName: cleanedItem.buyerBusinessName,
+            buyerProvince: cleanedItem.buyerProvince,
+            buyerAddress: cleanedItem.buyerAddress,
+            buyerRegistrationType: cleanedItem.buyerRegistrationType,
+            items: [cleanedItem],
+            _row: index + 1, // Track the first row for this invoice
+          });
+        }
       });
 
-      console.log("🔍 Debug: Sending to backend:", {
+      // Check for grouping errors
+      if (groupingErrors.length > 0) {
+        console.error("Grouping validation errors:", groupingErrors);
+        toast.error(
+          `Found ${groupingErrors.length} grouping validation errors. Rows with the same internalInvoiceNo must have consistent invoice-level data. Check console for details.`
+        );
+        setUploading(false);
+        return;
+      }
+
+      // Ensure all invoice groups have seller details from selected tenant
+      const invoicesToUpload = Array.from(groupedInvoices.values()).map(
+        (invoice) => ({
+          ...invoice,
+          sellerNTNCNIC: selectedTenant?.sellerNTNCNIC || "",
+          sellerFullNTN: selectedTenant?.sellerFullNTN || "",
+          sellerBusinessName: selectedTenant?.sellerBusinessName || "",
+          sellerProvince: selectedTenant?.sellerProvince || "",
+          sellerAddress: selectedTenant?.sellerAddress || "",
+        })
+      );
+
+      // Log seller details being populated
+      console.log("🔍 Debug: Seller details populated from tenant:", {
+        tenantName: selectedTenant?.sellerBusinessName,
+        sellerNTNCNIC: selectedTenant?.sellerNTNCNIC,
+        sellerProvince: selectedTenant?.sellerProvince,
+        sellerAddress: selectedTenant?.sellerAddress,
         totalInvoices: invoicesToUpload.length,
+      });
+
+      console.log("🔍 Debug: Grouped invoices for backend:", {
+        totalInvoices: invoicesToUpload.length,
+        totalRows: previewData.length,
         sampleInvoice: invoicesToUpload[0],
         sampleInvoiceItems: invoicesToUpload[0]?.items?.length || 0,
+        sampleInternalInvoiceNo: invoicesToUpload[0]?.internalInvoiceNo,
+        hasInternalInvoiceNo: !!invoicesToUpload[0]?.internalInvoiceNo,
+        groupingSummary: invoicesToUpload.map((inv) => ({
+          internalInvoiceNo: inv.internalInvoiceNo,
+          itemCount: inv.items.length,
+          rows: inv.items.map((item) => item._row),
+        })),
       });
 
       const result = await onUpload(invoicesToUpload);
@@ -1134,12 +1274,12 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
           console.error("Upload errors:", errors);
         } else {
           toast.success(
-            `Successfully uploaded ${summary.successful} grouped invoices as drafts!`
+            `Successfully uploaded ${summary.successful} invoices as drafts!`
           );
         }
       } else {
         toast.success(
-          `Successfully uploaded ${invoicesToUpload.length} grouped invoices as drafts`
+          `Successfully uploaded ${invoicesToUpload.length} invoices as drafts`
         );
       }
 
@@ -1161,66 +1301,6 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     } finally {
       setUploading(false);
     }
-  };
-
-  // Function to group rows by invoice-level fields
-  const groupRowsByInvoiceFields = (rows) => {
-    const groups = new Map();
-
-    rows.forEach((row, index) => {
-      // Create a key based on invoice-level fields
-      const groupKey =
-        `${row.invoiceType || ""}_${row.invoiceDate || ""}_${row.companyInvoiceRefNo || ""}_${row.buyerNTNCNIC || ""}_${row.buyerBusinessName || ""}_${row.buyerProvince || ""}`
-          .toLowerCase()
-          .trim();
-
-      if (!groups.has(groupKey)) {
-        // Create new group with invoice-level data
-        groups.set(groupKey, {
-          invoiceData: {
-            invoiceType: row.invoiceType,
-            invoiceDate: row.invoiceDate,
-            invoiceRefNo: row.invoiceRefNo,
-            companyInvoiceRefNo: row.companyInvoiceRefNo,
-            buyerNTNCNIC: row.buyerNTNCNIC,
-            buyerBusinessName: row.buyerBusinessName,
-            buyerProvince: row.buyerProvince,
-            buyerAddress: row.buyerAddress,
-            buyerRegistrationType: row.buyerRegistrationType,
-          },
-          items: [],
-        });
-      }
-
-      // Add item-level data to the group
-      const itemData = {
-        transctypeId: row.transctypeId,
-        item_hsCode: row.item_hsCode,
-        item_productDescription: row.item_productDescription,
-        item_productName: row.item_productName,
-        item_rate: row.item_rate,
-        item_uoM: row.item_uoM,
-        item_quantity: row.item_quantity,
-        item_unitPrice: row.item_unitPrice,
-        item_totalValues: row.item_totalValues,
-        item_valueSalesExcludingST: row.item_valueSalesExcludingST,
-        item_fixedNotifiedValueOrRetailPrice:
-          row.item_fixedNotifiedValueOrRetailPrice,
-        item_salesTaxApplicable: row.item_salesTaxApplicable,
-        item_salesTaxWithheldAtSource: row.item_salesTaxWithheldAtSource,
-        item_extraTax: row.item_extraTax,
-        item_furtherTax: row.item_furtherTax,
-        item_sroScheduleNo: row.item_sroScheduleNo,
-        item_fedPayable: row.item_fedPayable,
-        item_discount: row.item_discount,
-        item_saleType: row.item_saleType,
-        item_sroItemSerialNo: row.item_sroItemSerialNo,
-      };
-
-      groups.get(groupKey).items.push(itemData);
-    });
-
-    return Array.from(groups.values());
   };
 
   const handleClose = () => {
@@ -1276,11 +1356,6 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     return combined.sort((a, b) => a._row - b._row);
   };
 
-  // Get grouped preview data for display
-  const getGroupedPreviewData = () => {
-    return groupRowsByInvoiceFields(previewData);
-  };
-
   return (
     <Dialog open={isOpen} onClose={handleClose} maxWidth="md" fullWidth>
       <DialogTitle>
@@ -1299,10 +1374,33 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             Upload a CSV or Excel file with invoice data. All invoices will be
             saved with "draft" status. Invoice numbers will be generated
-            automatically by the system. Seller details will be automatically
-            populated from the selected tenant. Fill buyer details in the sheet
+            automatically by the system.
+            <br />
+            <br />
+            <strong>Seller Details:</strong> All seller information (NTN/CNIC,
+            Business Name, Province, Address) will be automatically populated
+            from the selected company:{" "}
+            <strong>
+              {selectedTenant?.sellerBusinessName || "No company selected"}
+            </strong>
+            <br />
+            <br />
+            <strong>Buyer Details:</strong> Fill buyer details in the sheet
             (NTN/CNIC, Business Name, Province, Address, Registration Type).
+            <br />
+            <br />
+            <strong>New Feature:</strong> Rows with the same{" "}
+            <code>internalInvoiceNo</code> will be automatically combined into
+            single invoices with multiple line items.
           </Typography>
+
+          {/* Tenant Selection Warning */}
+          {!selectedTenant && (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              Please select a comapny before uploading invoices. Seller details
+              will be populated from the selected company.
+            </Alert>
+          )}
 
           {/* Download Template Button */}
           <Box sx={{ mb: 2 }}>
@@ -1311,6 +1409,7 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
               startIcon={<Download />}
               onClick={downloadExistingTemplate}
               size="small"
+              disabled={!selectedTenant}
             >
               Download Excel Template
             </Button>
@@ -1369,6 +1468,59 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
             )}
           </Paper>
         </Box>
+
+        {/* Grouping Preview - Show how rows will be grouped */}
+        {/* {file && previewData.length > 0 && (
+          <Box sx={{ mt: 2, p: 2, bgcolor: "info.light", borderRadius: 1 }}>
+            <Typography
+              variant="subtitle2"
+              gutterBottom
+              sx={{ color: "info.dark" }}
+            >
+              📋 Row Grouping Preview (by internalInvoiceNo)
+            </Typography>
+            {(() => {
+              const groupedPreview = new Map();
+              previewData.forEach((row, index) => {
+                const internalInvoiceNo =
+                  row.internalInvoiceNo?.trim() || `row_${index + 1}`;
+                if (!groupedPreview.has(internalInvoiceNo)) {
+                  groupedPreview.set(internalInvoiceNo, []);
+                }
+                groupedPreview.get(internalInvoiceNo).push(index + 1);
+              });
+
+              return (
+                <Box sx={{ mt: 1 }}>
+                  {Array.from(groupedPreview.entries()).map(
+                    ([internalInvoiceNo, rows], idx) => (
+                      <Box
+                        key={idx}
+                        sx={{
+                          mb: 1,
+                          p: 1,
+                          bgcolor: "white",
+                          borderRadius: 0.5,
+                        }}
+                      >
+                        <Typography variant="body2" sx={{ fontWeight: "bold" }}>
+                          Invoice {idx + 1}:{" "}
+                          {internalInvoiceNo === `row_${rows[0]}`
+                            ? "No internalInvoiceNo"
+                            : internalInvoiceNo}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Rows: {rows.join(", ")} ({rows.length} item
+                          {rows.length > 1 ? "s" : ""})
+                        </Typography>
+                      </Box>
+                    )
+                  )}
+                </Box>
+              );
+            })()}
+          </Box>
+        )} */}
 
         {/* Buyer selection removed */}
 
@@ -1448,9 +1600,9 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {getGroupedPreviewData()
+                    {previewData
                       .slice(0, 10)
-                      .map((group, index) => (
+                      .map((row, index) => (
                         <TableRow
                           key={index}
                           sx={{
@@ -1462,71 +1614,101 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
                         >
                           <TableCell>
                             <Chip
-                              label={`Group ${index + 1} (${group.items.length} items)`}
+                              label={`Row ${index + 1}`}
                               size="small"
                               color="primary"
                               icon={<Info />}
                             />
                           </TableCell>
                           <TableCell>
-                            {group.invoiceData.invoiceType || "-"}
+                            {row.invoiceType || "-"}
                           </TableCell>
                           <TableCell>
-                            {group.invoiceData.invoiceDate || "-"}
+                            {row.invoiceDate || "-"}
                           </TableCell>
                           <TableCell>
-                            {group.invoiceData.invoiceRefNo || "-"}
+                            {row.invoiceRefNo || "-"}
                           </TableCell>
                           <TableCell>
-                            {group.invoiceData.companyInvoiceRefNo || "-"}
+                            {row.companyInvoiceRefNo || "-"}
                           </TableCell>
                           <TableCell>
-                            {group.invoiceData.buyerNTNCNIC || "-"}
+                            {row.buyerNTNCNIC || "-"}
                           </TableCell>
                           <TableCell>
-                            {group.invoiceData.buyerBusinessName || "-"}
+                            {row.buyerBusinessName || "-"}
                           </TableCell>
                           <TableCell>
-                            {group.invoiceData.buyerProvince || "-"}
+                            {row.buyerProvince || "-"}
                           </TableCell>
                           <TableCell>
-                            {group.invoiceData.buyerAddress || "-"}
+                            {row.buyerAddress || "-"}
                           </TableCell>
                           <TableCell>
-                            {group.invoiceData.buyerRegistrationType || "-"}
+                            {row.buyerRegistrationType || "-"}
                           </TableCell>
-                          <TableCell>-</TableCell>
-                          <TableCell>-</TableCell>
-                          <TableCell>-</TableCell>
-                          <TableCell>-</TableCell>
-                          <TableCell>-</TableCell>
-                          <TableCell>-</TableCell>
-                          <TableCell>-</TableCell>
-                          <TableCell>-</TableCell>
-                          <TableCell>-</TableCell>
-                          <TableCell>-</TableCell>
-                          <TableCell>-</TableCell>
-                          <TableCell>-</TableCell>
-                          <TableCell>-</TableCell>
-                          <TableCell>-</TableCell>
-                          <TableCell>-</TableCell>
-                          <TableCell>-</TableCell>
-                          <TableCell>-</TableCell>
-                          <TableCell>-</TableCell>
-                          <TableCell>-</TableCell>
-                          <TableCell>-</TableCell>
-                          <TableCell>-</TableCell>
+                          <TableCell>
+                            {row.item_productName || "-"}
+                          </TableCell>
+                          <TableCell>
+                            {row.item_hsCode || "-"}
+                          </TableCell>
+                          <TableCell>
+                            {row.item_productDescription || "-"}
+                          </TableCell>
+                          <TableCell>
+                            {row.item_rate || "-"}
+                          </TableCell>
+                          <TableCell>
+                            {row.item_quantity || "-"}
+                          </TableCell>
+                          <TableCell>
+                            {row.item_unitPrice || "-"}
+                          </TableCell>
+                          <TableCell>
+                            {row.item_totalValues || "-"}
+                          </TableCell>
+                          <TableCell>
+                            {row.item_valueSalesExcludingST || "-"}
+                          </TableCell>
+                          <TableCell>
+                            {row.item_salesTaxApplicable || "-"}
+                          </TableCell>
+                          <TableCell>
+                            {row.item_salesTaxWithheldAtSource || "-"}
+                          </TableCell>
+                          <TableCell>
+                            {row.item_extraTax || "-"}
+                          </TableCell>
+                          <TableCell>
+                            {row.item_furtherTax || "-"}
+                          </TableCell>
+                          <TableCell>
+                            {row.item_sroScheduleNo || "-"}
+                          </TableCell>
+                          <TableCell>
+                            {row.item_fedPayable || "-"}
+                          </TableCell>
+                          <TableCell>
+                            {row.item_discount || "-"}
+                          </TableCell>
+                          <TableCell>
+                            {row.item_saleType || "-"}
+                          </TableCell>
+                          <TableCell>
+                            {row.item_sroItemSerialNo || "-"}
+                          </TableCell>
                         </TableRow>
                       ))}
-                    {getGroupedPreviewData().length > 10 && (
+                    {previewData.length > 10 && (
                       <TableRow>
                         <TableCell
                           colSpan={expectedColumns.length + 1}
                           align="center"
                           sx={{ fontStyle: "italic", color: "text.secondary" }}
                         >
-                          Showing first 10 groups of{" "}
-                          {getGroupedPreviewData().length} total groups
+                          Showing first 10 rows of{" "}
+                          {previewData.length} total rows
                         </TableCell>
                       </TableRow>
                     )}
@@ -1553,9 +1735,17 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
                 <Box display="flex" alignItems="center" gap={2} mb={1}>
                   <CheckCircle color="success" />
                   <Typography variant="body2">
-                    {groupRowsByInvoiceFields(previewData).length} grouped
-                    invoices ({previewData.length} total rows) ready to upload
-                    as drafts
+                    {(() => {
+                      // Count unique invoices after grouping
+                      const uniqueInvoices = new Set();
+                      previewData.forEach((row) => {
+                        const internalInvoiceNo =
+                          row.internalInvoiceNo?.trim() ||
+                          `row_${row._row || "unknown"}`;
+                        uniqueInvoices.add(internalInvoiceNo);
+                      });
+                      return `${uniqueInvoices.size} invoices (${previewData.length} total rows) ready to upload as drafts`;
+                    })()}
                   </Typography>
                 </Box>
                 {/* Buyer summary removed */}
@@ -1595,7 +1785,17 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         >
           {uploading
             ? "Uploading..."
-            : `Upload ${groupRowsByInvoiceFields(previewData).length} Grouped Invoices as Drafts`}
+            : (() => {
+                // Count unique invoices after grouping
+                const uniqueInvoices = new Set();
+                previewData.forEach((row) => {
+                  const internalInvoiceNo =
+                    row.internalInvoiceNo?.trim() ||
+                    `row_${row._row || "unknown"}`;
+                  uniqueInvoices.add(internalInvoiceNo);
+                });
+                return `Upload ${uniqueInvoices.size} Invoices as Drafts`;
+              })()}
         </Button>
       </DialogActions>
     </Dialog>

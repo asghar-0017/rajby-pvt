@@ -1,53 +1,53 @@
-import { Sequelize } from 'sequelize';
-import dotenv from 'dotenv';
+import { Sequelize } from "sequelize";
+import dotenv from "dotenv";
 
 dotenv.config();
 
 // Master database configuration
 export const masterConfig = {
-  host: process.env.MYSQL_HOST ,
-    port: process.env.MYSQL_PORT ,
-    username: process.env.MYSQL_USER ,
-    password: process.env.MYSQL_PASSWORD ,
+  host: process.env.MYSQL_HOST,
+  port: process.env.MYSQL_PORT,
+  username: process.env.MYSQL_USER,
+  password: process.env.MYSQL_PASSWORD,
   database: process.env.MYSQL_MASTER_DB,
-  dialect: 'mysql',
-  logging: process.env.NODE_ENV === 'development' ? console.log : false,
+  dialect: "mysql",
+  logging: process.env.NODE_ENV === "development" ? console.log : false,
   pool: {
     max: 20, // Increased from 5 for better concurrency
-    min: 5,  // Increased from 0 for faster response
+    min: 5, // Increased from 0 for faster response
     acquire: 15000, // Reduced from 30000 for faster connection acquisition
-    idle: 5000,     // Reduced from 10000 for better resource management
-    evict: 1000,    // Check for dead connections every 1 second
+    idle: 5000, // Reduced from 10000 for better resource management
+    evict: 1000, // Check for dead connections every 1 second
   },
   dialectOptions: {
-    charset: 'utf8mb4',
-    collate: 'utf8mb4_unicode_ci',
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
     // Performance optimizations
-    connectTimeout: 10000,      // 10 seconds connection timeout
-    acquireTimeout: 15000,      // 15 seconds acquire timeout
-    timeout: 30000,             // 30 seconds query timeout
+    connectTimeout: 10000, // 10 seconds connection timeout
+    acquireTimeout: 15000, // 15 seconds acquire timeout
+    timeout: 30000, // 30 seconds query timeout
     // Connection optimizations
-    multipleStatements: true,   // Allow multiple statements in one query
-    dateStrings: true,          // Handle dates as strings for better performance
+    multipleStatements: true, // Allow multiple statements in one query
+    dateStrings: true, // Handle dates as strings for better performance
     // Buffer optimizations
-    bigNumberStrings: true,     // Handle big numbers as strings
-    supportBigNumbers: true,    // Support big numbers
+    bigNumberStrings: true, // Handle big numbers as strings
+    supportBigNumbers: true, // Support big numbers
     // SSL and compression
-    ssl: false,                 // Disable SSL for local development (enable in production)
-    compress: true,             // Enable compression
+    ssl: false, // Disable SSL for local development (enable in production)
+    compress: true, // Enable compression
   },
   define: {
     timestamps: true,
     underscored: false,
     freezeTableName: true,
-    charset: 'utf8mb4',
-    collate: 'utf8mb4_unicode_ci',
+    charset: "utf8mb4",
+    collate: "utf8mb4_unicode_ci",
     // Performance optimizations
-    hooks: false,               // Disable hooks for better performance
-    validate: false,            // Disable validation for better performance
+    hooks: false, // Disable hooks for better performance
+    validate: false, // Disable validation for better performance
   },
   // Query optimization
-  benchmark: process.env.NODE_ENV === 'development', // Show query execution time in development
+  benchmark: process.env.NODE_ENV === "development", // Show query execution time in development
   isolationLevel: Sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED, // Better performance isolation level
 };
 
@@ -58,48 +58,48 @@ export const masterSequelize = new Sequelize(masterConfig);
 export const createTenantConnection = (databaseName) => {
   return new Sequelize({
     host: process.env.MYSQL_HOST,
-    port: process.env.MYSQL_PORT ,
+    port: process.env.MYSQL_PORT,
     username: process.env.MYSQL_USER,
-    password: process.env.MYSQL_PASSWORD ,
+    password: process.env.MYSQL_PASSWORD,
     database: databaseName,
-    dialect: 'mysql',
-    logging: process.env.NODE_ENV === 'development' ? console.log : false,
+    dialect: "mysql",
+    logging: process.env.NODE_ENV === "development" ? console.log : false,
     pool: {
       max: 20, // Increased from 5 for better concurrency
-      min: 5,  // Increased from 0 for faster response
+      min: 5, // Increased from 0 for faster response
       acquire: 15000, // Reduced from 30000 for faster connection acquisition
-      idle: 5000,     // Reduced from 10000 for better resource management
-      evict: 1000,    // Check for dead connections every 1 second
+      idle: 5000, // Reduced from 10000 for better resource management
+      evict: 1000, // Check for dead connections every 1 second
     },
     dialectOptions: {
-      charset: 'utf8mb4',
-      collate: 'utf8mb4_unicode_ci',
+      charset: "utf8mb4",
+      collate: "utf8mb4_unicode_ci",
       // Performance optimizations
-      connectTimeout: 10000,      // 10 seconds connection timeout
-      acquireTimeout: 15000,      // 15 seconds acquire timeout
-      timeout: 30000,             // 30 seconds query timeout
+      connectTimeout: 10000, // 10 seconds connection timeout
+      acquireTimeout: 15000, // 15 seconds acquire timeout
+      timeout: 30000, // 30 seconds query timeout
       // Connection optimizations
-      multipleStatements: true,   // Allow multiple statements in one query
-      dateStrings: true,          // Handle dates as strings for better performance
+      multipleStatements: true, // Allow multiple statements in one query
+      dateStrings: true, // Handle dates as strings for better performance
       // Buffer optimizations
-      bigNumberStrings: true,     // Handle big numbers as strings
-      supportBigNumbers: true,    // Support big numbers
+      bigNumberStrings: true, // Handle big numbers as strings
+      supportBigNumbers: true, // Support big numbers
       // SSL and compression
-      ssl: false,                 // Disable SSL for local development (enable in production)
-      compress: true,             // Enable compression
+      ssl: false, // Disable SSL for local development (enable in production)
+      compress: true, // Enable compression
     },
     define: {
       timestamps: true,
       underscored: false,
       freezeTableName: true,
-      charset: 'utf8mb4',
-      collate: 'utf8mb4_unicode_ci',
+      charset: "utf8mb4",
+      collate: "utf8mb4_unicode_ci",
       // Performance optimizations
-      hooks: false,               // Disable hooks for better performance
-      validate: false,            // Disable validation for better performance
+      hooks: false, // Disable hooks for better performance
+      validate: false, // Disable validation for better performance
     },
     // Query optimization
-    benchmark: process.env.NODE_ENV === 'development', // Show query execution time in development
+    benchmark: process.env.NODE_ENV === "development", // Show query execution time in development
     isolationLevel: Sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED, // Better performance isolation level
   });
 };
@@ -108,10 +108,10 @@ export const createTenantConnection = (databaseName) => {
 export const testMasterConnection = async () => {
   try {
     await masterSequelize.authenticate();
-    console.log('✅ Master database connection established successfully.');
+    console.log("✅ Master database connection established successfully.");
     return true;
   } catch (error) {
-    console.error('❌ Unable to connect to master database:', error);
+    console.error("❌ Unable to connect to master database:", error);
     return false;
   }
 };
@@ -121,10 +121,10 @@ export const initializeMasterDatabase = async () => {
   try {
     // Use force: false to prevent automatic schema changes
     await masterSequelize.sync({ force: false });
-    console.log('✅ Master database synchronized successfully.');
+    console.log("✅ Master database synchronized successfully.");
     return true;
   } catch (error) {
-    console.error('❌ Error synchronizing master database:', error);
+    console.error("❌ Error synchronizing master database:", error);
     return false;
   }
-}; 
+};
