@@ -165,7 +165,7 @@
       </p>
       <p>REGION: <%= invoice.buyerProvince %>
       </p>
-      <p>NTN: <%= invoice.buyerNTNCNIC %>
+      <p>CNIC/NTN: <%= invoice.buyerNTNCNIC %>
       </p>
       <p>TYPE: <%= invoice.buyerRegistrationType %>
       </p>
@@ -179,7 +179,7 @@
         <%= invoice.sellerAddress %><br/>
         <%= invoice.sellerCity %>
       </p>
-      <p>NTN: <%= invoice.seller_full_ntn || invoice.sellerFullNTN || invoice.sellerNTNCNIC %>
+      <p>CNIC/NTN: <%= invoice.seller_full_ntn || invoice.sellerFullNTN || invoice.sellerNTNCNIC %>
       </p>
     </div>
   </div>
