@@ -54,7 +54,6 @@ import { fetchData, postData } from "../API/GetApi";
 import RateSelector from "../component/RateSelector";
 import SROScheduleNumber from "../component/SROScheduleNumber";
 import SROItem from "../component/SROItem";
-import UnitOfMeasurement from "../component/UnitOfMeasurement";
 import BillOfLadingUoM from "../component/BillOfLadingUoM";
 import OptimizedHSCodeSelector from "../component/OptimizedHSCodeSelector";
 import ProductModal from "../component/ProductModal";
@@ -67,7 +66,6 @@ import { api, API_CONFIG, debugTokenManager } from "../API/Api";
 import TenantSelectionPrompt from "../component/TenantSelectionPrompt";
 import { useTenantSelection } from "../Context/TenantSelectionProvider";
 import BuyerModal from "../component/BuyerModal";
-// import TenantDashboard from "../component/TenantDashboard";
 
 // Utility function to format numbers with commas and 2 decimal places
 const formatNumberWithCommas = (value) => {
@@ -208,7 +206,6 @@ export default function CreateInvoice() {
         hsCode: "",
         productDescription: "",
         rate: "",
-        uoM: "",
         quantity: "1",
         unitPrice: "0.00", // Calculated field: Retail Price ÷ Quantity
         retailPrice: "0", // User input field
@@ -219,6 +216,7 @@ export default function CreateInvoice() {
         sroScheduleNo: "",
         sroItemSerialNo: "",
         billOfLadingUoM: "",
+        uoM: "",
         saleType: "",
         isSROScheduleEnabled: false,
         isSROItemEnabled: false,
@@ -697,7 +695,6 @@ export default function CreateInvoice() {
               hsCode: "",
               productDescription: "",
               rate: "",
-              uoM: "",
               quantity: "1",
               unitPrice: "0.00", // Calculated field: Retail Price ÷ Quantity
               retailPrice: "0", // User input field
@@ -708,6 +705,7 @@ export default function CreateInvoice() {
               sroScheduleNo: "",
               sroItemSerialNo: "",
               billOfLadingUoM: "",
+              uoM: "",
               saleType: "",
               isSROScheduleEnabled: false,
               isSROItemEnabled: false,
@@ -735,7 +733,6 @@ export default function CreateInvoice() {
             hsCode: item.hsCode || "",
             productDescription: item.productDescription || "",
             rate: item.rate || "",
-            uoM: item.uoM || "",
             quantity: item.quantity || "1",
             unitPrice: item.unitPrice
               ? parseFloat(item.unitPrice).toFixed(2)
@@ -749,6 +746,7 @@ export default function CreateInvoice() {
             sroScheduleNo: item.sroScheduleNo || "",
             sroItemSerialNo: item.sroItemSerialNo || "",
             billOfLadingUoM: item.billOfLadingUoM || "",
+            uoM: item.uoM || "",
             saleType: item.saleType || "",
             isSROScheduleEnabled: item.rate ? true : false,
             isSROItemEnabled: item.sroScheduleNo ? true : false,
@@ -814,6 +812,28 @@ export default function CreateInvoice() {
               buyerRegistrationType: invoiceData.buyerRegistrationType,
             })
           );
+        }
+
+        // NEW: Set product data for editing - Store product info for restoration
+        if (invoiceData.items && invoiceData.items.length > 0) {
+          const productData = invoiceData.items.map((item) => ({
+            name: item.name || "",
+            productDescription: item.productDescription || "",
+            hsCode: item.hsCode || "",
+            billOfLadingUoM: item.billOfLadingUoM || "",
+            uoM: item.uoM || "",
+            // Store additional fields that might help with product matching
+            quantity: item.quantity || "",
+            rate: item.rate || "",
+            // Add other product fields as needed
+          }));
+
+          localStorage.setItem(
+            "editingProductData",
+            JSON.stringify(productData)
+          );
+
+          console.log("Stored product data for editing:", productData);
         }
 
         // Clear the localStorage data after loading (keep id in state)
@@ -928,6 +948,101 @@ export default function CreateInvoice() {
       // when the item is loaded for editing
     }
   }, [buyers, editingItemIndex]);
+
+  // NEW: Handle setting product IDs when editing and products are loaded
+  // Only restore products when editing individual items, not when initially loading invoice
+  useEffect(() => {
+    const editingProductData = localStorage.getItem("editingProductData");
+    if (editingProductData && products.length > 0 && editingItemIndex) {
+      try {
+        const productDataArray = JSON.parse(editingProductData);
+
+        console.log(
+          "Restoring products for editing individual item:",
+          editingItemIndex
+        );
+
+        // Find the specific item being edited
+        const itemData = productDataArray[0]; // Since we're editing one item at a time
+
+        if (
+          itemData &&
+          (itemData.name || itemData.hsCode || itemData.productDescription)
+        ) {
+          // Try multiple matching strategies
+          let matchingProduct = null;
+
+          // Strategy 1: Match by exact name and HS Code
+          if (itemData.name && itemData.hsCode) {
+            matchingProduct = products.find(
+              (product) =>
+                product.name === itemData.name &&
+                product.hsCode === itemData.hsCode
+            );
+          }
+
+          // Strategy 2: Match by HS Code only (if name doesn't match)
+          if (!matchingProduct && itemData.hsCode) {
+            matchingProduct = products.find(
+              (product) => product.hsCode === itemData.hsCode
+            );
+          }
+
+          // Strategy 3: Match by name only (if HS Code doesn't match)
+          if (!matchingProduct && itemData.name) {
+            matchingProduct = products.find(
+              (product) => product.name === itemData.name
+            );
+          }
+
+          // Strategy 4: Match by product description (if available)
+          if (!matchingProduct && itemData.productDescription) {
+            matchingProduct = products.find(
+              (product) =>
+                product.description === itemData.productDescription ||
+                product.productDescription === itemData.productDescription
+            );
+          }
+
+          // Strategy 5: Match by UOM (Unit of Measure) if available
+          if (!matchingProduct && itemData.billOfLadingUoM) {
+            matchingProduct = products.find(
+              (product) =>
+                product.uom === itemData.billOfLadingUoM ||
+                product.unitOfMeasure === itemData.billOfLadingUoM ||
+                product.billOfLadingUoM === itemData.billOfLadingUoM
+            );
+          }
+
+          if (matchingProduct) {
+            console.log(`Found matching product for editing item:`, {
+              itemName: itemData.name,
+              itemHsCode: itemData.hsCode,
+              matchedProductId: matchingProduct.id,
+              matchedProductName: matchingProduct.name,
+            });
+
+            // Set product ID for the current editing item (index 0)
+            setSelectedProductIdByItem((prev) => ({
+              ...prev,
+              0: matchingProduct.id,
+            }));
+          } else {
+            console.log(
+              `No matching product found for editing item:`,
+              itemData
+            );
+          }
+        }
+
+        // Clear the editing product data after processing
+        localStorage.removeItem("editingProductData");
+      } catch (error) {
+        console.error("Error parsing editing product data:", error);
+        localStorage.removeItem("editingProductData");
+      }
+    }
+  }, [products, editingItemIndex]);
 
   // Fix unit cost calculation when editing - ensure unit cost is calculated from retail price and quantity
   useEffect(() => {
@@ -1339,7 +1454,6 @@ export default function CreateInvoice() {
           name: productData.name,
           description: productData.description,
           hsCode: productData.hsCode,
-          uom: productData.uoM,
         }
       );
       const saved = response.data.data;
@@ -1353,7 +1467,6 @@ export default function CreateInvoice() {
           name: saved.name,
           hsCode: saved.hsCode,
           productDescription: saved.description,
-          uoM: saved.uom,
         };
         return { ...prev, items: updated };
       });
@@ -1447,14 +1560,6 @@ export default function CreateInvoice() {
         item.sroItemSerialNo = "";
         item.isSROItemEnabled = false;
         item.isValueSalesManual = false;
-
-        // Auto-set uoM to "Bill of lading" for transaction type when rate contains "/bill"
-        if (value.includes("/bill")) {
-          item.uoM = "Bill of lading";
-        }
-        if (value.includes("/SqY")) {
-          item.uoM = "SqY";
-        }
       }
 
       if (field === "sroScheduleNo" && value) {
@@ -1681,7 +1786,6 @@ export default function CreateInvoice() {
           hsCode: "",
           productDescription: "",
           rate: "",
-          uoM: "",
           quantity: "1",
           unitPrice: "0.00", // Calculated field: Retail Price ÷ Quantity
           retailPrice: "0", // User input field
@@ -1692,6 +1796,7 @@ export default function CreateInvoice() {
           sroScheduleNo: "",
           sroItemSerialNo: "",
           billOfLadingUoM: "",
+          uoM: "",
           extraTax: "",
           furtherTax: "0",
           fedPayable: "0",
@@ -1857,6 +1962,32 @@ export default function CreateInvoice() {
         }
       }
 
+      // NEW: Store product data for restoration when editing individual items
+      if (
+        itemToEdit.name ||
+        itemToEdit.hsCode ||
+        itemToEdit.productDescription
+      ) {
+        const productData = [
+          {
+            name: itemToEdit.name || "",
+            productDescription: itemToEdit.productDescription || "",
+            hsCode: itemToEdit.hsCode || "",
+            billOfLadingUoM: itemToEdit.billOfLadingUoM || "",
+            uoM: itemToEdit.uoM || "",
+            quantity: itemToEdit.quantity || "",
+            rate: itemToEdit.rate || "",
+          },
+        ];
+
+        localStorage.setItem("editingProductData", JSON.stringify(productData));
+
+        console.log(
+          "Stored product data for editing individual item:",
+          productData
+        );
+      }
+
       // Restore product information if available in the item
       if (itemToEdit.productId) {
         console.log("Setting product ID from item:", itemToEdit.productId);
@@ -1864,27 +1995,93 @@ export default function CreateInvoice() {
           ...prev,
           0: itemToEdit.productId,
         }));
-      } else if (itemToEdit.hsCode && itemToEdit.name && products.length > 0) {
-        // Try to find the product by HS Code and name
-        const matchingProduct = products.find(
-          (product) =>
-            product.hsCode === itemToEdit.hsCode &&
-            product.name === itemToEdit.name
-        );
-        if (matchingProduct) {
-          console.log(
-            "Found matching product by HS Code/Name:",
-            matchingProduct.id
+      } else if (products.length > 0) {
+        // Enhanced product matching with multiple strategies
+        let matchingProduct = null;
+
+        // Strategy 1: Match by exact name and HS Code
+        if (itemToEdit.hsCode && itemToEdit.name) {
+          matchingProduct = products.find(
+            (product) =>
+              product.hsCode === itemToEdit.hsCode &&
+              product.name === itemToEdit.name
           );
+          if (matchingProduct) {
+            console.log(
+              "Found matching product by HS Code/Name:",
+              matchingProduct.id
+            );
+          }
+        }
+
+        // Strategy 2: Match by HS Code only (if name doesn't match)
+        if (!matchingProduct && itemToEdit.hsCode) {
+          matchingProduct = products.find(
+            (product) => product.hsCode === itemToEdit.hsCode
+          );
+          if (matchingProduct) {
+            console.log(
+              "Found matching product by HS Code only:",
+              matchingProduct.id
+            );
+          }
+        }
+
+        // Strategy 3: Match by name only (if HS Code doesn't match)
+        if (!matchingProduct && itemToEdit.name) {
+          matchingProduct = products.find(
+            (product) => product.name === itemToEdit.name
+          );
+          if (matchingProduct) {
+            console.log(
+              "Found matching product by name only:",
+              matchingProduct.id
+            );
+          }
+        }
+
+        // Strategy 4: Match by product description (if available)
+        if (!matchingProduct && itemToEdit.productDescription) {
+          matchingProduct = products.find(
+            (product) =>
+              product.description === itemToEdit.productDescription ||
+              product.productDescription === itemToEdit.productDescription
+          );
+          if (matchingProduct) {
+            console.log(
+              "Found matching product by description:",
+              matchingProduct.id
+            );
+          }
+        }
+
+        // Strategy 5: Match by UOM (Unit of Measure) if available
+        if (!matchingProduct && itemToEdit.billOfLadingUoM) {
+          matchingProduct = products.find(
+            (product) =>
+              product.uom === itemToEdit.billOfLadingUoM ||
+              product.unitOfMeasure === itemToEdit.billOfLadingUoM ||
+              product.billOfLadingUoM === itemToEdit.billOfLadingUoM
+          );
+          if (matchingProduct) {
+            console.log("Found matching product by UOM:", matchingProduct.id);
+          }
+        }
+
+        if (matchingProduct) {
           setSelectedProductIdByItem((prev) => ({
             ...prev,
             0: matchingProduct.id,
           }));
         } else {
-          console.log("No matching product found by HS Code/Name");
+          console.log("No matching product found with any strategy for:", {
+            name: itemToEdit.name,
+            hsCode: itemToEdit.hsCode,
+            productDescription: itemToEdit.productDescription,
+          });
         }
       } else {
-        console.log("No product information available to restore");
+        console.log("No products available for matching");
       }
 
       // Prefill Transaction Type based on item's saleType
@@ -2055,7 +2252,6 @@ export default function CreateInvoice() {
                 hsCode: "",
                 productDescription: "", // Don't set scenario description automatically
                 rate: "",
-                uoM: "",
                 quantity: "1",
                 unitPrice: "0.00",
                 retailPrice: "0",
@@ -2066,6 +2262,7 @@ export default function CreateInvoice() {
                 sroScheduleNo: "",
                 sroItemSerialNo: "",
                 billOfLadingUoM: "",
+                uoM: "",
                 extraTax: "",
                 furtherTax: "0",
                 fedPayable: "0",
@@ -2117,8 +2314,7 @@ export default function CreateInvoice() {
             (item.hsCode && item.hsCode.trim() !== "") ||
             (item.productDescription &&
               item.productDescription.trim() !== "") ||
-            (item.rate && item.rate.trim() !== "") ||
-            (item.uoM && item.uoM.trim() !== "");
+            (item.rate && item.rate.trim() !== "");
 
           const hasNumericFields =
             Number(item.unitPrice) > 0 ||
@@ -2203,14 +2399,6 @@ export default function CreateInvoice() {
             },
             index
           ) => {
-            let uoMValue = rest.uoM?.trim() || null;
-            if (rest.rate && rest.rate.includes("/bill")) {
-              uoMValue = "Bill of lading";
-            }
-            if (rest.rate && rest.rate.includes("/SqY")) {
-              uoMValue = "SqY";
-            }
-
             const baseItem = {
               ...rest,
               fixedNotifiedValueOrRetailPrice: Number(
@@ -2229,7 +2417,7 @@ export default function CreateInvoice() {
               totalValues: Number(Number(rest.totalValues).toFixed(2)),
               sroScheduleNo: rest.sroScheduleNo?.trim() || null,
               sroItemSerialNo: rest.sroItemSerialNo?.trim() || null,
-              uoM: uoMValue,
+
               name: rest.name?.trim() || null,
               productDescription: rest.productDescription?.trim() || null,
               saleType:
@@ -2310,10 +2498,6 @@ export default function CreateInvoice() {
 
     if (!item.rate || item.rate.trim() === "") {
       errors.push("Rate is required");
-    }
-
-    if (!item.uoM || item.uoM.trim() === "") {
-      errors.push("Unit of Measurement is required");
     }
 
     if (
@@ -2466,14 +2650,6 @@ export default function CreateInvoice() {
             },
             index
           ) => {
-            let uoMValue = rest.uoM?.trim() || null;
-            if (rest.rate && rest.rate.includes("/bill")) {
-              uoMValue = "Bill of lading";
-            }
-            if (rest.rate && rest.rate.includes("/SqY")) {
-              uoMValue = "SqY";
-            }
-
             const baseItem = {
               ...rest,
               fixedNotifiedValueOrRetailPrice: Number(
@@ -2492,7 +2668,6 @@ export default function CreateInvoice() {
               totalValues: Number(Number(rest.totalValues).toFixed(2)),
               sroScheduleNo: rest.sroScheduleNo?.trim() || null,
               sroItemSerialNo: rest.sroItemSerialNo?.trim() || null,
-              uoM: uoMValue,
               name: rest.name?.trim() || null,
               productDescription: rest.productDescription?.trim() || null,
               saleType:
@@ -2763,10 +2938,7 @@ export default function CreateInvoice() {
           },
           // productDescription is optional
           { field: "rate", message: `Rate is required for item ${index + 1}` },
-          {
-            field: "uoM",
-            message: `Unit of Measurement is required for item ${index + 1}`,
-          },
+
           {
             field: "quantity",
             message: `Quantity is required for item ${index + 1}`,
@@ -2845,15 +3017,6 @@ export default function CreateInvoice() {
         ) => {
           // Data cleaning for item
 
-          // Special handling for uoM based on rate content
-          let uoMValue = rest.uoM?.trim() || null;
-          if (rest.rate && rest.rate.includes("/bill")) {
-            uoMValue = "Bill of lading";
-          }
-          if (rest.rate && rest.rate.includes("/SqY")) {
-            uoMValue = "SqY";
-          }
-
           const baseItem = {
             ...rest,
             fixedNotifiedValueOrRetailPrice: Number(
@@ -2872,13 +3035,14 @@ export default function CreateInvoice() {
             totalValues: Number(Number(rest.totalValues).toFixed(2)),
             sroScheduleNo: rest.sroScheduleNo?.trim() || null,
             sroItemSerialNo: rest.sroItemSerialNo?.trim() || null,
-            uoM: uoMValue,
             productDescription: rest.productDescription?.trim() || null,
             saleType:
               rest.saleType?.trim() || "Goods at standard rate (default)",
             furtherTax: Number(Number(rest.furtherTax || 0).toFixed(2)),
             fedPayable: Number(Number(rest.fedPayable || 0).toFixed(2)),
             discount: Number(Number(rest.discount || 0).toFixed(2)),
+            billOfLadingUoM: rest.billOfLadingUoM?.trim() || null,
+            uoM: rest.uoM?.trim() || null,
           };
 
           // Only include extraTax if saleType is NOT "Goods at Reduced Rate"
@@ -3137,7 +3301,6 @@ export default function CreateInvoice() {
           hsCode: "",
           productDescription: "",
           rate: "",
-          uoM: "",
           quantity: "1",
           unitPrice: "0.00", // Calculated field: Retail Price ÷ Quantity
           retailPrice: "0", // User input field
@@ -3148,6 +3311,7 @@ export default function CreateInvoice() {
           sroScheduleNo: "",
           sroItemSerialNo: "",
           billOfLadingUoM: "",
+          uoM: "",
           saleType: "",
           isSROScheduleEnabled: false,
           isSROItemEnabled: false,
@@ -3997,7 +4161,22 @@ export default function CreateInvoice() {
                             "productDescription",
                             newVal.description || ""
                           );
-                          handleItemChange(index, "uoM", newVal.uoM || "");
+                          handleItemChange(
+                            index,
+                            "billOfLadingUoM",
+                            newVal.uom ||
+                              newVal.unitOfMeasure ||
+                              newVal.billOfLadingUoM ||
+                              ""
+                          );
+                          handleItemChange(
+                            index,
+                            "uoM",
+                            newVal.uom ||
+                              newVal.unitOfMeasure ||
+                              newVal.billOfLadingUoM ||
+                              ""
+                          );
                         }
                       }}
                       renderInput={(params) => (
@@ -4091,14 +4270,6 @@ export default function CreateInvoice() {
                     },
                     "& .MuiInputLabel-root": { color: "#6b7280" },
                   }}
-                />
-                {/* UOM is now derived from selected product; keep component for dynamic updates */}
-                <UnitOfMeasurement
-                  key={`UnitOfMeasurement-${index}`}
-                  index={index}
-                  item={item}
-                  handleItemChange={handleItemChange}
-                  hsCode={item.hsCode}
                 />
               </Box>
 
@@ -4627,9 +4798,7 @@ export default function CreateInvoice() {
                       <TableCell sx={{ fontWeight: 700, fontSize: "0.875rem" }}>
                         Rate
                       </TableCell>
-                      <TableCell sx={{ fontWeight: 700, fontSize: "0.875rem" }}>
-                        UoM
-                      </TableCell>
+
                       <TableCell sx={{ fontWeight: 700, fontSize: "0.875rem" }}>
                         Quantity
                       </TableCell>
@@ -4671,9 +4840,7 @@ export default function CreateInvoice() {
                         <TableCell sx={{ fontSize: "0.875rem" }}>
                           {item.rate}
                         </TableCell>
-                        <TableCell sx={{ fontSize: "0.875rem" }}>
-                          {item.uoM}
-                        </TableCell>
+
                         <TableCell sx={{ fontSize: "0.875rem" }}>
                           {formatQuantityWithCommas(item.quantity)}
                         </TableCell>

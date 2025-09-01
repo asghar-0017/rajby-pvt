@@ -21,7 +21,8 @@
     "fix-buyer-indexes-final": "node scripts/fix-buyer-indexes-final.js",
     "test-database": "node scripts/test-database-state.js",
     "monitor-performance": "node scripts/performance-monitor.js",
-    "test-id-generation": "node test-id-generation.js"
+    "test-id-generation": "node test-id-generation.js",
+    "add-product-name": "node add-product-name-column.js"
   },
   "keywords": [],
   "author": "",

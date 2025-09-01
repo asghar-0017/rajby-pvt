@@ -30,6 +30,7 @@ export const createInvoiceItemModel = (sequelize) => {
         type: DataTypes.TEXT,
         allowNull: true,
       },
+
       rate: {
         type: DataTypes.STRING(50),
         allowNull: true,

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef } from "react";
 import {
   Box,
   Button,
@@ -19,8 +19,6 @@ import {
   IconButton,
   Chip,
   Link,
-  Autocomplete,
-  TextField,
 } from "@mui/material";
 import {
   CloudUpload,
@@ -137,22 +135,27 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
   const [existingInvoices, setExistingInvoices] = useState([]);
   const [newInvoices, setNewInvoices] = useState([]);
   const [checkingExisting, setCheckingExisting] = useState(false);
-  // const [downloadButtonDisabled, setDownloadButtonDisabled] = useState(false);
-  const [buyers, setBuyers] = useState([]);
-  const [selectedBuyerId, setSelectedBuyerId] = useState("");
-  const [loadingBuyers, setLoadingBuyers] = useState(false);
+  const [downloadButtonDisabled, setDownloadButtonDisabled] = useState(false);
+
   const fileInputRef = useRef(null);
 
-  // Expected columns for invoice data (including items)
-  // Buyer columns removed - will be selected from buyer dropdown during upload
+  // Expected columns for invoice data (including buyer details)
   const expectedColumns = [
     "invoiceType",
     "invoiceDate",
     "invoiceRefNo",
     "companyInvoiceRefNo",
+    // Buyer details
+    "buyerNTNCNIC",
+    "buyerBusinessName",
+    "buyerProvince",
+    "buyerAddress",
+    "buyerRegistrationType",
+    // Transaction and item details
     "transctypeId",
     "item_hsCode",
     "item_productDescription",
+    "item_productName",
     "item_rate",
     "item_uoM",
     "item_quantity",
@@ -171,117 +174,102 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     "item_sroItemSerialNo",
   ];
 
-  // Fetch buyers when component mounts
-  useEffect(() => {
-    const fetchBuyers = async () => {
-      if (!selectedTenant) return;
+  // Buyer selection removed; buyer details should be provided in the sheet
 
-      try {
-        setLoadingBuyers(true);
-        const response = await api.get(
-          `/tenant/${selectedTenant.tenant_id}/buyers/all`
-        );
-
-        if (response.data.success) {
-          setBuyers(response.data.data.buyers || []);
-        } else {
-          console.error("Failed to fetch buyers:", response.data.message);
-          setBuyers([]);
-        }
-      } catch (error) {
-        console.error("Error fetching buyers:", error);
-        setBuyers([]);
-      } finally {
-        setLoadingBuyers(false);
-      }
-    };
-
-    fetchBuyers();
-  }, [selectedTenant]);
-
-  // const downloadTemplate = async () => {
-  //   try {
-  //     // Disable the button temporarily
-  //     setDownloadButtonDisabled(true);
-
-  //     // Check if we have a selected tenant
-  //     if (!selectedTenant?.tenant_id) {
-  //       toast.error("Please select a tenant first");
-  //       return;
-  //     }
-
-  //     // Call the backend API to generate and download the template
-  //     const response = await api.get(`/tenant/${selectedTenant.tenant_id}/invoices/template.xlsx`, {
-  //       responseType: "blob", // Important: set response type to blob for file download
-  //     });
-
-  //     // Create a blob from the response data
-  //     const blob = new Blob([response.data], {
-  //       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  //     });
-
-  //     // Create download link
-  //     const url = window.URL.createObjectURL(blob);
-  //     const a = document.createElement("a");
-  //     a.href = url;
-  //     a.download = "invoice_template.xlsx";
-  //     document.body.appendChild(a);
-  //     a.click();
-  //     document.body.removeChild(a);
-
-  //     // Clean up the URL object
-  //     window.URL.revokeObjectURL(url);
-
-  //     toast.success("Excel template downloaded successfully!");
-  //   } catch (e) {
-  //     console.error("Template download error:", e);
-
-  //     // Handle different types of errors
-  //     if (e.response) {
-  //       // Server responded with error status
-  //       if (e.response.status === 401) {
-  //         toast.error("Authentication failed. Please log in again.");
-  //       } else if (e.response.status === 403) {
-  //         toast.error("Access denied. You don't have permission to download this template.");
-  //       } else if (e.response.status === 404) {
-  //         toast.error("Template not found. Please check your tenant configuration.");
-  //       } else if (e.response.status === 500) {
-  //         toast.error("Server error. Please try again later.");
-  //       } else {
-  //         toast.error(`Download failed: ${e.response.status} - ${e.response.statusText}`);
-  //       }
-  //     } else if (e.request) {
-  //       // Request was made but no response received
-  //       toast.error("Network error. Please check your connection and try again.");
-  //       } else {
-  //       // Something else happened
-  //       toast.error("Could not download Excel template. Please try again.");
-  //     }
-  //   } finally {
-  //     // Re-enable the button after a short delay
-  //     setTimeout(() => {
-  //       setDownloadButtonDisabled(false);
-  //     }, 1000);
-  //   }
-  // };
-
-  // New function to download existing template file
-  const downloadExistingTemplate = () => {
+  const downloadExistingTemplate = async () => {
     try {
-      // Create a link to the existing template file in public folder
-      const link = document.createElement("a");
-      link.href = "/invoiceTemplate/invoice_template.xlsx";
-      link.download = "invoice_template.xlsx";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      // Disable the button temporarily
+      setDownloadButtonDisabled(true);
+
+      // Check if we have a selected tenant
+      if (!selectedTenant?.tenant_id) {
+        toast.error("Please select a tenant first");
+        return;
+      }
+
+      // Call the backend API to generate and download the template
+      const response = await api.get(
+        `/tenant/${selectedTenant.tenant_id}/invoices/template.xlsx`,
+        {
+          responseType: "blob", // Important: set response type to blob for file download
+        }
+      );
+
+      // Create a blob from the response data
+      const blob = new Blob([response.data], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "invoice_template.xlsx";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      // Clean up the URL object
+      window.URL.revokeObjectURL(url);
 
       toast.success("Excel template downloaded successfully!");
-    } catch (error) {
-      console.error("Error downloading template:", error);
-      toast.error("Failed to download template. Please try again.");
+    } catch (e) {
+      console.error("Template download error:", e);
+
+      // Handle different types of errors
+      if (e.response) {
+        // Server responded with error status
+        if (e.response.status === 401) {
+          toast.error("Authentication failed. Please log in again.");
+        } else if (e.response.status === 403) {
+          toast.error(
+            "Access denied. You don't have permission to download this template."
+          );
+        } else if (e.response.status === 404) {
+          toast.error(
+            "Template not found. Please check your tenant configuration."
+          );
+        } else if (e.response.status === 500) {
+          toast.error("Server error. Please try again later.");
+        } else {
+          toast.error(
+            `Download failed: ${e.response.status} - ${e.response.statusText}`
+          );
+        }
+      } else if (e.request) {
+        // Request was made but no response received
+        toast.error(
+          "Network error. Please check your connection and try again."
+        );
+      } else {
+        // Something else happened
+        toast.error("Could not download Excel template. Please try again.");
+      }
+    } finally {
+      // Re-enable the button after a short delay
+      setTimeout(() => {
+        setDownloadButtonDisabled(false);
+      }, 1000);
     }
   };
+
+  // New function to download existing template file
+  // const downloadExistingTemplate = () => {
+  //   try {
+  //     // Create a link to the existing template file in public folder
+  //     const link = document.createElement("a");
+  //     link.href = "/invoiceTemplate/invoice_template.xlsx";
+  //     link.download = "invoice_template.xlsx";
+  //     document.body.appendChild(link);
+  //     link.click();
+  //     document.body.removeChild(link);
+
+  //     toast.success("Excel template downloaded successfully!");
+  //   } catch (error) {
+  //     console.error("Error downloading template:", error);
+  //     toast.error("Failed to download template. Please try again.");
+  //   }
+  // };
 
   const handleFileSelect = (event) => {
     const selectedFile = event.target.files[0];
@@ -723,14 +711,11 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         continue;
       }
       try {
-        const resp = await fetch(
-          "https://pakistan-gum.inplsoftwares.online/api/buyer-check",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ registrationNo: ntn }),
-          }
-        );
+        const resp = await fetch("http://localhost:5150/api/buyer-check", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ registrationNo: ntn }),
+        });
         const data = await resp.json().catch(() => ({}));
         let derived = "";
         if (data && typeof data.REGISTRATION_TYPE === "string") {
@@ -842,51 +827,277 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     }
   };
 
+  // NEW: Function to automatically create missing products from invoice data
+  const createMissingProducts = async (invoicesData) => {
+    try {
+      // Extract all unique products from invoice items
+      const allProducts = new Set();
+      const productDetails = new Map(); // Store product details for creation
+
+      invoicesData.forEach((invoice) => {
+        if (invoice.items && Array.isArray(invoice.items)) {
+          invoice.items.forEach((item) => {
+            // Create a unique key for each product
+            const productKey = `${item.item_productName || item.item_name || item.name || ""}-${item.item_hsCode || item.hsCode || ""}`;
+
+            if (productKey && productKey !== "-") {
+              allProducts.add(productKey);
+
+              // Store product details for creation
+              if (!productDetails.has(productKey)) {
+                productDetails.set(productKey, {
+                  name:
+                    item.item_productName || item.item_name || item.name || "",
+                  hsCode: item.item_hsCode || item.hsCode || "",
+                  description:
+                    item.item_productDescription || item.description || "",
+                  uom: item.item_uoM || item.billOfLadingUoM || item.uom || "",
+                  // Add other product fields as needed
+                });
+              }
+            }
+          });
+        }
+      });
+
+      if (allProducts.size === 0) {
+        console.log("No products found in invoice data");
+        return;
+      }
+
+      console.log(`Found ${allProducts.size} unique products in invoice data`);
+
+      // Get existing products to check which ones need to be created
+      const existingProductsResponse = await api.get(
+        `/tenant/${selectedTenant.tenant_id}/products`
+      );
+
+      if (!existingProductsResponse.data.success) {
+        console.error("Failed to fetch existing products");
+        return;
+      }
+
+      const existingProducts = existingProductsResponse.data.data || [];
+      const existingProductKeys = new Set();
+
+      existingProducts.forEach((product) => {
+        const key = `${product.name}-${product.hsCode}`;
+        existingProductKeys.add(key);
+      });
+
+      // Find products that don't exist
+      const missingProducts = [];
+      productDetails.forEach((details, key) => {
+        if (!existingProductKeys.has(key) && details.name && details.hsCode) {
+          missingProducts.push(details);
+        }
+      });
+
+      if (missingProducts.length === 0) {
+        console.log("All products already exist in the system");
+        return;
+      }
+
+      console.log(
+        `Found ${missingProducts.length} missing products to create:`,
+        missingProducts
+      );
+
+      // Create missing products
+      const createdProducts = [];
+      const failedProducts = [];
+
+      for (const product of missingProducts) {
+        try {
+          const productData = {
+            name: product.name,
+            hsCode: product.hsCode,
+            description: product.description || product.name,
+            uom: product.uom || "PCS", // Default UOM if not specified
+            // Add other required fields with defaults
+            category: "Auto-Created",
+            isActive: true,
+            // You can add more fields as needed
+          };
+
+          const createResponse = await api.post(
+            `/tenant/${selectedTenant.tenant_id}/products`,
+            productData
+          );
+
+          if (createResponse.data.success) {
+            createdProducts.push(product.name);
+            console.log(`Successfully created product: ${product.name}`);
+          } else {
+            failedProducts.push(product.name);
+            console.error(
+              `Failed to create product ${product.name}:`,
+              createResponse.data.message
+            );
+          }
+        } catch (error) {
+          failedProducts.push(product.name);
+          console.error(`Error creating product ${product.name}:`, error);
+        }
+      }
+
+      // Show results
+      if (createdProducts.length > 0) {
+        toast.success(
+          `Successfully created ${createdProducts.length} new products: ${createdProducts.slice(0, 3).join(", ")}${createdProducts.length > 3 ? "..." : ""}`,
+          { autoClose: 5000 }
+        );
+        console.log(
+          `Created ${createdProducts.length} products:`,
+          createdProducts
+        );
+      }
+
+      if (failedProducts.length > 0) {
+        toast.warning(
+          `Failed to create ${failedProducts.length} products: ${failedProducts.slice(0, 3).join(", ")}${failedProducts.length > 3 ? "..." : ""}`,
+          { autoClose: 5000 }
+        );
+        console.log(
+          `Failed to create ${failedProducts.length} products:`,
+          failedProducts
+        );
+      }
+    } catch (error) {
+      console.error("Error in createMissingProducts:", error);
+      throw error;
+    }
+  };
+
   const handleUpload = async () => {
     if (!file || previewData.length === 0) {
       toast.error("Please select a valid file with invoice data to upload");
       return;
     }
 
-    if (!selectedBuyerId) {
-      toast.error("Please select a buyer for all invoices");
-      return;
-    }
-
     setUploading(true);
     try {
-      // Get selected buyer details
-      const selectedBuyer = buyers.find((b) => b.id === selectedBuyerId);
-      if (!selectedBuyer) {
-        toast.error("Selected buyer not found");
-        return;
-      }
+      // Group rows by invoice-level fields
+      const groupedInvoices = groupRowsByInvoiceFields(previewData);
 
-      // Clean the data before uploading - extract only IDs for transctypeId and hsCode
-      const invoicesToUpload = previewData.map((invoice) => {
-        const cleanedInvoice = { ...invoice };
+      // Clean the grouped data before uploading
+      const invoicesToUpload = groupedInvoices.map((group) => {
+        const items = group.items.map((item) => {
+          const cleanedItem = { ...item };
 
-        // Add buyer information from selected buyer
-        cleanedInvoice.buyerNTNCNIC = selectedBuyer.buyerNTNCNIC;
-        cleanedInvoice.buyerBusinessName = selectedBuyer.buyerBusinessName;
-        cleanedInvoice.buyerProvince = selectedBuyer.buyerProvince;
-        cleanedInvoice.buyerAddress = selectedBuyer.buyerAddress;
-        cleanedInvoice.buyerRegistrationType =
-          selectedBuyer.buyerRegistrationType;
+          // Clean transctypeId - extract only the ID part
+          if (cleanedItem.transctypeId) {
+            cleanedItem.transctypeId = cleanTransctypeId(
+              cleanedItem.transctypeId
+            );
+          }
 
-        // Clean transctypeId - extract only the ID part
-        if (cleanedInvoice.transctypeId) {
-          cleanedInvoice.transctypeId = cleanTransctypeId(
-            cleanedInvoice.transctypeId
-          );
-        }
+          // Clean item_hsCode - extract only the code part
+          if (cleanedItem.item_hsCode) {
+            cleanedItem.item_hsCode = cleanHsCode(cleanedItem.item_hsCode);
+          }
 
-        // Clean item_hsCode - extract only the code part
-        if (cleanedInvoice.item_hsCode) {
-          cleanedInvoice.item_hsCode = cleanHsCode(cleanedInvoice.item_hsCode);
-        }
+          // Map Excel field names to backend expected field names
+          // Backend expects productName or name, but Excel sends item_productName
+          console.log("🔍 Frontend Debug: Before mapping:", {
+            item_productName: cleanedItem.item_productName,
+            name: cleanedItem.name,
+            productName: cleanedItem.productName,
+          });
 
-        return cleanedInvoice;
+          if (
+            cleanedItem.item_productName &&
+            cleanedItem.item_productName.trim() !== ""
+          ) {
+            cleanedItem.productName = cleanedItem.item_productName;
+            cleanedItem.name = cleanedItem.item_productName;
+            console.log(
+              "✅ Frontend: Mapped product name:",
+              cleanedItem.item_productName
+            );
+          } else {
+            console.log("❌ Frontend: No valid item_productName found");
+          }
+
+          console.log("🔍 Frontend Debug: After mapping:", {
+            name: cleanedItem.name,
+            productName: cleanedItem.productName,
+          });
+
+          // Map other item fields to remove the 'item_' prefix
+          if (cleanedItem.item_hsCode) {
+            cleanedItem.hsCode = cleanedItem.item_hsCode;
+          }
+          if (cleanedItem.item_productDescription) {
+            cleanedItem.productDescription =
+              cleanedItem.item_productDescription;
+          }
+          if (cleanedItem.item_rate) {
+            cleanedItem.rate = cleanedItem.item_rate;
+          }
+          if (cleanedItem.item_uoM) {
+            cleanedItem.uoM = cleanedItem.item_uoM;
+          }
+          if (cleanedItem.item_quantity) {
+            cleanedItem.quantity = cleanedItem.item_quantity;
+          }
+          if (cleanedItem.item_unitPrice) {
+            cleanedItem.unitPrice = cleanedItem.item_unitPrice;
+          }
+          if (cleanedItem.item_totalValues) {
+            cleanedItem.totalValues = cleanedItem.item_totalValues;
+          }
+          if (cleanedItem.item_valueSalesExcludingST) {
+            cleanedItem.valueSalesExcludingST =
+              cleanedItem.item_valueSalesExcludingST;
+          }
+          if (cleanedItem.item_fixedNotifiedValueOrRetailPrice) {
+            cleanedItem.fixedNotifiedValueOrRetailPrice =
+              cleanedItem.item_fixedNotifiedValueOrRetailPrice;
+          }
+          if (cleanedItem.item_salesTaxApplicable) {
+            cleanedItem.salesTaxApplicable =
+              cleanedItem.item_salesTaxApplicable;
+          }
+          if (cleanedItem.item_salesTaxWithheldAtSource) {
+            cleanedItem.salesTaxWithheldAtSource =
+              cleanedItem.item_salesTaxWithheldAtSource;
+          }
+          if (cleanedItem.item_extraTax) {
+            cleanedItem.extraTax = cleanedItem.item_extraTax;
+          }
+          if (cleanedItem.item_furtherTax) {
+            cleanedItem.furtherTax = cleanedItem.item_furtherTax;
+          }
+          if (cleanedItem.item_sroScheduleNo) {
+            cleanedItem.sroScheduleNo = cleanedItem.item_sroScheduleNo;
+          }
+          if (cleanedItem.item_fedPayable) {
+            cleanedItem.fedPayable = cleanedItem.item_fedPayable;
+          }
+          if (cleanedItem.item_discount) {
+            cleanedItem.discount = cleanedItem.item_discount;
+          }
+          if (cleanedItem.item_saleType) {
+            cleanedItem.saleType = cleanedItem.item_saleType;
+          }
+          if (cleanedItem.item_sroItemSerialNo) {
+            cleanedItem.sroItemSerialNo = cleanedItem.item_sroItemSerialNo;
+          }
+
+          return cleanedItem;
+        });
+
+        return {
+          ...group.invoiceData,
+          items: items,
+        };
+      });
+
+      console.log("🔍 Debug: Sending to backend:", {
+        totalInvoices: invoicesToUpload.length,
+        sampleInvoice: invoicesToUpload[0],
+        sampleInvoiceItems: invoicesToUpload[0]?.items?.length || 0,
       });
 
       const result = await onUpload(invoicesToUpload);
@@ -923,12 +1134,23 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
           console.error("Upload errors:", errors);
         } else {
           toast.success(
-            `Successfully uploaded ${summary.successful} invoices as drafts!`
+            `Successfully uploaded ${summary.successful} grouped invoices as drafts!`
           );
         }
       } else {
         toast.success(
-          `Successfully uploaded ${invoicesToUpload.length} invoices as drafts`
+          `Successfully uploaded ${invoicesToUpload.length} grouped invoices as drafts`
+        );
+      }
+
+      // NEW: Automatically create products that don't exist
+      try {
+        await createMissingProducts(invoicesToUpload);
+      } catch (productError) {
+        console.error("Error creating missing products:", productError);
+        // Don't fail the upload if product creation fails
+        toast.warning(
+          "Invoices uploaded successfully, but some products could not be created automatically."
         );
       }
 
@@ -941,6 +1163,66 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     }
   };
 
+  // Function to group rows by invoice-level fields
+  const groupRowsByInvoiceFields = (rows) => {
+    const groups = new Map();
+
+    rows.forEach((row, index) => {
+      // Create a key based on invoice-level fields
+      const groupKey =
+        `${row.invoiceType || ""}_${row.invoiceDate || ""}_${row.companyInvoiceRefNo || ""}_${row.buyerNTNCNIC || ""}_${row.buyerBusinessName || ""}_${row.buyerProvince || ""}`
+          .toLowerCase()
+          .trim();
+
+      if (!groups.has(groupKey)) {
+        // Create new group with invoice-level data
+        groups.set(groupKey, {
+          invoiceData: {
+            invoiceType: row.invoiceType,
+            invoiceDate: row.invoiceDate,
+            invoiceRefNo: row.invoiceRefNo,
+            companyInvoiceRefNo: row.companyInvoiceRefNo,
+            buyerNTNCNIC: row.buyerNTNCNIC,
+            buyerBusinessName: row.buyerBusinessName,
+            buyerProvince: row.buyerProvince,
+            buyerAddress: row.buyerAddress,
+            buyerRegistrationType: row.buyerRegistrationType,
+          },
+          items: [],
+        });
+      }
+
+      // Add item-level data to the group
+      const itemData = {
+        transctypeId: row.transctypeId,
+        item_hsCode: row.item_hsCode,
+        item_productDescription: row.item_productDescription,
+        item_productName: row.item_productName,
+        item_rate: row.item_rate,
+        item_uoM: row.item_uoM,
+        item_quantity: row.item_quantity,
+        item_unitPrice: row.item_unitPrice,
+        item_totalValues: row.item_totalValues,
+        item_valueSalesExcludingST: row.item_valueSalesExcludingST,
+        item_fixedNotifiedValueOrRetailPrice:
+          row.item_fixedNotifiedValueOrRetailPrice,
+        item_salesTaxApplicable: row.item_salesTaxApplicable,
+        item_salesTaxWithheldAtSource: row.item_salesTaxWithheldAtSource,
+        item_extraTax: row.item_extraTax,
+        item_furtherTax: row.item_furtherTax,
+        item_sroScheduleNo: row.item_sroScheduleNo,
+        item_fedPayable: row.item_fedPayable,
+        item_discount: row.item_discount,
+        item_saleType: row.item_saleType,
+        item_sroItemSerialNo: row.item_sroItemSerialNo,
+      };
+
+      groups.get(groupKey).items.push(itemData);
+    });
+
+    return Array.from(groups.values());
+  };
+
   const handleClose = () => {
     setFile(null);
     setPreviewData([]);
@@ -948,7 +1230,7 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     setShowPreview(false);
     setExistingInvoices([]);
     setNewInvoices([]);
-    setSelectedBuyerId("");
+
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -961,7 +1243,7 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     setErrors([]);
     setExistingInvoices([]);
     setNewInvoices([]);
-    setSelectedBuyerId("");
+
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -994,6 +1276,11 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     return combined.sort((a, b) => a._row - b._row);
   };
 
+  // Get grouped preview data for display
+  const getGroupedPreviewData = () => {
+    return groupRowsByInvoiceFields(previewData);
+  };
+
   return (
     <Dialog open={isOpen} onClose={handleClose} maxWidth="md" fullWidth>
       <DialogTitle>
@@ -1013,9 +1300,8 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
             Upload a CSV or Excel file with invoice data. All invoices will be
             saved with "draft" status. Invoice numbers will be generated
             automatically by the system. Seller details will be automatically
-            populated from the selected tenant. Buyer details will be populated
-            from your selected buyer. The template no longer includes buyer
-            columns - you'll select one buyer for all invoices during upload.
+            populated from the selected tenant. Fill buyer details in the sheet
+            (NTN/CNIC, Business Name, Province, Address, Registration Type).
           </Typography>
 
           {/* Download Template Button */}
@@ -1084,66 +1370,7 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
           </Paper>
         </Box>
 
-        {/* Buyer Selection */}
-        {file && (
-          <Box sx={{ mb: 3 }}>
-            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-              Select Buyer for All Invoices
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              All invoices in this file will be assigned to the selected buyer.
-              Buyer details (NTN/CNIC, Business Name, Province, Address,
-              Registration Type) will be automatically populated from your buyer
-              database.
-            </Typography>
-
-            <Autocomplete
-              fullWidth
-              options={buyers}
-              getOptionLabel={(option) =>
-                option.buyerBusinessName
-                  ? `${option.buyerBusinessName} (${option.buyerNTNCNIC})`
-                  : ""
-              }
-              value={buyers.find((b) => b.id === selectedBuyerId) || null}
-              onChange={(_, newValue) => {
-                setSelectedBuyerId(newValue ? newValue.id : "");
-              }}
-              loading={loadingBuyers}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="Select Buyer"
-                  variant="outlined"
-                  required
-                  error={!selectedBuyerId && file}
-                  helperText={
-                    !selectedBuyerId && file
-                      ? "Please select a buyer to continue"
-                      : ""
-                  }
-                />
-              )}
-              isOptionEqualToValue={(option, value) => option.id === value.id}
-              getOptionKey={(option) =>
-                option.id ||
-                option.buyerNTNCNIC ||
-                option.buyerBusinessName ||
-                option.buyerAddress ||
-                Math.random()
-              }
-            />
-          </Box>
-        )}
-
-        {/* Buyer Selection Validation Alert */}
-        {file && !selectedBuyerId && (
-          <Alert severity="warning" sx={{ mb: 2 }}>
-            <Typography variant="subtitle2">
-              Please select a buyer to continue with the upload process.
-            </Typography>
-          </Alert>
-        )}
+        {/* Buyer selection removed */}
 
         {/* Existing Invoices Alert */}
         {existingInvoices.length > 0 && (
@@ -1167,7 +1394,8 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
           </Alert>
         )}
 
-        {/* Preview Section */}
+        {/* Preview Section - Commented Out */}
+        {/*
         {previewData.length > 0 && (
           <Box sx={{ mb: 2 }}>
             <Box
@@ -1220,62 +1448,85 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {getCombinedPreviewData()
+                    {getGroupedPreviewData()
                       .slice(0, 10)
-                      .map((row, index) => (
+                      .map((group, index) => (
                         <TableRow
                           key={index}
                           sx={{
-                            backgroundColor:
-                              row._status === "existing"
-                                ? "#fff3e0"
-                                : "inherit",
+                            backgroundColor: "#f0f8ff",
                             "&:hover": {
-                              backgroundColor:
-                                row._status === "existing"
-                                  ? "#ffe0b2"
-                                  : "#f5f5f5",
+                              backgroundColor: "#e6f3ff",
                             },
                           }}
                         >
                           <TableCell>
-                            {row._status === "existing" ? (
-                              <Chip
-                                label="Skip"
-                                size="small"
-                                color="warning"
-                                icon={<Info />}
-                                title={`Already exists as: ${row._existingInvoice.sellerBusinessName}`}
-                              />
-                            ) : (
-                              <Chip
-                                label="New"
-                                size="small"
-                                color="success"
-                                icon={<CheckCircle />}
-                              />
-                            )}
+                            <Chip
+                              label={`Group ${index + 1} (${group.items.length} items)`}
+                              size="small"
+                              color="primary"
+                              icon={<Info />}
+                            />
                           </TableCell>
-                          {expectedColumns.map((column) => (
-                            <TableCell key={column}>
-                              {column === "transctypeId"
-                                ? cleanTransctypeId(row[column]) || "-"
-                                : column === "item_hsCode"
-                                  ? cleanHsCode(row[column]) || "-"
-                                  : row[column] || "-"}
-                            </TableCell>
-                          ))}
+                          <TableCell>
+                            {group.invoiceData.invoiceType || "-"}
+                          </TableCell>
+                          <TableCell>
+                            {group.invoiceData.invoiceDate || "-"}
+                          </TableCell>
+                          <TableCell>
+                            {group.invoiceData.invoiceRefNo || "-"}
+                          </TableCell>
+                          <TableCell>
+                            {group.invoiceData.companyInvoiceRefNo || "-"}
+                          </TableCell>
+                          <TableCell>
+                            {group.invoiceData.buyerNTNCNIC || "-"}
+                          </TableCell>
+                          <TableCell>
+                            {group.invoiceData.buyerBusinessName || "-"}
+                          </TableCell>
+                          <TableCell>
+                            {group.invoiceData.buyerProvince || "-"}
+                          </TableCell>
+                          <TableCell>
+                            {group.invoiceData.buyerAddress || "-"}
+                          </TableCell>
+                          <TableCell>
+                            {group.invoiceData.buyerRegistrationType || "-"}
+                          </TableCell>
+                          <TableCell>-</TableCell>
+                          <TableCell>-</TableCell>
+                          <TableCell>-</TableCell>
+                          <TableCell>-</TableCell>
+                          <TableCell>-</TableCell>
+                          <TableCell>-</TableCell>
+                          <TableCell>-</TableCell>
+                          <TableCell>-</TableCell>
+                          <TableCell>-</TableCell>
+                          <TableCell>-</TableCell>
+                          <TableCell>-</TableCell>
+                          <TableCell>-</TableCell>
+                          <TableCell>-</TableCell>
+                          <TableCell>-</TableCell>
+                          <TableCell>-</TableCell>
+                          <TableCell>-</TableCell>
+                          <TableCell>-</TableCell>
+                          <TableCell>-</TableCell>
+                          <TableCell>-</TableCell>
+                          <TableCell>-</TableCell>
+                          <TableCell>-</TableCell>
                         </TableRow>
                       ))}
-                    {getCombinedPreviewData().length > 10 && (
+                    {getGroupedPreviewData().length > 10 && (
                       <TableRow>
                         <TableCell
                           colSpan={expectedColumns.length + 1}
                           align="center"
                           sx={{ fontStyle: "italic", color: "text.secondary" }}
                         >
-                          Showing first 10 rows of{" "}
-                          {getCombinedPreviewData().length} total rows
+                          Showing first 10 groups of{" "}
+                          {getGroupedPreviewData().length} total groups
                         </TableCell>
                       </TableRow>
                     )}
@@ -1285,6 +1536,7 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
             )}
           </Box>
         )}
+        */}
 
         {/* Summary */}
         {file && (
@@ -1301,27 +1553,12 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
                 <Box display="flex" alignItems="center" gap={2} mb={1}>
                   <CheckCircle color="success" />
                   <Typography variant="body2">
-                    {previewData.length} invoices ready to upload as drafts
+                    {groupRowsByInvoiceFields(previewData).length} grouped
+                    invoices ({previewData.length} total rows) ready to upload
+                    as drafts
                   </Typography>
                 </Box>
-                {selectedBuyerId && (
-                  <Box display="flex" alignItems="center" gap={2} mb={1}>
-                    <Info color="info" />
-                    <Typography variant="body2" color="info.main">
-                      Buyer:{" "}
-                      {
-                        buyers.find((b) => b.id === selectedBuyerId)
-                          ?.buyerBusinessName
-                      }{" "}
-                      (
-                      {
-                        buyers.find((b) => b.id === selectedBuyerId)
-                          ?.buyerNTNCNIC
-                      }
-                      )
-                    </Typography>
-                  </Box>
-                )}
+                {/* Buyer summary removed */}
                 {existingInvoices.length > 0 && (
                   <Box display="flex" alignItems="center" gap={2} mb={1}>
                     <Warning color="warning" />
@@ -1350,11 +1587,7 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
           onClick={handleUpload}
           variant="contained"
           disabled={
-            !file ||
-            previewData.length === 0 ||
-            uploading ||
-            checkingExisting ||
-            !selectedBuyerId
+            !file || previewData.length === 0 || uploading || checkingExisting
           }
           startIcon={
             uploading ? <CircularProgress size={20} /> : <FileUpload />
@@ -1362,7 +1595,7 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         >
           {uploading
             ? "Uploading..."
-            : `Upload ${previewData.length} Invoices as Drafts`}
+            : `Upload ${groupRowsByInvoiceFields(previewData).length} Grouped Invoices as Drafts`}
         </Button>
       </DialogActions>
     </Dialog>

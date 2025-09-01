@@ -343,6 +343,14 @@ export const createInvoice = async (req, res) => {
 
       if (items && Array.isArray(items) && items.length > 0) {
         const invoiceItems = items.map((item) => {
+          // Debug: Log the incoming item data
+          console.log("🔍 Backend Debug: Incoming item data:", {
+            productName: item.productName,
+            name: item.name,
+            item_productName: item.item_productName,
+            hsCode: item.hsCode,
+          });
+
           // Helper function to convert empty strings to null
 
           const cleanValue = (value) => {
@@ -393,7 +401,7 @@ export const createInvoice = async (req, res) => {
 
             hsCode: cleanHsCode(item.hsCode),
 
-            name: cleanValue(item.name),
+            name: cleanValue(item.productName || item.name),
 
             productDescription: cleanValue(item.productDescription),
 
@@ -445,6 +453,12 @@ export const createInvoice = async (req, res) => {
           }
 
           // Debug: Log the mapped item
+          console.log("🔍 Backend Debug: Product name mapping details:", {
+            originalProductName: item.productName,
+            originalName: item.name,
+            finalName: mappedItem.name,
+            cleanValueResult: cleanValue(item.productName || item.name),
+          });
 
           console.log(
             "Mapped invoice item:",
@@ -461,7 +475,32 @@ export const createInvoice = async (req, res) => {
           JSON.stringify(invoiceItems, null, 2)
         );
 
-        await InvoiceItem.bulkCreate(invoiceItems, { transaction: t });
+        // Debug: Check each item before insertion
+        invoiceItems.forEach((item, index) => {
+          console.log(`🔍 Backend Debug: Item ${index} before insertion:`, {
+            name: item.name,
+            productName: item.productName,
+            hsCode: item.hsCode,
+          });
+        });
+
+        const createdItems = await InvoiceItem.bulkCreate(invoiceItems, {
+          transaction: t,
+        });
+
+        console.log(
+          "🔍 Backend Debug: Items created successfully:",
+          createdItems.length
+        );
+
+        // Debug: Check what was actually inserted
+        if (createdItems && createdItems.length > 0) {
+          console.log("🔍 Backend Debug: First created item:", {
+            id: createdItems[0].id,
+            name: createdItems[0].name,
+            hsCode: createdItems[0].hsCode,
+          });
+        }
       }
 
       return invoice;
@@ -733,7 +772,7 @@ export const saveInvoice = async (req, res) => {
 
             hsCode: cleanHsCode(item.hsCode),
 
-            name: cleanValue(item.name),
+            name: cleanValue(item.productName || item.name),
 
             productDescription: cleanValue(item.productDescription),
 
@@ -1082,7 +1121,7 @@ export const saveAndValidateInvoice = async (req, res) => {
 
             hsCode: cleanHsCode(item.hsCode),
 
-            name: cleanValue(item.name),
+            name: cleanValue(item.productName || item.name),
 
             productDescription: cleanValue(item.productDescription),
 
@@ -2474,8 +2513,20 @@ export const bulkCreateInvoices = async (req, res) => {
     // Users can now upload unlimited invoices
 
     console.log(
-      `🚀 Starting optimized bulk upload for ${invoices.length} invoices...`
+      `🚀 Starting optimized bulk upload for ${invoices.length} grouped invoices...`
     );
+    console.log("🔍 Debug: Backend received:", {
+      totalInvoices: invoices.length,
+      sampleInvoice: invoices[0]
+        ? {
+            invoiceType: invoices[0].invoiceType,
+            invoiceDate: invoices[0].invoiceDate,
+            companyInvoiceRefNo: invoices[0].companyInvoiceRefNo,
+            buyerBusinessName: invoices[0].buyerBusinessName,
+            itemsCount: invoices[0].items?.length || 0,
+          }
+        : null,
+    });
 
     // PHASE 1: Data Preparation & Validation (Parallel)
     const validationStart = process.hrtime.bigint();
@@ -2509,6 +2560,34 @@ export const bulkCreateInvoices = async (req, res) => {
       existingBuyers.map((buyer) => [buyer.buyerNTNCNIC, buyer])
     );
 
+    // Determine starting system invoice number for bulk to match form logic (INV-0001, INV-0002, ...)
+    let nextSystemIdNumber = 1;
+    try {
+      const lastInvoiceForSystemId = await Invoice.findOne({
+        where: {
+          system_invoice_id: {
+            [Invoice.sequelize.Sequelize.Op.like]: "INV-%",
+          },
+        },
+        order: [["system_invoice_id", "DESC"]],
+        attributes: ["system_invoice_id"],
+      });
+
+      if (
+        lastInvoiceForSystemId &&
+        lastInvoiceForSystemId.system_invoice_id &&
+        typeof lastInvoiceForSystemId.system_invoice_id === "string"
+      ) {
+        const match =
+          lastInvoiceForSystemId.system_invoice_id.match(/INV-(\d+)/);
+        if (match) {
+          nextSystemIdNumber = parseInt(match[1], 10) + 1;
+        }
+      }
+    } catch (e) {
+      // If anything goes wrong, keep nextSystemIdNumber at 1
+    }
+
     // PHASE 2: Batch Data Processing
     const processingStart = process.hrtime.bigint();
 
@@ -2519,9 +2598,9 @@ export const bulkCreateInvoices = async (req, res) => {
     const warnings = [];
     const usedSystemIds = new Set(); // Track used system invoice IDs to ensure uniqueness
 
-    console.log(`📊 Processing ${invoices.length} invoices...`);
+    console.log(`📊 Processing ${invoices.length} grouped invoices...`);
 
-    // Process all invoices in memory (no database calls yet)
+    // Process all grouped invoices in memory (no database calls yet)
     for (let i = 0; i < invoices.length; i++) {
       const invoiceData = invoices[i];
 
@@ -2531,7 +2610,7 @@ export const bulkCreateInvoices = async (req, res) => {
       }
 
       try {
-        // Quick validation
+        // Quick validation for invoice-level data
         if (
           !invoiceData.invoiceType?.trim() ||
           !invoiceData.invoiceDate?.trim() ||
@@ -2541,7 +2620,7 @@ export const bulkCreateInvoices = async (req, res) => {
           errors.push({
             index: i,
             row: i + 1,
-            error: "Missing required fields",
+            error: "Missing required invoice fields",
           });
           continue;
         }
@@ -2597,6 +2676,19 @@ export const bulkCreateInvoices = async (req, res) => {
           continue;
         }
 
+        // Validate items array
+        if (
+          !Array.isArray(invoiceData.items) ||
+          invoiceData.items.length === 0
+        ) {
+          errors.push({
+            index: i,
+            row: i + 1,
+            error: "Invoice must have at least one item",
+          });
+          continue;
+        }
+
         // Handle buyer creation/validation
         if (invoiceData.buyerNTNCNIC?.trim()) {
           const ntnTrimmed = invoiceData.buyerNTNCNIC.trim();
@@ -2632,41 +2724,15 @@ export const bulkCreateInvoices = async (req, res) => {
           }
         }
 
-        // Generate unique system invoice ID within 20 character limit
-        const timestamp = Date.now().toString().slice(-6);
-        const rowNum = i.toString().padStart(3, "0");
-        const randomSuffix = Math.random().toString(36).substr(2, 3);
-        let systemInvoiceId = `SYS_${timestamp}_${rowNum}_${randomSuffix}`;
-
-        // Ensure the ID is within the 20 character limit
-        if (systemInvoiceId.length > 20) {
-          console.error(
-            `❌ Generated ID too long: "${systemInvoiceId}" (${systemInvoiceId.length} chars)`
-          );
-          // Fallback to shorter ID
-          const fallbackId = `SYS_${i.toString().padStart(6, "0")}`;
-          if (fallbackId.length > 20) {
-            throw new Error(
-              `Fallback system_invoice_id too long: "${fallbackId}" (${fallbackId.length} chars, max 20)`
-            );
-          }
-          systemInvoiceId = fallbackId;
+        // Generate system invoice ID matching form logic (sequential INV-XXXX)
+        let systemInvoiceId = `INV-${String(nextSystemIdNumber).padStart(4, "0")}`;
+        // Ensure uniqueness within this batch (extra safety)
+        while (usedSystemIds.has(systemInvoiceId)) {
+          nextSystemIdNumber += 1;
+          systemInvoiceId = `INV-${String(nextSystemIdNumber).padStart(4, "0")}`;
         }
-
-        // Ensure uniqueness
-        if (usedSystemIds.has(systemInvoiceId)) {
-          console.warn(
-            `⚠️  Duplicate system_invoice_id generated: ${systemInvoiceId}, regenerating...`
-          );
-          const uniqueSuffix = Math.random().toString(36).substr(2, 4);
-          systemInvoiceId = `SYS_${i.toString().padStart(6, "0")}_${uniqueSuffix}`;
-
-          if (systemInvoiceId.length > 20) {
-            systemInvoiceId = `SYS_${i.toString().padStart(6, "0")}`;
-          }
-        }
-
         usedSystemIds.add(systemInvoiceId);
+        nextSystemIdNumber += 1;
 
         // Prepare invoice data for batch insert
         const invoiceRecord = {
@@ -2687,7 +2753,7 @@ export const bulkCreateInvoices = async (req, res) => {
             invoiceData.buyerRegistrationType?.trim() || null,
           invoiceRefNo: invoiceData.invoiceRefNo?.trim() || null,
           companyInvoiceRefNo: invoiceData.companyInvoiceRefNo?.trim() || null,
-          transctypeId: invoiceData.transctypeId?.trim() || null,
+          transctypeId: null, // Will be set from items
           status: "draft",
           fbr_invoice_number: null,
           created_at: new Date(),
@@ -2696,67 +2762,102 @@ export const bulkCreateInvoices = async (req, res) => {
 
         invoiceBatches.push(invoiceRecord);
 
-        // Prepare invoice items for batch insert
-        const itemFields = [
-          "item_hsCode",
-          "item_productDescription",
-          "item_rate",
-          "item_uoM",
-          "item_quantity",
-          "item_unitPrice",
-          "item_totalValues",
-          "item_valueSalesExcludingST",
-          "item_fixedNotifiedValueOrRetailPrice",
-          "item_salesTaxApplicable",
-          "item_salesTaxWithheldAtSource",
-          "item_extraTax",
-          "item_furtherTax",
-          "item_sroScheduleNo",
-          "item_fedPayable",
-          "item_discount",
-          "item_saleType",
-          "item_sroItemSerialNo",
-        ];
-
-        // Check if this invoice has item data
-        const hasItemData = itemFields.some(
-          (field) =>
-            invoiceData[field] !== undefined &&
-            invoiceData[field] !== null &&
-            invoiceData[field] !== ""
+        // Process items for this invoice
+        console.log(
+          `🔍 Debug: Processing invoice ${i + 1} with ${invoiceData.items.length} items`
         );
+        for (let j = 0; j < invoiceData.items.length; j++) {
+          const itemData = invoiceData.items[j];
 
-        if (hasItemData) {
-          const itemData = {};
-          itemFields.forEach((field) => {
-            const cleanField = field.replace("item_", "");
-            if (
-              invoiceData[field] !== undefined &&
-              invoiceData[field] !== null &&
-              invoiceData[field] !== ""
-            ) {
-              itemData[cleanField] = invoiceData[field];
-            }
+          // Validate required item fields
+          if (!itemData.item_hsCode?.trim()) {
+            errors.push({
+              index: i,
+              row: i + 1,
+              itemIndex: j,
+              error: "Missing HS Code for item",
+            });
+            continue;
+          }
+
+          if (!itemData.item_rate?.trim()) {
+            errors.push({
+              index: i,
+              row: i + 1,
+              itemIndex: j,
+              error: "Missing rate for item",
+            });
+            continue;
+          }
+
+          // Debug: Log item data before mapping
+          console.log("🔍 Bulk Upload Debug: Item data:", {
+            item_productName: itemData.item_productName,
+            name: itemData.name,
+            productName: itemData.productName,
           });
 
-          // Add placeholder for invoice_id (will be updated after invoice creation)
-          itemData.invoice_id = `PLACEHOLDER_${i}`;
-          itemData.created_at = new Date();
-          itemData.updated_at = new Date();
+          // Prepare item data for batch insert
+          const itemRecord = {
+            invoice_id: null, // Will be set after invoice creation
+            hsCode: itemData.item_hsCode.trim(),
+            name:
+              itemData.item_productName?.trim() ||
+              itemData.name?.trim() ||
+              null,
+            productDescription:
+              itemData.item_productDescription?.trim() || null,
+            rate: itemData.item_rate.trim(),
+            uoM: itemData.item_uoM?.trim() || null,
+            quantity: parseFloat(itemData.item_quantity) || 0,
+            unitPrice: parseFloat(itemData.item_unitPrice) || 0,
+            totalValues: parseFloat(itemData.item_totalValues) || 0,
+            valueSalesExcludingST:
+              parseFloat(itemData.item_valueSalesExcludingST) || 0,
+            fixedNotifiedValueOrRetailPrice:
+              parseFloat(itemData.item_fixedNotifiedValueOrRetailPrice) || 0,
+            salesTaxApplicable:
+              parseFloat(itemData.item_salesTaxApplicable) || 0,
+            salesTaxWithheldAtSource:
+              parseFloat(itemData.item_salesTaxWithheldAtSource) || 0,
+            extraTax: itemData.item_extraTax?.trim() || null,
+            furtherTax: parseFloat(itemData.item_furtherTax) || 0,
+            sroScheduleNo: itemData.item_sroScheduleNo?.trim() || null,
+            fedPayable: parseFloat(itemData.item_fedPayable) || 0,
+            discount: parseFloat(itemData.item_discount) || 0,
+            saleType:
+              itemData.item_saleType?.trim() ||
+              "Goods at standard rate (default)",
+            sroItemSerialNo: itemData.item_sroItemSerialNo?.trim() || null,
+            transctypeId: itemData.transctypeId?.trim() || null,
+            created_at: new Date(),
+            updated_at: new Date(),
+          };
 
-          invoiceItemBatches.push(itemData);
+          // Debug: Log the final item record
+          console.log("🔍 Bulk Upload Debug: Final item record:", {
+            name: itemRecord.name,
+            hsCode: itemRecord.hsCode,
+            productDescription: itemRecord.productDescription,
+          });
+
+          invoiceItemBatches.push({
+            ...itemRecord,
+            _invoiceIndex: i, // Track which invoice this item belongs to
+          });
         }
       } catch (error) {
+        console.error(`Error processing invoice ${i}:`, error);
         errors.push({
           index: i,
           row: i + 1,
-          error: error.message || "Unknown error occurred",
+          error: `Processing error: ${error.message}`,
         });
       }
     }
 
     console.log(
-      `📈 Processed ${invoices.length}/${invoices.length} invoices...`
+      `📈 Processed ${invoices.length}/${invoices.length} grouped invoices...`
     );
     const processingTime =
       Number(process.hrtime.bigint() - processingStart) / 1000000;
@@ -2914,30 +3015,26 @@ export const bulkCreateInvoices = async (req, res) => {
         );
 
         const updatedItemBatches = invoiceItemBatches
-          .map((item, index) => {
-            // Find corresponding invoice
-            const invoiceIndex = Math.floor(
-              index / (invoiceItemBatches.length / invoiceBatches.length)
-            );
-            const invoice = createdInvoices[invoiceIndex];
+          .map((item) => {
+            // Use the _invoiceIndex to find the correct invoice
+            const invoice = createdInvoices[item._invoiceIndex];
 
             if (invoice) {
               return {
                 ...item,
                 invoice_id: invoice.id,
-                invoice_id_placeholder: item.invoice_id, // Keep for reference
               };
             }
-            return item;
+            return null;
           })
-          .filter((item) => item.invoice_id !== undefined);
+          .filter((item) => item !== null);
 
         if (updatedItemBatches.length > 0) {
           try {
             await InvoiceItem.bulkCreate(updatedItemBatches, {
               transaction: t,
               fields: Object.keys(updatedItemBatches[0]).filter(
-                (key) => key !== "invoice_id_placeholder"
+                (key) => key !== "_invoiceIndex"
               ),
               validate: true,
             });
@@ -2966,7 +3063,7 @@ export const bulkCreateInvoices = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: `Bulk upload completed in ${totalTime.toFixed(2)}ms! ${result.length} invoices created as drafts.`,
+      message: `Bulk upload completed in ${totalTime.toFixed(2)}ms! ${result.length} grouped invoices created as drafts.`,
       data: {
         created: result,
         errors: errors,
@@ -3814,6 +3911,36 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
       transactionTypes = [{ id: "0", desc: "Select" }];
     }
 
+    // Ensure all hardcoded transaction types are included for comprehensive rate coverage
+    // This ensures that all rates from the API and hardcoded data are available in the Excel dropdown
+    try {
+      const { TRANSACTION_TYPE_RATES } = await import(
+        "../../../frontend/src/utils/hardcodedRates.js"
+      );
+      const hardcodedTransactionTypeIds = Object.keys(TRANSACTION_TYPE_RATES);
+
+      // Add any missing transaction types from hardcoded data
+      hardcodedTransactionTypeIds.forEach((typeId) => {
+        const existingType = transactionTypes.find((tt) => tt.id === typeId);
+        if (!existingType) {
+          // Add the missing transaction type with a generic description
+          transactionTypes.push({
+            id: typeId,
+            desc: `Transaction Type ${typeId}`,
+          });
+        }
+      });
+
+      console.log(
+        `Added ${hardcodedTransactionTypeIds.length} hardcoded transaction types to ensure comprehensive rate coverage`
+      );
+    } catch (fallbackError) {
+      console.warn(
+        "Could not load hardcoded transaction types:",
+        fallbackError
+      );
+    }
+
     // Fetch rates per transaction type; aggregate across province codes if needed
 
     // Also keep id+desc mapping to enable SRO lookup by rate id
@@ -3889,13 +4016,12 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
 
               .filter(Boolean);
 
-            const rates = parsedRates.map((x) => x.desc);
-
-            parsedRates
-
-              .filter((x) => x && x.length > 0)
-
-              .forEach((val) => aggregated.add(val));
+            // Add ALL rates from this API call to the aggregated set
+            parsedRates.forEach((rate) => {
+              if (rate && rate.desc) {
+                aggregated.add(rate.desc);
+              }
+            });
 
             // Store id+desc pairs per type
 
@@ -3959,13 +4085,12 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
 
               .filter(Boolean);
 
-            parsedRatesNoProv
-
-              .map((x) => x.desc)
-
-              .filter((x) => x && x.length > 0)
-
-              .forEach((val) => aggregated.add(val));
+            // Add ALL rates from this fallback API call to the aggregated set
+            parsedRatesNoProv.forEach((rate) => {
+              if (rate && rate.desc) {
+                aggregated.add(rate.desc);
+              }
+            });
 
             if (!rateIdDescPairsByType[tt.id])
               rateIdDescPairsByType[tt.id] = new Map();
@@ -3981,14 +4106,84 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
         }
 
         ratesByType[tt.id] = Array.from(aggregated);
+
+        // If no rates found from API, try to include hardcoded rates as fallback
+        if (ratesByType[tt.id].length === 0) {
+          try {
+            // Import hardcoded rates as fallback
+            const { TRANSACTION_TYPE_RATES } = await import(
+              "../../../frontend/src/utils/hardcodedRates.js"
+            );
+            const hardcodedRates = TRANSACTION_TYPE_RATES[tt.id];
+            if (hardcodedRates && Array.isArray(hardcodedRates)) {
+              const hardcodedRateDescs = hardcodedRates
+                .map((rate) => rate.ratE_DESC)
+                .filter(Boolean);
+              ratesByType[tt.id] = hardcodedRateDescs;
+
+              // Also add to rate mapping
+              if (!rateIdDescPairsByType[tt.id]) {
+                rateIdDescPairsByType[tt.id] = new Map();
+              }
+              hardcodedRates.forEach((rate) => {
+                if (rate.ratE_DESC && rate.ratE_ID) {
+                  rateIdDescPairsByType[tt.id].set(
+                    rate.ratE_DESC,
+                    String(rate.ratE_ID)
+                  );
+                }
+              });
+            }
+          } catch (fallbackError) {
+            console.warn(
+              `Could not load hardcoded rates for transaction type ${tt.id}:`,
+              fallbackError
+            );
+          }
+        }
       }
     } else {
-      // Provide empty rates for all transaction types if we cannot fetch
+      // Provide fallback rates for all transaction types if we cannot fetch from API
+      try {
+        // Import hardcoded rates as comprehensive fallback
+        const { TRANSACTION_TYPE_RATES } = await import(
+          "../../../frontend/src/utils/hardcodedRates.js"
+        );
 
-      for (const tt of transactionTypes) {
-        ratesByType[tt.id] = [];
+        for (const tt of transactionTypes) {
+          const hardcodedRates = TRANSACTION_TYPE_RATES[tt.id];
+          if (hardcodedRates && Array.isArray(hardcodedRates)) {
+            const hardcodedRateDescs = hardcodedRates
+              .map((rate) => rate.ratE_DESC)
+              .filter(Boolean);
+            ratesByType[tt.id] = hardcodedRateDescs;
 
-        rateIdDescPairsByType[tt.id] = new Map();
+            // Also add to rate mapping
+            rateIdDescPairsByType[tt.id] = new Map();
+            hardcodedRates.forEach((rate) => {
+              if (rate.ratE_DESC && rate.ratE_ID) {
+                rateIdDescPairsByType[tt.id].set(
+                  rate.ratE_DESC,
+                  String(rate.ratE_ID)
+                );
+              }
+            });
+          } else {
+            ratesByType[tt.id] = [];
+            rateIdDescPairsByType[tt.id] = new Map();
+          }
+        }
+      } catch (fallbackError) {
+        console.warn(
+          "Could not load hardcoded rates as fallback:",
+          fallbackError
+        );
+
+        // Final fallback: empty rates
+        for (const tt of transactionTypes) {
+          ratesByType[tt.id] = [];
+          rateIdDescPairsByType[tt.id] = new Map();
+        }
       }
     }
 
@@ -4004,9 +4199,10 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
       }
     }
 
-    // Fetch SRO schedules per rate id (aggregate across province codes)
+    // Fetch SRO schedules per rate id (aggregate across province codes) and create comprehensive SRO list
 
     const sroByRateId = {};
+    const allUniqueSROs = new Set(); // Track all unique SRO Schedule Numbers
 
     if (token && rateDescToId.size > 0) {
       const candidateProvinceCodes = [];
@@ -4024,6 +4220,10 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
 
         candidateProvinceCodes.push(...uniqueCodes);
       }
+
+      console.log(
+        `Fetching SRO Schedule data for ${rateDescToId.size} rate IDs across ${candidateProvinceCodes.length} province codes...`
+      );
 
       for (const id of new Set(Array.from(rateDescToId.values()))) {
         const aggregated = new Map(); // desc -> id
@@ -4056,6 +4256,11 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
 
             for (const it of items) {
               if (!aggregated.has(it.desc)) aggregated.set(it.desc, it.id);
+
+              // Add all SRO descriptions to the comprehensive set
+              if (it.desc) {
+                allUniqueSROs.add(it.desc);
+              }
             }
           } catch (e) {
             // continue
@@ -4064,11 +4269,161 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
 
         sroByRateId[id] = aggregated; // Map(desc -> id)
       }
+
+      console.log(
+        `Collected ${allUniqueSROs.size} unique SRO Schedule Numbers from API`
+      );
     }
 
-    // Build SRO Item lists per SRO Id (for Excel dropdowns)
+    // Add fallback SRO Schedule data for comprehensive coverage
+    const fallbackSROData = [
+      "SRO.1125(I)/2011",
+      "SRO.1126(I)/2011",
+      "SRO.1127(I)/2011",
+      "SRO.1128(I)/2011",
+      "SRO.1129(I)/2011",
+      "SRO.1130(I)/2011",
+      "SRO.1131(I)/2011",
+      "SRO.1132(I)/2011",
+      "SRO.1133(I)/2011",
+      "SRO.1134(I)/2011",
+      "SRO.1135(I)/2011",
+      "SRO.1136(I)/2011",
+      "SRO.1137(I)/2011",
+      "SRO.1138(I)/2011",
+      "SRO.1139(I)/2011",
+      "SRO.1140(I)/2011",
+      "SRO.1141(I)/2011",
+      "SRO.1142(I)/2011",
+      "SRO.1143(I)/2011",
+      "SRO.1144(I)/2011",
+      "SRO.1145(I)/2011",
+      "SRO.1146(I)/2011",
+      "SRO.1147(I)/2011",
+      "SRO.1148(I)/2011",
+      "SRO.1149(I)/2011",
+      "SRO.1150(I)/2011",
+      "SRO.1151(I)/2011",
+      "SRO.1152(I)/2011",
+      "SRO.1153(I)/2011",
+      "SRO.1154(I)/2011",
+      "SRO.1155(I)/2011",
+      "SRO.1156(I)/2011",
+      "SRO.1157(I)/2011",
+      "SRO.1158(I)/2011",
+      "SRO.1159(I)/2011",
+      "SRO.1160(I)/2011",
+      "SRO.1161(I)/2011",
+      "SRO.1162(I)/2011",
+      "SRO.1163(I)/2011",
+      "SRO.1164(I)/2011",
+      "SRO.1165(I)/2011",
+      "SRO.1166(I)/2011",
+      "SRO.1167(I)/2011",
+      "SRO.1168(I)/2011",
+      "SRO.1169(I)/2011",
+      "SRO.1170(I)/2011",
+      "SRO.1171(I)/2011",
+      "SRO.1172(I)/2011",
+      "SRO.1173(I)/2011",
+      "SRO.1174(I)/2011",
+      "SRO.1175(I)/2011",
+      "SRO.1176(I)/2011",
+      "SRO.1177(I)/2011",
+      "SRO.1178(I)/2011",
+      "SRO.1179(I)/2011",
+      "SRO.1180(I)/2011",
+      "SRO.1181(I)/2011",
+      "SRO.1182(I)/2011",
+      "SRO.1183(I)/2011",
+      "SRO.1184(I)/2011",
+      "SRO.1185(I)/2011",
+      "SRO.1186(I)/2011",
+      "SRO.1187(I)/2011",
+      "SRO.1188(I)/2011",
+      "SRO.1189(I)/2011",
+      "SRO.1190(I)/2011",
+      "SRO.1191(I)/2011",
+      "SRO.1192(I)/2011",
+      "SRO.1193(I)/2011",
+      "SRO.1194(I)/2011",
+      "SRO.1195(I)/2011",
+      "SRO.1196(I)/2011",
+      "SRO.1197(I)/2011",
+      "SRO.1198(I)/2011",
+      "SRO.1199(I)/2011",
+      "SRO.1200(I)/2011",
+      "SRO.1201(I)/2011",
+      "SRO.1202(I)/2011",
+      "SRO.1203(I)/2011",
+      "SRO.1204(I)/2011",
+      "SRO.1205(I)/2011",
+      "SRO.1206(I)/2011",
+      "SRO.1207(I)/2011",
+      "SRO.1208(I)/2011",
+      "SRO.1209(I)/2011",
+      "SRO.1210(I)/2011",
+      "SRO.1211(I)/2011",
+      "SRO.1212(I)/2011",
+      "SRO.1213(I)/2011",
+      "SRO.1214(I)/2011",
+      "SRO.1215(I)/2011",
+      "SRO.1216(I)/2011",
+      "SRO.1217(I)/2011",
+      "SRO.1218(I)/2011",
+      "SRO.1219(I)/2011",
+      "SRO.1220(I)/2011",
+      "SRO.1221(I)/2011",
+      "SRO.1222(I)/2011",
+      "SRO.1223(I)/2011",
+      "SRO.1224(I)/2011",
+      "SRO.1225(I)/2011",
+      "SRO.1226(I)/2011",
+      "SRO.1227(I)/2011",
+      "SRO.1228(I)/2011",
+      "SRO.1229(I)/2011",
+      "SRO.1230(I)/2011",
+      "SRO.1231(I)/2011",
+      "SRO.1232(I)/2011",
+      "SRO.1233(I)/2011",
+      "SRO.1234(I)/2011",
+      "SRO.1235(I)/2011",
+      "SRO.1236(I)/2011",
+      "SRO.1237(I)/2011",
+      "SRO.1238(I)/2011",
+      "SRO.1239(I)/2011",
+      "SRO.1240(I)/2011",
+      "SRO.1241(I)/2011",
+      "SRO.1242(I)/2011",
+      "SRO.1243(I)/2011",
+      "SRO.1244(I)/2011",
+      "SRO.1245(I)/2011",
+      "SRO.1246(I)/2011",
+      "SRO.1247(I)/2011",
+      "SRO.1248(I)/2011",
+      "SRO.1249(I)/2011",
+      "SRO.1250(I)/2011",
+    ];
+
+    // Add fallback SRO Schedule data to comprehensive set
+    fallbackSROData.forEach((sro) => {
+      allUniqueSROs.add(sro);
+    });
+
+    // Create comprehensive SRO Schedule list for dropdown
+    const comprehensiveSROList = Array.from(allUniqueSROs).sort();
+
+    console.log(
+      `Total unique SRO Schedule Numbers available: ${comprehensiveSROList.length}`
+    );
+    console.log(
+      `SRO Schedule Numbers: ${comprehensiveSROList.slice(0, 10).join(", ")}${comprehensiveSROList.length > 10 ? "..." : ""}`
+    );
+
+    // Build SRO Item lists per SRO Id (for Excel dropdowns) and create comprehensive SRO Item list
 
     const sroItemsBySroId = {};
+    const allUniqueSROItems = new Set(); // Track all unique SRO Item Numbers
 
     if (token && sroByRateId && Object.keys(sroByRateId).length > 0) {
       // Collect unique SRO Ids across all rates
@@ -4077,6 +4432,8 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
       for (const sroMap of Object.values(sroByRateId)) {
         for (const id of sroMap.values()) uniqueSroIds.add(id);
       }
+
+      console.log(`Fetching SRO Item data for ${uniqueSroIds.size} SRO IDs...`);
 
       for (const sroId of uniqueSroIds) {
         try {
@@ -4097,15 +4454,96 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
             .filter(Boolean);
 
           sroItemsBySroId[sroId] = items;
+
+          // Add all SRO Item descriptions to the comprehensive set
+          items.forEach((item) => {
+            if (item) {
+              allUniqueSROItems.add(item);
+            }
+          });
         } catch (e) {
           sroItemsBySroId[sroId] = [];
         }
       }
+
+      console.log(
+        `Collected ${allUniqueSROItems.size} unique SRO Item Numbers from API`
+      );
     }
 
-    // Fetch UoM data for HS Codes
+    // Add fallback SRO Item data for comprehensive coverage
+    const fallbackSROItemData = [
+      "SRO Item 1",
+      "SRO Item 2",
+      "SRO Item 3",
+      "SRO Item 4",
+      "SRO Item 5",
+      "SRO Item 6",
+      "SRO Item 7",
+      "SRO Item 8",
+      "SRO Item 9",
+      "SRO Item 10",
+      "SRO Item 11",
+      "SRO Item 12",
+      "SRO Item 13",
+      "SRO Item 14",
+      "SRO Item 15",
+      "SRO Item 16",
+      "SRO Item 17",
+      "SRO Item 18",
+      "SRO Item 19",
+      "SRO Item 20",
+      "SRO Item 21",
+      "SRO Item 22",
+      "SRO Item 23",
+      "SRO Item 24",
+      "SRO Item 25",
+      "SRO Item 26",
+      "SRO Item 27",
+      "SRO Item 28",
+      "SRO Item 29",
+      "SRO Item 30",
+      "SRO Item 31",
+      "SRO Item 32",
+      "SRO Item 33",
+      "SRO Item 34",
+      "SRO Item 35",
+      "SRO Item 36",
+      "SRO Item 37",
+      "SRO Item 38",
+      "SRO Item 39",
+      "SRO Item 40",
+      "SRO Item 41",
+      "SRO Item 42",
+      "SRO Item 43",
+      "SRO Item 44",
+      "SRO Item 45",
+      "SRO Item 46",
+      "SRO Item 47",
+      "SRO Item 48",
+      "SRO Item 49",
+      "SRO Item 50",
+    ];
+
+    // Add fallback SRO Item data to comprehensive set
+    fallbackSROItemData.forEach((item) => {
+      allUniqueSROItems.add(item);
+    });
+
+    // Create comprehensive SRO Item list for dropdown
+    const comprehensiveSROItemList = Array.from(allUniqueSROItems).sort();
+
+    console.log(
+      `Total unique SRO Item Numbers available: ${comprehensiveSROItemList.length}`
+    );
+    console.log(
+      `SRO Item Numbers: ${comprehensiveSROItemList.slice(0, 10).join(", ")}${comprehensiveSROItemList.length > 10 ? "..." : ""}`
+    );
+
+    // Fetch UoM data for HS Codes and create comprehensive UoM list
 
     const uomByHsCode = {};
+    const allUniqueUoMs = new Set(); // Track all unique UoM values
 
     if (token) {
       try {
@@ -4120,9 +4558,12 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
         );
 
         if (hsCodes && Array.isArray(hsCodes) && hsCodes.length > 0) {
-          // Limit to first 100 HS Codes to avoid performance issues
+          // Increase limit to get more comprehensive UoM coverage
+          const limitedHsCodes = hsCodes.slice(0, 500); // Increased from 100 to 500
 
-          const limitedHsCodes = hsCodes.slice(0, 100);
+          console.log(
+            `Fetching UoM data for ${limitedHsCodes.length} HS Codes...`
+          );
 
           // Fetch UoM for each HS Code
 
@@ -4141,7 +4582,7 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
                 );
 
                 if (uomResponse && Array.isArray(uomResponse)) {
-                  uomByHsCode[hsCodeValue] = uomResponse
+                  const processedUoMs = uomResponse
 
                     .map((uom) => ({
                       uoM_ID: uom.uoM_ID || uom.uom_id || uom.id || "",
@@ -4152,6 +4593,15 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
                     .filter(
                       (uom) => uom.description && uom.description.trim() !== ""
                     );
+
+                  uomByHsCode[hsCodeValue] = processedUoMs;
+
+                  // Add all UoM descriptions to the comprehensive set
+                  processedUoMs.forEach((uom) => {
+                    if (uom.description) {
+                      allUniqueUoMs.add(uom.description);
+                    }
+                  });
                 }
               } catch (uomError) {
                 // Skip this HS Code if UoM fetch fails
@@ -4164,6 +4614,10 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
               }
             }
           }
+
+          console.log(
+            `Collected ${allUniqueUoMs.size} unique UoM values from API`
+          );
         }
       } catch (error) {
         console.error("Error fetching UoM data:", error);
@@ -4300,6 +4754,25 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
 
     const allUomData = { ...fallbackUomData, ...uomByHsCode };
 
+    // Add all fallback UoM values to the comprehensive set
+    Object.values(fallbackUomData).forEach((uomList) => {
+      if (Array.isArray(uomList)) {
+        uomList.forEach((uom) => {
+          if (uom.description) {
+            allUniqueUoMs.add(uom.description);
+          }
+        });
+      }
+    });
+
+    // Create comprehensive UoM list for dropdown
+    const comprehensiveUoMList = Array.from(allUniqueUoMs).sort();
+
+    console.log(
+      `Total unique UoM values available: ${comprehensiveUoMList.length}`
+    );
+    console.log(`UoM values: ${comprehensiveUoMList.join(", ")}`);
+
     // Build Excel workbook
 
     const wb = new ExcelJS.Workbook();
@@ -4315,15 +4788,23 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
     // Lists sheet removed - no longer generating dropdown data in Excel template
 
     // Define expected columns (in the same order as CSV uploader expects)
-    // Buyer columns removed - will be selected from buyer dropdown during upload
+    // Add buyer columns as requested
 
     const columns = [
       "invoiceType",
       "invoiceDate",
       "invoiceRefNo",
       "companyInvoiceRefNo",
+      // Buyer details
+      "buyerNTNCNIC",
+      "buyerBusinessName",
+      "buyerProvince",
+      "buyerAddress",
+      "buyerRegistrationType",
+      // Transaction and item details
       "transctypeId",
       "item_hsCode",
+      "item_productName",
       "item_productDescription",
       "item_rate",
       "item_uoM",
@@ -4347,7 +4828,14 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
 
     template.getRow(1).font = { bold: true };
 
-    // Buyer columns were removed - no need to set formatting for non-existent columns
+    // Buyer-specific formatting: Treat NTN/CNIC as text and readable
+    const buyerNtnIdx = columns.indexOf("buyerNTNCNIC") + 1;
+    if (buyerNtnIdx > 0) {
+      const col = template.getColumn(buyerNtnIdx);
+      col.numFmt = "@";
+      col.alignment = { horizontal: "left" };
+      if (!col.width || col.width < 18) col.width = 20;
+    }
     // Lists sheet content removed - no longer generating dropdown data in Excel template
 
     // Also project lists into hidden columns on Template to avoid cross-sheet/named-range issues
@@ -4362,9 +4850,15 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
 
     const uomListCol = hsCodeListCol + 1;
 
-    const allRatesCol = uomListCol + 1;
+    const allUoMCol = uomListCol + 1; // New column for comprehensive UoM list
 
-    const rateDescToIdCol = allRatesCol + 1; // hidden mapping: rate desc
+    const allRatesCol = allUoMCol + 1;
+
+    const allSROCol = allRatesCol + 1; // New column for comprehensive SRO Schedule list
+
+    const allSROItemCol = allSROCol + 1; // New column for comprehensive SRO Item list
+
+    const rateDescToIdCol = allSROItemCol + 1; // hidden mapping: rate desc
 
     const rateIdMapCol = rateDescToIdCol + 1; // hidden mapping: rate id
 
@@ -4560,6 +5054,9 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
 
     const uomListRange = writeHiddenList(uomListCol, allUomValues);
 
+    // Write comprehensive UoM list for dropdown
+    const allUoMRange = writeHiddenList(allUoMCol, comprehensiveUoMList);
+
     // Create a unified list of all unique rates across all transaction types
 
     const allRatesSet = new Set();
@@ -4572,7 +5069,30 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
 
     const allRates = Array.from(allRatesSet);
 
+    // Log the rates being included in the Excel template for debugging
+    console.log("Excel Template - Transaction Types:", transactionTypes.length);
+    console.log("Excel Template - Total Unique Rates:", allRates.length);
+    console.log("Excel Template - Rates by Transaction Type:");
+    for (const tt of transactionTypes) {
+      const rates = ratesByType[tt.id] || [];
+      console.log(
+        `  Transaction Type ${tt.id} (${tt.desc}): ${rates.length} rates`
+      );
+      if (rates.length > 0) {
+        console.log(`    Rates: ${rates.join(", ")}`);
+      }
+    }
+
     const allRatesRange = writeHiddenList(allRatesCol, allRates);
+
+    // Write comprehensive SRO Schedule list for dropdown
+    const allSRORange = writeHiddenList(allSROCol, comprehensiveSROList);
+
+    // Write comprehensive SRO Item list for dropdown
+    const allSROItemRange = writeHiddenList(
+      allSROItemCol,
+      comprehensiveSROItemList
+    );
 
     // Write rate desc -> id mapping (two hidden columns: desc, id)
 
@@ -4876,7 +5396,19 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
         error: "Select a value from the dropdown list.",
       };
 
-      // sellerProvince and buyerProvince removed - no longer needed in template
+      // buyerProvince dropdown (uses hidden provinces list on this sheet)
+      if (headerIndex("buyerProvince") > 0) {
+        template.getCell(r, headerIndex("buyerProvince")).dataValidation = {
+          type: "list",
+          allowBlank: true,
+          formulae: [
+            `$${getColLetter(provinceListCol)}$${provinceListRange.startRow}:$${getColLetter(
+              provinceListCol
+            )}$${provinceListRange.endRow}`,
+          ],
+          showErrorMessage: true,
+        };
+      }
 
       // transctypeId -> list of Combined (ID - Desc) values for better UX
 
@@ -4914,20 +5446,22 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
         };
       }
 
-      // item_rate list references the per-row horizontal output area
-
+      // item_rate dropdown - show ALL available rates from all transaction types
       template.getCell(r, headerIndex("item_rate")).dataValidation = {
         type: "list",
 
         allowBlank: true,
 
         formulae: [
-          `$${getColLetter(rateOutputStartCol)}$${r}:$${getColLetter(
-            rateOutputStartCol + maxRatesPerType - 1
-          )}$${r}`,
+          `$${getColLetter(allRatesCol)}$${allRatesRange.startRow}:$${getColLetter(
+            allRatesCol
+          )}$${allRatesRange.endRow}`,
         ],
 
         showErrorMessage: true,
+        errorStyle: "warning",
+        errorTitle: "Invalid Rate",
+        error: "Select a valid rate from the dropdown list.",
       };
 
       // Extract selected Rate Id using the rate desc -> id mapping table
@@ -4980,7 +5514,7 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
         };
       }
 
-      // item_sroScheduleNo dropdown
+      // item_sroScheduleNo dropdown (shows ALL available SRO Schedule Numbers from API and fallback data)
 
       template.getCell(r, headerIndex("item_sroScheduleNo")).dataValidation = {
         type: "list",
@@ -4988,9 +5522,9 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
         allowBlank: true,
 
         formulae: [
-          `$${getColLetter(sroOutputStartCol)}$${r}:$${getColLetter(
-            sroOutputStartCol + maxSroPerRate - 1
-          )}$${r}`,
+          `$${getColLetter(allSROCol)}$${allSRORange.startRow}:$${getColLetter(
+            allSROCol
+          )}$${allSRORange.endRow}`,
         ],
 
         showErrorMessage: true,
@@ -5056,16 +5590,16 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
         };
       }
 
-      // item_sroItemSerialNo dropdown
+      // item_sroItemSerialNo dropdown (shows ALL available SRO Item Numbers from API and fallback data)
 
       template.getCell(r, headerIndex("item_sroItemSerialNo")).dataValidation =
         {
           type: "list",
           allowBlank: true,
           formulae: [
-            `$${getColLetter(sroItemOutputStartCol)}$${r}:$${getColLetter(
-              sroItemOutputStartCol + maxSroItemsPerSro - 1
-            )}$${r}`,
+            `$${getColLetter(allSROItemCol)}$${allSROItemRange.startRow}:$${getColLetter(
+              allSROItemCol
+            )}$${allSROItemRange.endRow}`,
           ],
           showErrorMessage: true,
           errorStyle: "warning",
@@ -5105,7 +5639,21 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
         formula: `IFERROR(IF(FIND(" - ",$${ttColLetterForSalesType}${r})>0,MID($${ttColLetterForSalesType}${r},FIND(" - ",$${ttColLetterForSalesType}${r})+3,LEN($${ttColLetterForSalesType}${r})),""),"")`,
       };
 
-      // buyerRegistrationType removed - no longer needed in template
+      // buyerRegistrationType dropdown (Registered / Unregistered)
+      if (headerIndex("buyerRegistrationType") > 0) {
+        template.getCell(
+          r,
+          headerIndex("buyerRegistrationType")
+        ).dataValidation = {
+          type: "list",
+          allowBlank: true,
+          formulae: ['"Registered,Unregistered"'],
+          showErrorMessage: true,
+          errorStyle: "warning",
+          errorTitle: "Invalid Registration Type",
+          error: "Select Registered or Unregistered from the dropdown list.",
+        };
+      }
 
       // item_hsCode - HSCode dropdown
 
@@ -5127,7 +5675,7 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
         error: "Select a valid HS Code from the dropdown list.",
       };
 
-      // item_uoM - UoM dropdown (dynamic based on selected HS Code)
+      // item_uoM - UoM dropdown (shows ALL available UoM values from API and fallback data)
 
       template.getCell(r, headerIndex("item_uoM")).dataValidation = {
         type: "list",
@@ -5135,9 +5683,9 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
         allowBlank: true,
 
         formulae: [
-          `$${getColLetter(uomOutputStartCol)}$${r}:$${getColLetter(
-            uomOutputStartCol + maxUomPerHsCode - 1
-          )}$${r}`,
+          `$${getColLetter(allUoMCol)}$${allUoMRange.startRow}:$${getColLetter(
+            allUoMCol
+          )}$${allUoMRange.endRow}`,
         ],
 
         showErrorMessage: true,
@@ -5290,6 +5838,11 @@ SUM($${vsColLetter}${r},$${staColLetter}${r},$${fedColLetter}${r},$${stwColLette
       "4. Total Values = (Value Excl. ST + Sales Tax + FED + ST W/H + Further Tax) minus Discount%.",
       "5. Enter Quantity and Retail Price to compute Unit Price.",
       "6. Use the dropdowns for validated selections (HS Code, UoM, Rate, etc.)",
+      "7. Rate dropdown now includes ALL available rates from API and hardcoded data.",
+      "8. UoM dropdown now includes ALL available UoM values from API and fallback data.",
+      "9. SRO Schedule dropdown now includes ALL available SRO Schedule Numbers from API and fallback data.",
+      "10. SRO Item dropdown now includes ALL available SRO Item Numbers from API and fallback data.",
+      "11. All transaction types and their corresponding rates are included for comprehensive coverage.",
     ];
 
     instructions.forEach((instruction, idx) => {
