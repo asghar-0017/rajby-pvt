@@ -49,26 +49,31 @@ export const getPerformanceMetrics = async (req, res) => {
     const lastUploadTime = dbStats[0]?.last_upload_time;
 
     // Calculate average processing time
-    const avgProcessingTime = hourlyStats.reduce((sum, stat) => 
-      sum + (stat.avg_processing_time_microseconds || 0), 0
-    ) / Math.max(hourlyStats.length, 1);
+    const avgProcessingTime =
+      hourlyStats.reduce(
+        (sum, stat) => sum + (stat.avg_processing_time_microseconds || 0),
+        0
+      ) / Math.max(hourlyStats.length, 1);
 
     // Performance recommendations
     const recommendations = [];
-    
-    if (avgProcessingTime > 1000000) { // > 1 second
+
+    if (avgProcessingTime > 1000000) {
+      // > 1 second
       recommendations.push({
-        type: 'warning',
-        message: 'Average processing time is high. Consider optimizing database indexes.',
-        priority: 'high'
+        type: "warning",
+        message:
+          "Average processing time is high. Consider optimizing database indexes.",
+        priority: "high",
       });
     }
-    
+
     if (draftInvoices > totalInvoices * 0.8) {
       recommendations.push({
-        type: 'info',
-        message: 'High percentage of draft invoices. Consider batch processing.',
-        priority: 'medium'
+        type: "info",
+        message:
+          "High percentage of draft invoices. Consider batch processing.",
+        priority: "medium",
       });
     }
 
@@ -80,27 +85,26 @@ export const getPerformanceMetrics = async (req, res) => {
           draftInvoices,
           postedInvoices,
           invoicesLast24h,
-          lastUploadTime
+          lastUploadTime,
         },
         performance: {
           avgProcessingTimeMicroseconds: Math.round(avgProcessingTime),
           avgProcessingTimeMs: (avgProcessingTime / 1000).toFixed(2),
-          hourlyStats
+          hourlyStats,
         },
         database: {
           tableStats,
-          recommendations
+          recommendations,
         },
-        timestamp: new Date().toISOString()
-      }
+        timestamp: new Date().toISOString(),
+      },
     });
-
   } catch (error) {
-    console.error('Error getting performance metrics:', error);
+    console.error("Error getting performance metrics:", error);
     res.status(500).json({
       success: false,
-      message: 'Error retrieving performance metrics',
-      error: error.message
+      message: "Error retrieving performance metrics",
+      error: error.message,
     });
   }
 };
@@ -128,16 +132,18 @@ export const getUploadPerformance = async (req, res) => {
 
     // Calculate performance metrics
     const totalUploads = recentUploads.length;
-    const avgProcessingTime = recentUploads.reduce((sum, upload) => 
-      sum + (upload.processing_time_microseconds || 0), 0
-    ) / Math.max(totalUploads, 1);
+    const avgProcessingTime =
+      recentUploads.reduce(
+        (sum, upload) => sum + (upload.processing_time_microseconds || 0),
+        0
+      ) / Math.max(totalUploads, 1);
 
-    const fastUploads = recentUploads.filter(upload => 
-      (upload.processing_time_microseconds || 0) < 1000000
+    const fastUploads = recentUploads.filter(
+      (upload) => (upload.processing_time_microseconds || 0) < 1000000
     ).length; // < 1 second
 
-    const slowUploads = recentUploads.filter(upload => 
-      (upload.processing_time_microseconds || 0) > 5000000
+    const slowUploads = recentUploads.filter(
+      (upload) => (upload.processing_time_microseconds || 0) > 5000000
     ).length; // > 5 seconds
 
     res.status(200).json({
@@ -149,19 +155,21 @@ export const getUploadPerformance = async (req, res) => {
           avgProcessingTimeMs: (avgProcessingTime / 1000).toFixed(2),
           fastUploads,
           slowUploads,
-          fastUploadPercentage: totalUploads > 0 ? ((fastUploads / totalUploads) * 100).toFixed(1) : 0
+          fastUploadPercentage:
+            totalUploads > 0
+              ? ((fastUploads / totalUploads) * 100).toFixed(1)
+              : 0,
         },
         uploads: recentUploads.slice(0, 20), // Return first 20 for detailed view
-        timestamp: new Date().toISOString()
-      }
+        timestamp: new Date().toISOString(),
+      },
     });
-
   } catch (error) {
-    console.error('Error getting upload performance:', error);
+    console.error("Error getting upload performance:", error);
     res.status(500).json({
       success: false,
-      message: 'Error retrieving upload performance',
-      error: error.message
+      message: "Error retrieving upload performance",
+      error: error.message,
     });
   }
 };
@@ -209,21 +217,26 @@ export const getOptimizationRecommendations = async (req, res) => {
 
     if (missingIndexes.length > 0) {
       recommendations.push({
-        type: 'critical',
+        type: "critical",
         message: `Missing indexes on ${missingIndexes.length} columns. This will significantly impact upload performance.`,
-        details: missingIndexes.map(idx => `${idx.table_name}.${idx.column_name}`),
-        priority: 'critical',
-        action: 'Run ultra-fast optimization script'
+        details: missingIndexes.map(
+          (idx) => `${idx.table_name}.${idx.column_name}`
+        ),
+        priority: "critical",
+        action: "Run ultra-fast optimization script",
       });
     }
 
     if (slowQueries.length > 0) {
       recommendations.push({
-        type: 'warning',
+        type: "warning",
         message: `${slowQueries.length} slow queries detected. Consider query optimization.`,
-        details: slowQueries.map(q => `${q.sql_text?.substring(0, 100)}... (${q.avg_time_seconds.toFixed(2)}s avg)`),
-        priority: 'high',
-        action: 'Review and optimize slow queries'
+        details: slowQueries.map(
+          (q) =>
+            `${q.sql_text?.substring(0, 100)}... (${q.avg_time_seconds.toFixed(2)}s avg)`
+        ),
+        priority: "high",
+        action: "Review and optimize slow queries",
       });
     }
 
@@ -232,15 +245,17 @@ export const getOptimizationRecommendations = async (req, res) => {
       SHOW VARIABLES LIKE 'innodb_buffer_pool_size'
     `);
 
-    const bufferPoolSize = parseInt(dbConfig[0]?.Value || '0') / (1024 * 1024 * 1024); // Convert to GB
+    const bufferPoolSize =
+      parseInt(dbConfig[0]?.Value || "0") / (1024 * 1024 * 1024); // Convert to GB
 
     if (bufferPoolSize < 1) {
       recommendations.push({
-        type: 'info',
-        message: 'InnoDB buffer pool size is less than 1GB. Consider increasing for better bulk upload performance.',
+        type: "info",
+        message:
+          "InnoDB buffer pool size is less than 1GB. Consider increasing for better bulk upload performance.",
         details: `Current: ${bufferPoolSize.toFixed(2)}GB, Recommended: 1-4GB`,
-        priority: 'medium',
-        action: 'Increase innodb_buffer_pool_size'
+        priority: "medium",
+        action: "Increase innodb_buffer_pool_size",
       });
     }
 
@@ -251,18 +266,17 @@ export const getOptimizationRecommendations = async (req, res) => {
         missingIndexes: missingIndexes.length,
         slowQueries: slowQueries.length,
         databaseConfig: {
-          bufferPoolSizeGB: bufferPoolSize.toFixed(2)
+          bufferPoolSizeGB: bufferPoolSize.toFixed(2),
         },
-        timestamp: new Date().toISOString()
-      }
+        timestamp: new Date().toISOString(),
+      },
     });
-
   } catch (error) {
-    console.error('Error getting optimization recommendations:', error);
+    console.error("Error getting optimization recommendations:", error);
     res.status(500).json({
       success: false,
-      message: 'Error retrieving optimization recommendations',
-      error: error.message
+      message: "Error retrieving optimization recommendations",
+      error: error.message,
     });
   }
 };

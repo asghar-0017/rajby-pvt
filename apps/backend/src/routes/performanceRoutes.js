@@ -11,6 +11,9 @@ router.use(authenticateToken, identifyTenant);
 // Performance monitoring routes
 router.get("/metrics", performanceController.getPerformanceMetrics);
 router.get("/upload-performance", performanceController.getUploadPerformance);
-router.get("/optimization-recommendations", performanceController.getOptimizationRecommendations);
+router.get(
+  "/optimization-recommendations",
+  performanceController.getOptimizationRecommendations
+);
 
 export default router;

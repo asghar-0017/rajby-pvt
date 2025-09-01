@@ -135,7 +135,6 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
   const [existingInvoices, setExistingInvoices] = useState([]);
   const [newInvoices, setNewInvoices] = useState([]);
   const [checkingExisting, setCheckingExisting] = useState(false);
-  const [downloadButtonDisabled, setDownloadButtonDisabled] = useState(false);
 
   const fileInputRef = useRef(null);
 
@@ -177,99 +176,9 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
 
   // Buyer selection removed; buyer details should be provided in the sheet
 
-  const downloadExistingTemplate = async () => {
-    try {
-      // Disable the button temporarily
-      setDownloadButtonDisabled(true);
-
-      // Check if we have a selected tenant
-      if (!selectedTenant?.tenant_id) {
-        toast.error("Please select a company first");
-        return;
-      }
-
-      // Call the backend API to generate and download the template
-      const response = await api.get(
-        `/tenant/${selectedTenant.tenant_id}/invoices/template.xlsx`,
-        {
-          responseType: "blob", // Important: set response type to blob for file download
-        }
-      );
-
-      // Create a blob from the response data
-      const blob = new Blob([response.data], {
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      });
-
-      // Create download link
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "invoice_template.xlsx";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-
-      // Clean up the URL object
-      window.URL.revokeObjectURL(url);
-
-      toast.success("Excel template downloaded successfully!");
-    } catch (e) {
-      console.error("Template download error:", e);
-
-      // Handle different types of errors
-      if (e.response) {
-        // Server responded with error status
-        if (e.response.status === 401) {
-          toast.error("Authentication failed. Please log in again.");
-        } else if (e.response.status === 403) {
-          toast.error(
-            "Access denied. You don't have permission to download this template."
-          );
-        } else if (e.response.status === 404) {
-          toast.error(
-            "Template not found. Please check your tenant configuration."
-          );
-        } else if (e.response.status === 500) {
-          toast.error("Server error. Please try again later.");
-        } else {
-          toast.error(
-            `Download failed: ${e.response.status} - ${e.response.statusText}`
-          );
-        }
-      } else if (e.request) {
-        // Request was made but no response received
-        toast.error(
-          "Network error. Please check your connection and try again."
-        );
-      } else {
-        // Something else happened
-        toast.error("Could not download Excel template. Please try again.");
-      }
-    } finally {
-      // Re-enable the button after a short delay
-      setTimeout(() => {
-        setDownloadButtonDisabled(false);
-      }, 1000);
-    }
-  };
-
-  // New function to download existing template file
-  // const downloadExistingTemplate = () => {
-  //   try {
-  //     // Create a link to the existing template file in public folder
-  //     const link = document.createElement("a");
-  //     link.href = "/invoiceTemplate/invoice_template.xlsx";
-  //     link.download = "invoice_template.xlsx";
-  //     document.body.appendChild(link);
-  //     link.click();
-  //     document.body.removeChild(link);
-
-  //     toast.success("Excel template downloaded successfully!");
-  //   } catch (error) {
-  //     console.error("Error downloading template:", error);
-  //     toast.error("Failed to download template. Please try again.");
-  //   }
+  // Old function - commented out (was using backend API)
+  // const downloadExistingTemplate = async () => {
+  //   // ... implementation details ...
   // };
 
   const handleFileSelect = (event) => {
@@ -736,11 +645,14 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         continue;
       }
       try {
-        const resp = await fetch("http://localhost:5150/api/buyer-check", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ registrationNo: ntn }),
-        });
+        const resp = await fetch(
+          "https://pakistan-gum.inplsoftwares.online/api/buyer-check",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ registrationNo: ntn }),
+          }
+        );
         const data = await resp.json().catch(() => ({}));
         let derived = "";
         if (data && typeof data.REGISTRATION_TYPE === "string") {
@@ -1402,14 +1314,29 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
             </Alert>
           )}
 
-          {/* Download Template Button */}
+          {/* Download Template Button - Downloads from public folder */}
           <Box sx={{ mb: 2 }}>
             <Button
               variant="outlined"
               startIcon={<Download />}
-              onClick={downloadExistingTemplate}
+              onClick={() => {
+                try {
+                  // Create a link to the existing template file in public folder
+                  const link = document.createElement("a");
+                  link.href = "/invoiceTemplate/invoice_template.xlsx";
+                  link.download = "invoice_template.xlsx";
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  toast.success("Excel template downloaded successfully!");
+                } catch (error) {
+                  console.error("Error downloading template:", error);
+                  toast.error(
+                    "Could not download Excel template. Please try again."
+                  );
+                }
+              }}
               size="small"
-              disabled={!selectedTenant}
             >
               Download Excel Template
             </Button>
