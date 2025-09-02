@@ -8,13 +8,13 @@ A new functionality has been added to the Excel Sheet Uploader that automaticall
 
 ### 1. Row Grouping Logic
 
-- When an Excel sheet is uploaded, rows are automatically grouped by the `internalInvoiceNo` column
-- Rows with the same `internalInvoiceNo` are combined into a single invoice
-- Rows without an `internalInvoiceNo` are treated as separate invoices (with auto-generated row numbers)
+- When an Excel sheet is uploaded, rows are automatically grouped by the `companyInvoiceRefNo` column
+- Rows with the same `companyInvoiceRefNo` are combined into a single invoice
+- Rows without a `companyInvoiceRefNo` are treated as separate invoices (with auto-generated row numbers)
 
 ### 2. Data Consistency Validation
 
-- Before grouping, the system validates that rows with the same `internalInvoiceNo` have consistent invoice-level data:
+- Before grouping, the system validates that rows with the same `companyInvoiceRefNo` have consistent invoice-level data:
   - Invoice Type
   - Invoice Date
   - Buyer NTN/CNIC
@@ -32,8 +32,7 @@ Each grouped invoice maintains the same structure expected by the backend:
 {
   invoiceType: "Sale Invoice",
   invoiceDate: "2024-01-15",
-  companyInvoiceRefNo: "COMP-001",
-  internalInvoiceNo: "INV-001",
+  companyInvoiceRefNo: "COMP-001", // This field is used for grouping
   buyerNTNCNIC: "123456789",
   buyerBusinessName: "ABC Company",
   buyerProvince: "Punjab",
@@ -46,6 +45,10 @@ Each grouped invoice maintains the same structure expected by the backend:
   ]
 }
 ```
+
+**Note**: The `Internal Invoice No` column has been removed from the Excel template as it is no longer needed for invoice grouping. All grouping is now done using the `Company Invoice Ref No` field.
+
+**Note**: The `Invoice Ref No` column is now optional and not required for Excel file uploads. Users can leave this field empty if they don't have an invoice reference number.
 
 ## User Experience Improvements
 

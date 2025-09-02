@@ -234,6 +234,8 @@ export default function CreateInvoice() {
       },
     ],
   });
+  const [isEditMode, setIsEditMode] = React.useState(false);
+  const [editInvoiceNumber, setEditInvoiceNumber] = React.useState("");
 
   // Add state for tracking added items
   const [addedItems, setAddedItems] = React.useState([]);
@@ -713,6 +715,7 @@ export default function CreateInvoice() {
               furtherTax: "0",
               fedPayable: "0",
               discount: "0",
+              advanceIncomeTax: "0",
               isValueSalesManual: false,
               isTotalValuesManual: false,
               isSalesTaxManual: false,
@@ -837,6 +840,13 @@ export default function CreateInvoice() {
         }
 
         // Clear the localStorage data after loading (keep id in state)
+        setIsEditMode(true);
+        setEditInvoiceNumber(
+          invoiceData.invoiceNumber ||
+            invoiceData.companyInvoiceRefNo ||
+            invoiceData.invoiceRefNo ||
+            ""
+        );
         localStorage.removeItem("editInvoiceData");
 
         // Show a notification that we're editing an invoice
@@ -1050,19 +1060,15 @@ export default function CreateInvoice() {
     if (isEditing && formData.items && formData.items.length > 0) {
       setFormData((prev) => {
         const updatedItems = prev.items.map((item) => {
-          if (item.retailPrice && item.quantity && !item.isValueSalesManual) {
-            const retailPrice = parseFloat(
-              parseFloat(item.retailPrice || 0).toFixed(2)
-            );
-            const quantity = parseFloat(item.quantity || 0);
-            const unitCost = quantity > 0 ? retailPrice / quantity : 0;
-            return {
-              ...item,
-              unitPrice: unitCost.toFixed(2),
-              valueSalesExcludingST: retailPrice.toString(),
-            };
-          }
-          return item;
+          const valueSales = parseFloat(
+            parseFloat(item.valueSalesExcludingST || 0).toFixed(2)
+          );
+          const quantity = parseFloat(item.quantity || 0);
+          const unitCost = quantity > 0 ? valueSales / quantity : 0;
+          return {
+            ...item,
+            unitPrice: unitCost.toFixed(2),
+          };
         });
         return { ...prev, items: updatedItems };
       });
@@ -1575,15 +1581,14 @@ export default function CreateInvoice() {
 
       // Auto-calculate unit cost and sales tax if not manual
       if (!item.isValueSalesManual) {
-        const retailPrice = parseFloat(
-          parseFloat(item.retailPrice || 0).toFixed(2)
+        const valueSales = parseFloat(
+          parseFloat(item.valueSalesExcludingST || 0).toFixed(2)
         );
         const quantity = parseFloat(item.quantity || 0);
 
-        // Calculate unit cost: Retail Price ÷ Quantity
-        const unitCost = quantity > 0 ? retailPrice / quantity : 0;
+        // Calculate unit cost: Value Sales (Excl ST) ÷ Quantity
+        const unitCost = quantity > 0 ? valueSales / quantity : 0;
         item.unitPrice = unitCost.toFixed(2);
-        item.valueSalesExcludingST = retailPrice.toString();
 
         // Ensure unit cost is always calculated when retail price or quantity changes
         // Unit cost calculation completed
@@ -1632,7 +1637,15 @@ export default function CreateInvoice() {
           }
         }
       } else if (item.isValueSalesManual) {
-        // If user manually entered value sales, only calculate sales tax if not manually entered
+        // If user manually entered value sales, update unit cost and then sales tax if not manual
+        const valueSales = parseFloat(
+          parseFloat(item.valueSalesExcludingST || 0).toFixed(2)
+        );
+        const quantity = parseFloat(item.quantity || 0);
+        const unitCost = quantity > 0 ? valueSales / quantity : 0;
+        item.unitPrice = unitCost.toFixed(2);
+
+        // Only calculate sales tax if not manually entered
         if (!item.isSalesTaxManual) {
           if (
             item.rate &&
@@ -2401,9 +2414,7 @@ export default function CreateInvoice() {
           ) => {
             const baseItem = {
               ...rest,
-              fixedNotifiedValueOrRetailPrice: Number(
-                Number(retailPrice).toFixed(2)
-              ),
+              fixedNotifiedValueOrRetailPrice: 0,
               quantity: rest.quantity === "" ? 0 : parseFloat(rest.quantity),
               unitPrice: Number(Number(rest.unitPrice || 0).toFixed(2)),
               valueSalesExcludingST: Number(
@@ -2652,9 +2663,7 @@ export default function CreateInvoice() {
           ) => {
             const baseItem = {
               ...rest,
-              fixedNotifiedValueOrRetailPrice: Number(
-                Number(retailPrice).toFixed(2)
-              ),
+              fixedNotifiedValueOrRetailPrice: 0,
               quantity: rest.quantity === "" ? 0 : parseFloat(rest.quantity),
               unitPrice: Number(Number(rest.unitPrice || 0).toFixed(2)),
               valueSalesExcludingST: Number(
@@ -2875,6 +2884,18 @@ export default function CreateInvoice() {
   };
 
   const handleSubmitChange = async () => {
+    const result = await Swal.fire({
+      icon: "warning",
+      title: "Are you sure you want to submit this invoice?",
+      text: "Once submitted, it will be posted to FBR.",
+      showCancelButton: true,
+      confirmButtonText: "Yes, submit",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#2E7D32",
+    });
+    if (!result.isConfirmed) {
+      return;
+    }
     setLoading(true);
     try {
       // Validate that a tenant is selected and seller information is populated
@@ -3019,9 +3040,7 @@ export default function CreateInvoice() {
 
           const baseItem = {
             ...rest,
-            fixedNotifiedValueOrRetailPrice: Number(
-              Number(retailPrice).toFixed(2)
-            ), // send as required by FBR
+            fixedNotifiedValueOrRetailPrice: 0, // fixed to 0 as required
             quantity: rest.quantity === "" ? 0 : parseFloat(rest.quantity),
             unitPrice: Number(Number(rest.unitPrice || 0).toFixed(2)),
             valueSalesExcludingST: Number(
@@ -3458,7 +3477,9 @@ export default function CreateInvoice() {
               textShadow: "2px 2px 4px rgba(0,0,0,0.3)",
             }}
           >
-            Invoice Creation
+            {isEditMode
+              ? `Edit Invoice (Invoice No: ${editInvoiceNumber || "N/A"})`
+              : "Invoice Creation"}
           </Typography>
           {selectedTenant && (
             <Tooltip
@@ -4014,11 +4035,6 @@ export default function CreateInvoice() {
                                   backgroundColor: "rgba(156, 163, 175, 0.05)",
                                 },
                               }}
-                              startIcon={
-                                transactionTypesLoading ? (
-                                  <CircularProgress size={12} color="inherit" />
-                                ) : null
-                              }
                             >
                               Choose
                             </Button>
@@ -4285,12 +4301,15 @@ export default function CreateInvoice() {
                   <TextField
                     fullWidth
                     size="small"
-                    label="Total Price"
+                    label="Value Sales (Excl. ST)"
                     type="text"
                     value={
-                      item.retailPrice === "0.00" || item.retailPrice === "0"
+                      item.valueSalesExcludingST === "0.00" ||
+                      item.valueSalesExcludingST === "0"
                         ? ""
-                        : formatWithCommasWhileTyping(item.retailPrice)
+                        : formatWithCommasWhileTyping(
+                            item.valueSalesExcludingST
+                          )
                     }
                     onChange={(e) => {
                       const newValue = handleFloatingNumberInput(
@@ -4298,99 +4317,78 @@ export default function CreateInvoice() {
                         true
                       );
                       if (newValue !== null) {
-                        handleItemChange(index, "retailPrice", newValue);
+                        handleItemChange(
+                          index,
+                          "valueSalesExcludingST",
+                          newValue
+                        );
                       }
                     }}
                     onBlur={(e) => {
                       const value = e.target.value;
                       if (value) {
-                        // Remove commas and get the raw numeric value
                         const cleanValue = value.replace(/,/g, "");
                         const numValue = parseFloat(cleanValue);
                         if (!isNaN(numValue)) {
-                          // Store the raw numeric value, not the formatted one
                           handleItemChange(
                             index,
-                            "retailPrice",
+                            "valueSalesExcludingST",
                             numValue.toString()
                           );
                         }
                       }
                     }}
                     variant="outlined"
+                  />
+                </Box>
+
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Qty"
+                  type="text"
+                  value={
+                    item.quantity === "0.00"
+                      ? ""
+                      : formatQuantityWithCommas(item.quantity)
+                  } // Show empty instead of 0.00
+                  onChange={(e) => {
+                    const newValue = handleFloatingNumberInput(
+                      e.target.value,
+                      true
+                    );
+                    if (newValue !== null) {
+                      handleItemChange(index, "quantity", newValue);
+                    }
+                  }}
+                  onBlur={(e) => {
+                    const value = e.target.value;
+                    if (value) {
+                      // Remove commas and get the raw numeric value
+                      const cleanValue = value.replace(/,/g, "");
+                      // Don't parse to float and back to string - preserve the original decimal places
+                      if (cleanValue && cleanValue !== "") {
+                        handleItemChange(index, "quantity", cleanValue);
+                      }
+                    }
+                  }}
+                  variant="outlined"
+                />
+
+                <Box sx={{ flex: "1 1 18%", minWidth: "150px" }}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Unit Cost"
+                    type="text"
+                    value={formatNumberWithCommas(item.unitPrice)}
+                    InputProps={{ readOnly: true }}
+                    variant="outlined"
                     sx={{
                       "& .MuiOutlinedInput-root": {
                         "& fieldset": { borderColor: "#e5e7eb" },
                       },
                       "& .MuiInputLabel-root": { color: "#6b7280" },
-                    }}
-                  />
-                </Box>
-                <Box sx={{ flex: "1 1 18%", minWidth: "150px" }}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Qty"
-                    type="text"
-                    value={
-                      item.quantity === "0.00"
-                        ? ""
-                        : formatQuantityWithCommas(item.quantity)
-                    } // Show empty instead of 0.00
-                    onChange={(e) => {
-                      const newValue = handleFloatingNumberInput(
-                        e.target.value,
-                        true
-                      );
-                      if (newValue !== null) {
-                        handleItemChange(index, "quantity", newValue);
-                      }
-                    }}
-                    onBlur={(e) => {
-                      const value = e.target.value;
-                      if (value) {
-                        // Remove commas and get the raw numeric value
-                        const cleanValue = value.replace(/,/g, "");
-                        // Don't parse to float and back to string - preserve the original decimal places
-                        if (cleanValue && cleanValue !== "") {
-                          handleItemChange(index, "quantity", cleanValue);
-                        }
-                      }
-                    }}
-                    variant="outlined"
-                  />
-                </Box>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Unit Cost"
-                  type="text"
-                  value={formatNumberWithCommas(item.unitPrice)}
-                  InputProps={{ readOnly: true }}
-                  variant="outlined"
-                  sx={{
-                    "& .MuiOutlinedInput-root": {
-                      "& fieldset": { borderColor: "#e5e7eb" },
-                    },
-                    "& .MuiInputLabel-root": { color: "#6b7280" },
-                    "& .MuiInputBase-input.Mui-readOnly": {
-                      backgroundColor: "#f5f5f5",
-                      cursor: "not-allowed",
-                    },
-                  }}
-                />
-                <Box sx={{ flex: "1 1 18%", minWidth: "150px" }}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Value Sales (Excl. ST)"
-                    type="text"
-                    value={formatNumberWithCommas(item.valueSalesExcludingST)}
-                    InputProps={{
-                      readOnly: true,
-                    }}
-                    variant="outlined"
-                    sx={{
                       "& .MuiInputBase-input.Mui-readOnly": {
                         backgroundColor: "#f5f5f5",
                         cursor: "not-allowed",

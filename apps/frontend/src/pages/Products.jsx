@@ -9,6 +9,7 @@ import {
 import { useTenantSelection } from "../Context/TenantSelectionProvider";
 import ProductTable from "../component/ProductTable";
 import ProductModal from "../component/ProductModal";
+import ProductUploader from "../component/ProductUploader";
 import { api } from "../API/Api";
 import Swal from "sweetalert2";
 
@@ -18,6 +19,7 @@ const Products = () => {
   const [loading, setLoading] = useState(false);
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
+  const [isUploaderOpen, setIsUploaderOpen] = useState(false);
 
   useEffect(() => {
     if (selectedTenant) {
@@ -165,6 +167,98 @@ const Products = () => {
     setEditingProduct(null);
   };
 
+  const openUploader = () => {
+    setIsUploaderOpen(true);
+  };
+
+  const closeUploader = () => {
+    setIsUploaderOpen(false);
+  };
+
+  const handleBulkUpload = async (productsData) => {
+    try {
+      setLoading(true);
+
+      // Create products one by one since we don't have a bulk endpoint
+      const createdProducts = [];
+      const errors = [];
+
+      for (const product of productsData) {
+        try {
+          const response = await api.post(
+            `/tenant/${selectedTenant.tenant_id}/products`,
+            {
+              name: product.name,
+              description: product.description,
+              hsCode: product.hsCode,
+              uom: product.uom,
+            }
+          );
+
+          if (response.data.success) {
+            createdProducts.push(response.data.data);
+          } else {
+            errors.push({
+              product: product.name,
+              error: response.data.message || "Failed to create product",
+            });
+          }
+        } catch (error) {
+          errors.push({
+            product: product.name,
+            error:
+              error.response?.data?.message ||
+              error.message ||
+              "Error creating product",
+          });
+        }
+      }
+
+      if (createdProducts.length > 0) {
+        setProducts((prev) => [...prev, ...createdProducts]);
+
+        if (errors.length === 0) {
+          Swal.fire({
+            icon: "success",
+            title: "Products Uploaded",
+            text: `${createdProducts.length} products have been uploaded successfully.`,
+            timer: 2000,
+            showConfirmButton: false,
+          });
+        } else {
+          Swal.fire({
+            icon: "warning",
+            title: "Partial Success",
+            text: `${createdProducts.length} products uploaded, ${errors.length} failed.`,
+          });
+        }
+      } else if (errors.length > 0) {
+        Swal.fire({
+          icon: "error",
+          title: "Upload Failed",
+          text: "No products were uploaded. Please check the errors and try again.",
+        });
+      }
+
+      return {
+        data: {
+          data: {
+            summary: {
+              successful: createdProducts.length,
+              failed: errors.length,
+            },
+            errors: errors,
+          },
+        },
+      };
+    } catch (error) {
+      console.error("Error uploading products:", error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (!selectedTenant) {
     return (
       <Container maxWidth="lg" sx={{ mt: 10, mb: 4 }}>
@@ -177,13 +271,17 @@ const Products = () => {
 
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-    
       <ProductTable
         products={products}
         loading={loading}
         onEdit={handleEditProduct}
         onDelete={handleDeleteProduct}
         onAdd={handleAddProduct}
+        onUpload={openUploader}
+        selectedTenant={selectedTenant}
+        onBulkDeleted={(ids) =>
+          setProducts((prev) => prev.filter((p) => !ids.includes(p.id)))
+        }
       />
 
       {/* Product Modal */}
@@ -193,6 +291,14 @@ const Products = () => {
         onSave={handleSaveProduct}
         initialProduct={editingProduct}
       />
+
+      {/* Product Uploader */}
+      {/* <ProductUploader
+        isOpen={isUploaderOpen}
+        onClose={closeUploader}
+        onUpload={handleBulkUpload}
+        selectedTenant={selectedTenant}
+      /> */}
     </Container>
   );
 };

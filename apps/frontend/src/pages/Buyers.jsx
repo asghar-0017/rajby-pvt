@@ -21,7 +21,7 @@ const Buyers = () => {
   const openModal = (buyer = null) => {
     setSelectedBuyer(buyer);
     setIsModalOpen(true);
-  }
+  };
 
   const closeModal = () => {
     setSelectedBuyer(null);
@@ -239,6 +239,10 @@ const Buyers = () => {
           onDelete={handleDelete}
           onAdd={openModal}
           onUpload={openUploader}
+          selectedTenant={selectedTenant}
+          onBulkDeleted={(ids) =>
+            setBuyers((prev) => prev.filter((b) => !ids.includes(b.id)))
+          }
         />
         <BuyerModal
           isOpen={isModalOpen}

@@ -2762,12 +2762,15 @@ export const bulkCreateInvoices = async (req, res) => {
         usedSystemIds.add(systemInvoiceId);
         nextSystemIdNumber += 1;
 
-        // Debug: Log internal invoice number for bulk create
-        console.log(`🔍 Backend Debug: Invoice ${i + 1} Internal Invoice No:`, {
-          internalInvoiceNo: invoiceData.internalInvoiceNo,
-          hasValue: !!invoiceData.internalInvoiceNo,
-          trimmedValue: invoiceData.internalInvoiceNo?.trim(),
-        });
+        // Debug: Log company invoice ref number for bulk create
+        console.log(
+          `🔍 Backend Debug: Invoice ${i + 1} Company Invoice Ref No:`,
+          {
+            companyInvoiceRefNo: invoiceData.companyInvoiceRefNo,
+            hasValue: !!invoiceData.companyInvoiceRefNo,
+            trimmedValue: invoiceData.companyInvoiceRefNo?.trim(),
+          }
+        );
 
         // Prepare invoice data for batch insert
         const invoiceRecord = {
@@ -2850,8 +2853,8 @@ export const bulkCreateInvoices = async (req, res) => {
             totalValues: parseFloat(itemData.item_totalValues) || 0,
             valueSalesExcludingST:
               parseFloat(itemData.item_valueSalesExcludingST) || 0,
-            fixedNotifiedValueOrRetailPrice:
-              parseFloat(itemData.item_fixedNotifiedValueOrRetailPrice) || 0,
+            // Force fixedNotifiedValueOrRetailPrice to 0 for Excel uploads
+            fixedNotifiedValueOrRetailPrice: 0,
             salesTaxApplicable:
               parseFloat(itemData.item_salesTaxApplicable) || 0,
             salesTaxWithheldAtSource:
@@ -4446,8 +4449,11 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
       allUniqueSROs.add(sro);
     });
 
-    // Create comprehensive SRO Schedule list for dropdown
+    // Create comprehensive SRO Schedule list for dropdown (prepend "N/A")
     const comprehensiveSROList = Array.from(allUniqueSROs).sort();
+    if (!comprehensiveSROList.includes("N/A")) {
+      comprehensiveSROList.unshift("N/A");
+    }
 
     console.log(
       `Total unique SRO Schedule Numbers available: ${comprehensiveSROList.length}`
@@ -4566,8 +4572,11 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
       allUniqueSROItems.add(item);
     });
 
-    // Create comprehensive SRO Item list for dropdown
+    // Create comprehensive SRO Item list for dropdown (prepend "N/A")
     const comprehensiveSROItemList = Array.from(allUniqueSROItems).sort();
+    if (!comprehensiveSROItemList.includes("N/A")) {
+      comprehensiveSROItemList.unshift("N/A");
+    }
 
     console.log(
       `Total unique SRO Item Numbers available: ${comprehensiveSROItemList.length}`
@@ -4829,9 +4838,7 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
     const columns = [
       "invoiceType",
       "invoiceDate",
-      "invoiceRefNo",
       "companyInvoiceRefNo",
-      "internalInvoiceNo",
       // Buyer details
       "buyerNTNCNIC",
       "buyerBusinessName",
@@ -4840,28 +4847,60 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
       "buyerRegistrationType",
       // Transaction and item details
       "transctypeId",
+      "item_rate",
+      "item_sroScheduleNo",
+      "item_sroItemSerialNo",
+      "item_saleType",
       "item_hsCode",
+      "item_uoM",
       "item_productName",
       "item_productDescription",
-      "item_rate",
-      "item_uoM",
+      "item_valueSalesExcludingST",
       "item_quantity",
       "item_unitPrice",
-      "item_totalValues",
-      "item_valueSalesExcludingST",
-      "item_fixedNotifiedValueOrRetailPrice",
       "item_salesTaxApplicable",
       "item_salesTaxWithheldAtSource",
       "item_extraTax",
       "item_furtherTax",
-      "item_sroScheduleNo",
       "item_fedPayable",
       "item_discount",
-      "item_saleType",
-      "item_sroItemSerialNo",
+      "item_totalValues",
     ];
 
-    template.addRow(columns);
+    // Map internal keys to user-friendly display labels for header row
+    const displayLabelMap = {
+      invoiceType: "Invoice Type",
+      invoiceDate: "Invoice Date",
+      companyInvoiceRefNo: "Company Invoice Ref No",
+      buyerNTNCNIC: "Buyer NTN/CNIC",
+      buyerBusinessName: "Buyer Buisness Name",
+      buyerProvince: "Buyer Province",
+      buyerAddress: "Buyer Address",
+      buyerRegistrationType: "Buyer Registration Type",
+      transctypeId: "Transaction Type",
+      item_rate: "Rate",
+      item_sroScheduleNo: "SRO Schedule No",
+      item_sroItemSerialNo: "SRO Item No",
+      item_saleType: "Sale Type",
+      item_hsCode: "HS Code",
+      item_uoM: "Unit Of Measurement",
+      item_productName: "Product Name",
+      item_productDescription: "Product Description",
+      item_valueSalesExcludingST: "Value Sales (Excl ST)",
+      item_quantity: "Quantity",
+      item_unitPrice: "Unit Cost",
+      item_salesTaxApplicable: "Sales Tax Applicable",
+      item_salesTaxWithheldAtSource: "ST Withheld at Source",
+      item_extraTax: "Extra Tax",
+      item_furtherTax: "Further Tax",
+      item_fedPayable: "FED Payable",
+      item_discount: "Discount",
+      item_totalValues: "Total Values",
+    };
+
+    const displayHeaders = columns.map((c) => displayLabelMap[c] || c);
+
+    template.addRow(displayHeaders);
 
     template.getRow(1).font = { bold: true };
 
@@ -5756,12 +5795,12 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
         error: "Quantity must be a positive number.",
       };
 
-      // item_fixedNotifiedValueOrRetailPrice - must be positive number
+      // item_valueSalesExcludingST - must be positive number
 
       template.getCell(
         r,
 
-        headerIndex("item_fixedNotifiedValueOrRetailPrice")
+        headerIndex("item_valueSalesExcludingST")
       ).dataValidation = {
         type: "decimal",
 
@@ -5775,19 +5814,19 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
 
         errorStyle: "warning",
 
-        errorTitle: "Invalid Retail Price",
+        errorTitle: "Invalid Value (Excl. ST)",
 
-        error: "Retail price must be a positive number.",
+        error: "Value (Excl. ST) must be a positive number.",
       };
 
-      // item_discount - must be between 0 and 100
+      // item_discount - must be a positive number (amount, not percentage)
 
       template.getCell(r, headerIndex("item_discount")).dataValidation = {
         type: "decimal",
 
-        operator: "between",
+        operator: "greaterThanOrEqual",
 
-        formulae: [0, 100],
+        formulae: [0],
 
         allowBlank: true,
 
@@ -5797,13 +5836,13 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
 
         errorTitle: "Invalid Discount",
 
-        error: "Discount must be between 0 and 100 percent.",
+        error: "Discount must be a positive number (amount).",
       };
 
       // Auto-calculate Unit Price as Retail Price ÷ Quantity; leave other calculated cells empty
       const qtyColLetter = getColLetter(headerIndex("item_quantity"));
       const retailColLetter = getColLetter(
-        headerIndex("item_fixedNotifiedValueOrRetailPrice")
+        headerIndex("item_valueSalesExcludingST")
       );
       // Only first data row shows 0 by default; others stay blank until inputs are provided
       if (r === 2) {
@@ -5815,11 +5854,9 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
           formula: `IF(OR($${retailColLetter}${r}="",$${qtyColLetter}${r}=""),"",IFERROR($${retailColLetter}${r}/$${qtyColLetter}${r},0))`,
         };
       }
-      // Auto-copy Value Sales (Excl. ST) from Retail Price; blank if Retail Price is blank
-      template.getCell(r, headerIndex("item_valueSalesExcludingST")).value = {
-        formula: `IF($${retailColLetter}${r}="","",$${retailColLetter}${r})`,
-      };
-      // Auto-calculate Sales Tax Applicable = Retail Price × (Rate ÷ 100)
+      // Value Sales (Excl. ST) is user-provided; no auto-copy
+      template.getCell(r, headerIndex("item_valueSalesExcludingST")).value = "";
+      // Auto-calculate Sales Tax Applicable = Value (Excl. ST) × (Rate ÷ 100)
       const rateColLetter = getColLetter(headerIndex("item_rate"));
       template.getCell(r, headerIndex("item_salesTaxApplicable")).value = {
         formula: `IF($${retailColLetter}${r}="","",
@@ -5827,7 +5864,7 @@ IF($${rateColLetter}${r}="","",
 IF(ISNUMBER(SEARCH("exempt",LOWER($${rateColLetter}${r}))),0,
 $${retailColLetter}${r}*(VALUE(SUBSTITUTE($${rateColLetter}${r},"%",""))/100))))`,
       };
-      // Auto-calculate Total Values = (Value Excl. ST + Sales Tax + FED + ST W/H + Further Tax) minus Discount%
+      // Auto-calculate Total Values = (Value Excl. ST + Sales Tax + FED + ST W/H + Further Tax) minus Discount Amount
       const vsColLetter = getColLetter(
         headerIndex("item_valueSalesExcludingST")
       );
@@ -5840,8 +5877,8 @@ $${retailColLetter}${r}*(VALUE(SUBSTITUTE($${rateColLetter}${r},"%",""))/100))))
       const dscColLetter = getColLetter(headerIndex("item_discount"));
       template.getCell(r, headerIndex("item_totalValues")).value = {
         formula: `IF($${retailColLetter}${r}="","",
-SUM($${vsColLetter}${r},$${staColLetter}${r},$${fedColLetter}${r},$${stwColLetter}${r},$${ftrColLetter}${r})*
-(1-IF($${dscColLetter}${r}="",0,VALUE($${dscColLetter}${r})/100)))`,
+SUM($${vsColLetter}${r},$${staColLetter}${r},$${fedColLetter}${r},$${stwColLetter}${r},$${ftrColLetter}${r})-
+IF($${dscColLetter}${r}="",0,VALUE($${dscColLetter}${r})))`,
       };
 
       // Also clear helper columns to avoid hidden computed values
@@ -5869,11 +5906,11 @@ SUM($${vsColLetter}${r},$${staColLetter}${r},$${fedColLetter}${r},$${stwColLette
     };
 
     const instructions = [
-      "1. Unit Price auto-calculates as Retail Price ÷ Quantity.",
-      "2. Value Sales (Excl. ST) auto-copies from Retail Price.",
-      "3. Sales Tax Applicable auto-calculates: Retail Price × (rate ÷ 100).",
-      "4. Total Values = (Value Excl. ST + Sales Tax + FED + ST W/H + Further Tax) minus Discount%.",
-      "5. Enter Quantity and Retail Price to compute Unit Price.",
+      "1. Unit Cost auto-calculates as Value Sales (Excl. ST) ÷ Quantity.",
+      "2. Enter Value Sales (Excl. ST); it is used to compute Unit Cost.",
+      "3. Sales Tax Applicable auto-calculates: Value Sales (Excl. ST) × (rate ÷ 100).",
+      "4. Total Values = (Value Excl. ST + Sales Tax + FED + ST W/H + Further Tax) minus Discount Amount.",
+      "5. Enter Quantity and Value Sales (Excl. ST) to compute Unit Cost.",
       "6. Use the dropdowns for validated selections (HS Code, UoM, Rate, etc.)",
       "7. Rate dropdown now includes ALL available rates from API and hardcoded data.",
       "8. UoM dropdown now includes ALL available UoM values from API and fallback data.",
@@ -5894,7 +5931,7 @@ SUM($${vsColLetter}${r},$${staColLetter}${r},$${fedColLetter}${r},$${stwColLette
 
     // Autofit columns roughly
 
-    columns.forEach((c, idx) => {
+    displayHeaders.forEach((c, idx) => {
       const col = template.getColumn(idx + 1);
 
       col.width = Math.min(Math.max(c.length + 2, 14), 40);

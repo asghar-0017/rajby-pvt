@@ -142,9 +142,7 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
   const expectedColumns = [
     "invoiceType",
     "invoiceDate",
-    "invoiceRefNo",
     "companyInvoiceRefNo",
-    "internalInvoiceNo",
     // Buyer details
     "buyerNTNCNIC",
     "buyerBusinessName",
@@ -153,26 +151,61 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     "buyerRegistrationType",
     // Transaction and item details
     "transctypeId",
-    "item_hsCode",
-    "item_productDescription",
-    "item_productName",
     "item_rate",
+    "item_sroScheduleNo",
+    "item_sroItemSerialNo",
+    "item_saleType",
+    "item_hsCode",
     "item_uoM",
+    "item_productName",
+    "item_productDescription",
+    "item_valueSalesExcludingST",
     "item_quantity",
     "item_unitPrice",
-    "item_totalValues",
-    "item_valueSalesExcludingST",
-    "item_fixedNotifiedValueOrRetailPrice",
     "item_salesTaxApplicable",
     "item_salesTaxWithheldAtSource",
     "item_extraTax",
     "item_furtherTax",
-    "item_sroScheduleNo",
     "item_fedPayable",
     "item_discount",
-    "item_saleType",
-    "item_sroItemSerialNo",
+    "item_totalValues",
   ];
+
+  // Map display headers (as shown in Excel) back to internal keys
+  const displayToInternalHeaderMap = {
+    "Invoice Type": "invoiceType",
+    "Invoice Date": "invoiceDate",
+    "Invoice Ref No": "invoiceRefNo",
+    "Company Invoice Ref No": "companyInvoiceRefNo",
+    "Buyer NTN/CNIC": "buyerNTNCNIC",
+    "Buyer Buisness Name": "buyerBusinessName",
+    "Buyer Province": "buyerProvince",
+    "Buyer Address": "buyerAddress",
+    "Buyer Registration Type": "buyerRegistrationType",
+    "Transaction Type": "transctypeId",
+    Rate: "item_rate",
+    "SRO Schedule No": "item_sroScheduleNo",
+    "SRO Item No": "item_sroItemSerialNo",
+    "Sale Type": "item_saleType",
+    "HS Code": "item_hsCode",
+    "Unit Of Measurement": "item_uoM",
+    "Product Name": "item_productName",
+    "Product Description": "item_productDescription",
+    "Value Sales (Excl ST)": "item_valueSalesExcludingST",
+    Quantity: "item_quantity",
+    "Unit Cost": "item_unitPrice",
+    "Sales Tax Applicable": "item_salesTaxApplicable",
+    "ST Withheld at Source": "item_salesTaxWithheldAtSource",
+    "Extra Tax": "item_extraTax",
+    "Further Tax": "item_furtherTax",
+    "FED Payable": "item_fedPayable",
+    Discount: "item_discount",
+    "Total Values": "item_totalValues",
+  };
+
+  const normalizeHeader = (h) =>
+    displayToInternalHeaderMap[String(h || "").trim()] ||
+    String(h || "").trim();
 
   // Buyer selection removed; buyer details should be provided in the sheet
 
@@ -293,10 +326,10 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         );
       }
 
-      // Parse headers
-      const headers = parseCSVLine(lines[0]);
+      // Parse headers and normalize to internal keys
+      const headers = parseCSVLine(lines[0]).map((h) => normalizeHeader(h));
 
-      // Validate headers
+      // Validate headers (normalized)
       const missingHeaders = expectedColumns.filter(
         (col) => !headers.includes(col)
       );
@@ -392,12 +425,10 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
           );
         }
 
-        // Get headers from first row
-        const headers = jsonData[0].map((header) =>
-          String(header || "").trim()
-        );
+        // Get headers from first row and normalize
+        const headers = jsonData[0].map((header) => normalizeHeader(header));
 
-        // Validate headers
+        // Validate headers (normalized)
         const missingHeaders = expectedColumns.filter(
           (col) => !headers.includes(col)
         );
@@ -460,8 +491,9 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
                   headers: headers,
                   rawRow: row,
                   parsedRowData: rowData,
-                  internalInvoiceNo: rowData.internalInvoiceNo,
-                  hasInternalInvoiceNo: !!rowData.internalInvoiceNo,
+                  companyInvoiceRefNo: rowData.companyInvoiceRefNo,
+                  hasCompanyInvoiceRefNo: !!rowData.companyInvoiceRefNo,
+                  internalInvoiceNo: rowData.internalInvoiceNo, // Still logged for reference
                 });
               }
 
@@ -645,14 +677,11 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         continue;
       }
       try {
-        const resp = await fetch(
-          "https://tulip-towel.inplsoftwares.online/api/buyer-check",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ registrationNo: ntn }),
-          }
-        );
+        const resp = await fetch("http://localhost:5150/api/buyer-check", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ registrationNo: ntn }),
+        });
         const data = await resp.json().catch(() => ({}));
         let derived = "";
         if (data && typeof data.REGISTRATION_TYPE === "string") {
@@ -914,7 +943,8 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
 
     setUploading(true);
     try {
-      // Group rows by internalInvoiceNo to combine multiple items into single invoices
+      // Group rows by companyInvoiceRefNo to combine multiple items into single invoices
+      // (Changed from internalInvoiceNo - now uses Company Invoice Ref No for grouping)
       const groupedInvoices = new Map();
       const groupingErrors = [];
 
@@ -1016,16 +1046,16 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
           cleanedItem.sroItemSerialNo = cleanedItem.item_sroItemSerialNo;
         }
 
-        // Get the internalInvoiceNo for grouping
-        const internalInvoiceNo =
-          cleanedItem.internalInvoiceNo?.trim() || `row_${index + 1}`;
+        // Get the companyInvoiceRefNo for grouping (changed from internalInvoiceNo)
+        const companyInvoiceRefNo =
+          cleanedItem.companyInvoiceRefNo?.trim() || `row_${index + 1}`;
 
         // Add row number for tracking
         cleanedItem._row = index + 1;
 
-        if (groupedInvoices.has(internalInvoiceNo)) {
+        if (groupedInvoices.has(companyInvoiceRefNo)) {
           // Add item to existing invoice group
-          const existingInvoice = groupedInvoices.get(internalInvoiceNo);
+          const existingInvoice = groupedInvoices.get(companyInvoiceRefNo);
 
           // Validate consistency of invoice-level data
           const consistencyErrors = [];
@@ -1074,21 +1104,21 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
           if (consistencyErrors.length > 0) {
             groupingErrors.push({
               row: index + 1,
-              internalInvoiceNo: internalInvoiceNo,
+              companyInvoiceRefNo: companyInvoiceRefNo,
               errors: consistencyErrors,
-              message: `Row ${index + 1} has different invoice-level data than other rows with internalInvoiceNo: ${internalInvoiceNo}`,
+              message: `Row ${index + 1} has different invoice-level data than other rows with companyInvoiceRefNo: ${companyInvoiceRefNo}`,
             });
           }
 
           existingInvoice.items.push(cleanedItem);
         } else {
           // Create new invoice group
-          groupedInvoices.set(internalInvoiceNo, {
+          groupedInvoices.set(companyInvoiceRefNo, {
             invoiceType: cleanedItem.invoiceType,
             invoiceDate: cleanedItem.invoiceDate,
             invoiceRefNo: cleanedItem.invoiceRefNo,
             companyInvoiceRefNo: cleanedItem.companyInvoiceRefNo,
-            internalInvoiceNo: internalInvoiceNo,
+            internalInvoiceNo: cleanedItem.internalInvoiceNo, // Keep this for reference
             // Seller details from selected tenant
             sellerNTNCNIC: selectedTenant?.sellerNTNCNIC || "",
             sellerFullNTN: selectedTenant?.sellerFullNTN || "",
@@ -1111,7 +1141,7 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       if (groupingErrors.length > 0) {
         console.error("Grouping validation errors:", groupingErrors);
         toast.error(
-          `Found ${groupingErrors.length} grouping validation errors. Rows with the same internalInvoiceNo must have consistent invoice-level data. Check console for details.`
+          `Found ${groupingErrors.length} grouping validation errors. Rows with the same Company Invoice Ref No must have consistent invoice-level data. Check console for details.`
         );
         setUploading(false);
         return;
@@ -1143,10 +1173,12 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         totalRows: previewData.length,
         sampleInvoice: invoicesToUpload[0],
         sampleInvoiceItems: invoicesToUpload[0]?.items?.length || 0,
-        sampleInternalInvoiceNo: invoicesToUpload[0]?.internalInvoiceNo,
-        hasInternalInvoiceNo: !!invoicesToUpload[0]?.internalInvoiceNo,
+        sampleCompanyInvoiceRefNo: invoicesToUpload[0]?.companyInvoiceRefNo,
+        hasCompanyInvoiceRefNo: !!invoicesToUpload[0]?.companyInvoiceRefNo,
+        sampleInternalInvoiceNo: invoicesToUpload[0]?.internalInvoiceNo, // Still logged for reference
         groupingSummary: invoicesToUpload.map((inv) => ({
-          internalInvoiceNo: inv.internalInvoiceNo,
+          companyInvoiceRefNo: inv.companyInvoiceRefNo,
+          internalInvoiceNo: inv.internalInvoiceNo, // Still included for reference
           itemCount: inv.items.length,
           rows: inv.items.map((item) => item._row),
         })),
@@ -1195,18 +1227,24 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         );
       }
 
-      // NEW: Automatically create products that don't exist
+      // Close the modal immediately after a successful upload
+      handleClose();
+
+      // Automatically create products that don't exist (do not block modal close)
       try {
-        await createMissingProducts(invoicesToUpload);
+        // Fire-and-forget: no await so UI can proceed
+        createMissingProducts(invoicesToUpload).catch((productError) => {
+          console.error("Error creating missing products:", productError);
+          toast.warning(
+            "Invoices uploaded successfully, but some products could not be created automatically."
+          );
+        });
       } catch (productError) {
         console.error("Error creating missing products:", productError);
-        // Don't fail the upload if product creation fails
         toast.warning(
           "Invoices uploaded successfully, but some products could not be created automatically."
         );
       }
-
-      handleClose();
     } catch (error) {
       console.error("Upload error:", error);
       toast.error("Error uploading invoices. Please try again.");
@@ -1314,27 +1352,39 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
             </Alert>
           )}
 
-          {/* Download Template Button - Downloads from public folder */}
+          {/* Download Template Button - Generate from backend route */}
           <Box sx={{ mb: 2 }}>
             <Button
               variant="outlined"
               startIcon={<Download />}
               onClick={() => {
-                try {
-                  // Create a link to the existing template file in public folder
-                  const link = document.createElement("a");
-                  link.href = "/invoiceTemplate/invoice_template.xlsx";
-                  link.download = "invoice_template.xlsx";
-                  document.body.appendChild(link);
-                  link.click();
-                  document.body.removeChild(link);
-                  toast.success("Excel template downloaded successfully!");
-                } catch (error) {
-                  console.error("Error downloading template:", error);
-                  toast.error(
-                    "Could not download Excel template. Please try again."
-                  );
-                }
+                (async () => {
+                  if (!selectedTenant?.tenant_id) {
+                    toast.error("Please select a company first");
+                    return;
+                  }
+                  try {
+                    const res = await api.get(
+                      `/tenant/${selectedTenant.tenant_id}/invoices/template.xlsx`,
+                      { responseType: "blob" }
+                    );
+                    const blob = new Blob([res.data], {
+                      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    });
+                    const url = window.URL.createObjectURL(blob);
+                    const link = document.createElement("a");
+                    link.href = url;
+                    link.download = "invoice_template.xlsx";
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    window.URL.revokeObjectURL(url);
+                    toast.success("Excel template generated successfully!");
+                  } catch (error) {
+                    console.error("Error generating template:", error);
+                    toast.error("Could not generate Excel template.");
+                  }
+                })();
               }}
               size="small"
             >
@@ -1404,23 +1454,23 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
               gutterBottom
               sx={{ color: "info.dark" }}
             >
-              📋 Row Grouping Preview (by internalInvoiceNo)
+              📋 Row Grouping Preview (by Company Invoice Ref No)
             </Typography>
             {(() => {
               const groupedPreview = new Map();
               previewData.forEach((row, index) => {
-                const internalInvoiceNo =
-                  row.internalInvoiceNo?.trim() || `row_${index + 1}`;
-                if (!groupedPreview.has(internalInvoiceNo)) {
-                  groupedPreview.set(internalInvoiceNo, []);
+                const companyInvoiceRefNo =
+                  row.companyInvoiceRefNo?.trim() || `row_${index + 1}`;
+                if (!groupedPreview.has(companyInvoiceRefNo)) {
+                  groupedPreview.set(companyInvoiceRefNo, []);
                 }
-                groupedPreview.get(internalInvoiceNo).push(index + 1);
+                groupedPreview.get(companyInvoiceRefNo).push(index + 1);
               });
 
               return (
                 <Box sx={{ mt: 1 }}>
                   {Array.from(groupedPreview.entries()).map(
-                    ([internalInvoiceNo, rows], idx) => (
+                    ([companyInvoiceRefNo, rows], idx) => (
                       <Box
                         key={idx}
                         sx={{
@@ -1432,9 +1482,9 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
                       >
                         <Typography variant="body2" sx={{ fontWeight: "bold" }}>
                           Invoice {idx + 1}:{" "}
-                          {internalInvoiceNo === `row_${rows[0]}`
-                            ? "No internalInvoiceNo"
-                            : internalInvoiceNo}
+                          {companyInvoiceRefNo === `row_${rows[0]}`
+                            ? "No Company Invoice Ref No"
+                            : companyInvoiceRefNo}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
                           Rows: {rows.join(", ")} ({rows.length} item
@@ -1663,13 +1713,13 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
                   <CheckCircle color="success" />
                   <Typography variant="body2">
                     {(() => {
-                      // Count unique invoices after grouping
+                      // Count unique invoices after grouping by companyInvoiceRefNo
                       const uniqueInvoices = new Set();
                       previewData.forEach((row) => {
-                        const internalInvoiceNo =
-                          row.internalInvoiceNo?.trim() ||
+                        const companyInvoiceRefNo =
+                          row.companyInvoiceRefNo?.trim() ||
                           `row_${row._row || "unknown"}`;
-                        uniqueInvoices.add(internalInvoiceNo);
+                        uniqueInvoices.add(companyInvoiceRefNo);
                       });
                       return `${uniqueInvoices.size} invoices (${previewData.length} total rows) ready to upload as drafts`;
                     })()}
@@ -1713,13 +1763,13 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
           {uploading
             ? "Uploading..."
             : (() => {
-                // Count unique invoices after grouping
+                // Count unique invoices after grouping by companyInvoiceRefNo
                 const uniqueInvoices = new Set();
                 previewData.forEach((row) => {
-                  const internalInvoiceNo =
-                    row.internalInvoiceNo?.trim() ||
+                  const companyInvoiceRefNo =
+                    row.companyInvoiceRefNo?.trim() ||
                     `row_${row._row || "unknown"}`;
-                  uniqueInvoices.add(internalInvoiceNo);
+                  uniqueInvoices.add(companyInvoiceRefNo);
                 });
                 return `Upload ${uniqueInvoices.size} Invoices as Drafts`;
               })()}

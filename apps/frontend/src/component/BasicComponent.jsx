@@ -55,6 +55,7 @@ export default function BasicTable() {
   const [saveValidateLoading, setSaveValidateLoading] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [isSubmitVisible, setIsSubmitVisible] = useState(false);
+  const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -1115,6 +1116,127 @@ export default function BasicTable() {
     }
   };
 
+  // Bulk delete selected invoices (only draft/saved)
+  const handleBulkDelete = async () => {
+    try {
+      if (!selectedTenant) {
+        Swal.fire({
+          icon: "error",
+          title: "Error",
+          text: "Please select a Company before deleting invoices.",
+          confirmButtonColor: "#d33",
+        });
+        return;
+      }
+
+      if (selectedInvoices.size === 0) {
+        Swal.fire({
+          icon: "error",
+          title: "Error",
+          text: "Please select at least one invoice to delete.",
+          confirmButtonColor: "#d33",
+        });
+        return;
+      }
+
+      const selectedInvoiceDetails = filteredInvoices.filter((invoice) =>
+        selectedInvoices.has(invoice._id || invoice.id)
+      );
+
+      const nonDeletable = selectedInvoiceDetails.filter(
+        (inv) => inv.status !== "draft" && inv.status !== "saved"
+      );
+
+      if (nonDeletable.length > 0) {
+        Swal.fire({
+          icon: "warning",
+          title: "Some invoices cannot be deleted",
+          text: "Only Draft or Saved invoices can be deleted. Please adjust your selection.",
+          confirmButtonColor: "#ff9800",
+        });
+        return;
+      }
+
+      const result = await Swal.fire({
+        title: "Delete Selected Invoices",
+        text: `Are you sure you want to delete ${selectedInvoiceDetails.length} selected invoice(s)? This action cannot be undone.`,
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#d33",
+        cancelButtonColor: "#3085d6",
+        confirmButtonText: "Yes, delete",
+        cancelButtonText: "Cancel",
+        reverseButtons: true,
+      });
+
+      if (!result.isConfirmed) return;
+
+      setBulkDeleteLoading(true);
+
+      const results = [];
+      for (const inv of selectedInvoiceDetails) {
+        try {
+          const response = await api.delete(
+            `/tenant/${selectedTenant.tenant_id}/invoices/${inv.id}`
+          );
+          if (response.data.success) {
+            results.push({
+              invoiceNumber: inv.invoiceNumber,
+              status: "success",
+            });
+          } else {
+            results.push({
+              invoiceNumber: inv.invoiceNumber,
+              status: "error",
+              message: response.data.message || "Failed",
+            });
+          }
+        } catch (err) {
+          results.push({
+            invoiceNumber: inv.invoiceNumber,
+            status: "error",
+            message: err.response?.data?.message || err.message || "Error",
+          });
+        }
+      }
+
+      const success = results.filter((r) => r.status === "success").length;
+      const failed = results.filter((r) => r.status === "error");
+
+      if (failed.length === 0) {
+        Swal.fire({
+          icon: "success",
+          title: "Deleted",
+          text: `${success} invoice(s) deleted successfully.`,
+          confirmButtonColor: "#28a745",
+        });
+      } else if (success === 0) {
+        Swal.fire({
+          icon: "error",
+          title: "Deletion Failed",
+          text: failed
+            .map((f) => `${f.invoiceNumber}: ${f.message}`)
+            .join("\n"),
+          confirmButtonColor: "#d33",
+        });
+      } else {
+        Swal.fire({
+          icon: "warning",
+          title: "Partial Delete",
+          text: `${success} invoice(s) deleted. ${failed.length} failed.`,
+          confirmButtonColor: "#ff9800",
+        });
+      }
+
+      // Refresh and reset selection
+      await getMyInvoices();
+      setSelectedInvoices(new Set());
+      setSelectMode(false);
+    } finally {
+      setBulkDeleteLoading(false);
+    }
+  };
+
   return (
     <>
       {!selectedTenant ? (
@@ -1299,6 +1421,59 @@ export default function BasicTable() {
 
                       return (
                         <>
+                          <Tooltip
+                            title={
+                              hasPostedInvoices
+                                ? "You have selected posted invoices. Unselect them to proceed."
+                                : ""
+                            }
+                            placement="top"
+                            arrow
+                          >
+                            <span>
+                              <Button
+                                onClick={handleBulkDelete}
+                                variant="outlined"
+                                color="error"
+                                size="small"
+                                sx={{
+                                  borderRadius: 1.5,
+                                  fontWeight: 600,
+                                  px: 1.5,
+                                  py: 0.3,
+                                  fontSize: 11,
+                                  letterSpacing: 0.3,
+                                  boxShadow: 1,
+                                  transition: "all 0.2s",
+                                  minWidth: "auto",
+                                  bgcolor: "white",
+                                  color: hasPostedInvoices ? "#ccc" : "#d32f2f",
+                                  borderColor: hasPostedInvoices
+                                    ? "#ccc"
+                                    : "#d32f2f",
+                                  "&:hover": {
+                                    background: hasPostedInvoices
+                                      ? "transparent"
+                                      : "#d32f2f",
+                                    color: hasPostedInvoices ? "#ccc" : "white",
+                                    boxShadow: hasPostedInvoices ? 1 : 2,
+                                    borderColor: hasPostedInvoices
+                                      ? "#ccc"
+                                      : "#d32f2f",
+                                  },
+                                }}
+                                disabled={
+                                  bulkDeleteLoading || hasPostedInvoices
+                                }
+                              >
+                                {bulkDeleteLoading ? (
+                                  <CircularProgress size={16} color="inherit" />
+                                ) : (
+                                  "Delete Selected"
+                                )}
+                              </Button>
+                            </span>
+                          </Tooltip>
                           <Tooltip
                             title={
                               hasPostedInvoices

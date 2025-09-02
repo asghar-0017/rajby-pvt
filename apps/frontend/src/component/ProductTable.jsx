@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import Swal from "sweetalert2";
+import { api } from "../API/Api";
 import {
   Box,
   Typography,
@@ -14,6 +16,7 @@ import {
   InputAdornment,
   MenuItem,
   Skeleton,
+  CircularProgress,
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import SentimentDissatisfiedIcon from "@mui/icons-material/SentimentDissatisfied";
@@ -25,10 +28,16 @@ export default function ProductTable({
   onEdit,
   onDelete,
   onAdd,
+  selectedTenant,
+  onBulkDeleted,
+  onUpload,
 }) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
 
   // Filter products by search (all main fields)
   const filteredProducts = products.filter((product) => {
@@ -156,9 +165,108 @@ export default function ProductTable({
           Products Management
         </Typography>
         <Box sx={{ flexGrow: 1 }} />
+        <Button
+          variant="outlined"
+          color="primary"
+          onClick={() => {
+            setSelectMode((prev) => !prev);
+            if (selectMode) setSelectedIds(new Set());
+          }}
+          sx={{ mr: 1, minWidth: 80 }}
+        >
+          {selectMode ? "Cancel" : "Select"}
+        </Button>
+        {selectMode && (
+          <Button
+            variant="outlined"
+            color="error"
+            disabled={bulkDeleteLoading || selectedIds.size === 0}
+            onClick={async () => {
+              if (!selectedTenant) return;
+              const ids = Array.from(selectedIds);
+              const result = await Swal.fire({
+                title: "Delete Selected Products",
+                text: `Are you sure you want to delete ${ids.length} selected product(s)?`,
+                icon: "warning",
+                showCancelButton: true,
+                confirmButtonColor: "#d33",
+                cancelButtonColor: "#3085d6",
+                confirmButtonText: "Yes, delete",
+                cancelButtonText: "Cancel",
+                reverseButtons: true,
+              });
+              if (!result.isConfirmed) return;
+              try {
+                setBulkDeleteLoading(true);
+                const successes = [];
+                const failures = [];
+
+                for (const id of ids) {
+                  try {
+                    await api.delete(
+                      `/tenant/${selectedTenant.tenant_id}/products/${id}`
+                    );
+                    successes.push(id);
+                  } catch (error) {
+                    console.error(`Failed to delete product ${id}:`, error);
+                    failures.push(id);
+                  }
+                }
+
+                if (failures.length === 0) {
+                  Swal.fire({
+                    icon: "success",
+                    title: "Success",
+                    text: `Successfully deleted ${successes.length} product(s)`,
+                    timer: 2000,
+                    showConfirmButton: false,
+                  });
+                  onBulkDeleted(successes);
+                  setSelectedIds(new Set());
+                  setSelectMode(false);
+                } else {
+                  Swal.fire({
+                    icon: "warning",
+                    title: "Partial Success",
+                    text: `Deleted ${successes.length} products, ${failures.length} failed.`,
+                  });
+                  if (successes.length > 0) {
+                    onBulkDeleted(successes);
+                    setSelectedIds(new Set());
+                    setSelectMode(false);
+                  }
+                }
+              } catch (error) {
+                console.error("Bulk delete error:", error);
+                Swal.fire({
+                  icon: "error",
+                  title: "Error",
+                  text: "An error occurred during bulk delete",
+                });
+              } finally {
+                setBulkDeleteLoading(false);
+              }
+            }}
+            startIcon={
+              bulkDeleteLoading ? <CircularProgress size={16} /> : null
+            }
+          >
+            {bulkDeleteLoading
+              ? "Deleting..."
+              : `Delete Selected (${selectedIds.size})`}
+          </Button>
+        )}
         <Button variant="contained" color="primary" onClick={onAdd}>
           Add Product
         </Button>
+        {/* <Button
+          variant="outlined"
+          color="secondary"
+          onClick={onUpload}
+          sx={{ ml: 1 }}
+        >
+          Upload Products
+        </Button> */}
       </Box>
 
       {/* Search and Controls */}
@@ -233,6 +341,29 @@ export default function ProductTable({
             >
               <TableHead>
                 <TableRow sx={{ background: "#EDEDED" }}>
+                  {selectMode && (
+                    <TableCell align="center" sx={{ width: 50 }}>
+                      <input
+                        type="checkbox"
+                        checked={
+                          paginatedProducts.length > 0 &&
+                          paginatedProducts.every((p) => selectedIds.has(p.id))
+                        }
+                        onChange={() => {
+                          const allVisibleSelected = paginatedProducts.every(
+                            (p) => selectedIds.has(p.id)
+                          );
+                          const next = new Set(selectedIds);
+                          if (allVisibleSelected) {
+                            paginatedProducts.forEach((p) => next.delete(p.id));
+                          } else {
+                            paginatedProducts.forEach((p) => next.add(p.id));
+                          }
+                          setSelectedIds(next);
+                        }}
+                      />
+                    </TableCell>
+                  )}
                   {[
                     "S.No",
                     "Name",
@@ -270,6 +401,20 @@ export default function ProductTable({
                       },
                     }}
                   >
+                    {selectMode && (
+                      <TableCell align="center" sx={{ width: 50 }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(product.id)}
+                          onChange={() => {
+                            const next = new Set(selectedIds);
+                            if (next.has(product.id)) next.delete(product.id);
+                            else next.add(product.id);
+                            setSelectedIds(next);
+                          }}
+                        />
+                      </TableCell>
+                    )}
                     <TableCell
                       component="th"
                       scope="row"

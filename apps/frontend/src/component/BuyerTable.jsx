@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import Swal from "sweetalert2";
+import { api } from "../API/Api";
 import {
   Box,
   Typography,
@@ -26,11 +28,16 @@ export default function BuyerTable({
   onDelete,
   onAdd,
   onUpload,
+  selectedTenant,
+  onBulkDeleted,
 }) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [goToPage, setGoToPage] = useState("");
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
 
   // Filter buyers by search (all main fields)
   const filteredBuyers = buyers.filter((buyer) => {
@@ -159,14 +166,105 @@ export default function BuyerTable({
               Buyer Management
             </Typography>
             <Box sx={{ flexGrow: 1 }} />
-            <Button 
-              variant="outlined" 
-              color="primary" 
+            <Button
+              variant="outlined"
+              color="primary"
               onClick={() => onUpload()}
               sx={{ mr: 1 }}
             >
               Upload CSV
             </Button>
+            <Button
+              variant="outlined"
+              color="primary"
+              onClick={() => {
+                setSelectMode((prev) => !prev);
+                if (selectMode) setSelectedIds(new Set());
+              }}
+              sx={{ mr: 1, minWidth: 80 }}
+            >
+              {selectMode ? "Cancel" : "Select"}
+            </Button>
+            {selectMode && (
+              <Button
+                variant="outlined"
+                color="error"
+                disabled={bulkDeleteLoading || selectedIds.size === 0}
+                onClick={async () => {
+                  if (!selectedTenant) return;
+                  const ids = Array.from(selectedIds);
+                  const result = await Swal.fire({
+                    title: "Delete Selected Buyers",
+                    text: `Are you sure you want to delete ${ids.length} selected buyer(s)?`,
+                    icon: "warning",
+                    showCancelButton: true,
+                    confirmButtonColor: "#d33",
+                    cancelButtonColor: "#3085d6",
+                    confirmButtonText: "Yes, delete",
+                    cancelButtonText: "Cancel",
+                    reverseButtons: true,
+                  });
+                  if (!result.isConfirmed) return;
+                  try {
+                    setBulkDeleteLoading(true);
+                    const successes = [];
+                    const failures = [];
+                    for (const id of ids) {
+                      try {
+                        const response = await api.delete(
+                          `/tenant/${selectedTenant.tenant_id}/buyers/${id}`
+                        );
+                        if (response.data?.success) successes.push(id);
+                        else
+                          failures.push({
+                            id,
+                            message: response.data?.message || "Failed",
+                          });
+                      } catch (err) {
+                        failures.push({
+                          id,
+                          message:
+                            err.response?.data?.message ||
+                            err.message ||
+                            "Error",
+                        });
+                      }
+                    }
+                    if (successes.length > 0) {
+                      onBulkDeleted && onBulkDeleted(successes);
+                    }
+                    if (failures.length === 0) {
+                      Swal.fire({
+                        icon: "success",
+                        title: "Deleted",
+                        text: `${successes.length} buyer(s) deleted.`,
+                        confirmButtonColor: "#28a745",
+                      });
+                    } else if (successes.length === 0) {
+                      Swal.fire({
+                        icon: "error",
+                        title: "Deletion Failed",
+                        text: failures.map((f) => f.message).join("\n"),
+                        confirmButtonColor: "#d33",
+                      });
+                    } else {
+                      Swal.fire({
+                        icon: "warning",
+                        title: "Partial Delete",
+                        text: `${successes.length} deleted, ${failures.length} failed.`,
+                        confirmButtonColor: "#ff9800",
+                      });
+                    }
+                    setSelectedIds(new Set());
+                    setSelectMode(false);
+                  } finally {
+                    setBulkDeleteLoading(false);
+                  }
+                }}
+              >
+                {bulkDeleteLoading ? "Deleting..." : "Delete Selected"}
+              </Button>
+            )}
             <Button variant="contained" color="primary" onClick={() => onAdd()}>
               Add Buyer
             </Button>
@@ -242,6 +340,33 @@ export default function BuyerTable({
                 >
                   <TableHead>
                     <TableRow sx={{ background: "#EDEDED" }}>
+                      {selectMode && (
+                        <TableCell align="center" sx={{ width: 50 }}>
+                          <input
+                            type="checkbox"
+                            checked={
+                              paginatedBuyers.length > 0 &&
+                              paginatedBuyers.every((b) =>
+                                selectedIds.has(b.id)
+                              )
+                            }
+                            onChange={() => {
+                              const allVisibleSelected = paginatedBuyers.every(
+                                (b) => selectedIds.has(b.id)
+                              );
+                              const next = new Set(selectedIds);
+                              if (allVisibleSelected) {
+                                paginatedBuyers.forEach((b) =>
+                                  next.delete(b.id)
+                                );
+                              } else {
+                                paginatedBuyers.forEach((b) => next.add(b.id));
+                              }
+                              setSelectedIds(next);
+                            }}
+                          />
+                        </TableCell>
+                      )}
                       {[
                         "S.No",
                         "NTN/CNIC",
@@ -282,6 +407,20 @@ export default function BuyerTable({
                           },
                         }}
                       >
+                        {selectMode && (
+                          <TableCell align="center" sx={{ width: 50 }}>
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.has(buyer.id)}
+                              onChange={() => {
+                                const next = new Set(selectedIds);
+                                if (next.has(buyer.id)) next.delete(buyer.id);
+                                else next.add(buyer.id);
+                                setSelectedIds(next);
+                              }}
+                            />
+                          </TableCell>
+                        )}
                         <TableCell
                           component="th"
                           scope="row"
