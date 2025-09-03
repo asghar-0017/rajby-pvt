@@ -22,7 +22,7 @@ jobs:
           cd ${{ github.workspace }}/apps/backend
           npm install
 
-      - name: Start or restart backend with PM2 #dni test
+      - name: Start or restart backend with PM2
         run: |
           cd ${{ github.workspace }}/apps/backend
-          /usr/bin/pm2 start index.js --name pakleather || /usr/bin/pm2 restart pakleather
+          /usr/bin/pm2 start index.js --name tulip-towel || /usr/bin/pm2 restart tulip-towel
