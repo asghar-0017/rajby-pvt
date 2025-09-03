@@ -238,7 +238,7 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
       setCheckingBuyerRegistration(true);
       setBuyerRegistrationHint("");
 
-      const response = await fetch("https://habibsugar.inplsoftwares.online/api/buyer-check", {
+      const response = await fetch("https://anwer-tex.inplsoftwares.online/api/buyer-check", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
