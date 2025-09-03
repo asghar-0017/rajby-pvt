@@ -172,7 +172,7 @@ export default function ProductTable({
             setSelectMode((prev) => !prev);
             if (selectMode) setSelectedIds(new Set());
           }}
-          sx={{ mr: 1, minWidth: 80 }}
+          sx={{ minWidth: 80 }}
         >
           {selectMode ? "Cancel" : "Select"}
         </Button>
@@ -256,17 +256,17 @@ export default function ProductTable({
               : `Delete Selected (${selectedIds.size})`}
           </Button>
         )}
-        <Button variant="contained" color="primary" onClick={onAdd}>
-          Add Product
-        </Button>
-        {/* <Button
+        <Button
           variant="outlined"
-          color="secondary"
+          color="primary"
           onClick={onUpload}
           sx={{ ml: 1 }}
         >
           Upload Products
-        </Button> */}
+        </Button>
+        <Button variant="contained" color="primary" onClick={onAdd}>
+          Add Product
+        </Button>
       </Box>
 
       {/* Search and Controls */}

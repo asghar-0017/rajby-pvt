@@ -71,13 +71,21 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
   // FBR API configuration - using backend proxy like BuyerModal
   const FBR_API_URL = "/api/buyer-check";
 
-  // Expected columns for buyer data
+  // Internal keys for buyer data
   const expectedColumns = [
     "buyerNTNCNIC",
     "buyerBusinessName",
     "buyerProvince",
     "buyerAddress",
   ];
+
+  // Map display headers (as shown in Excel) back to internal keys
+  const displayToInternalHeaderMap = {
+    "Buyer NTN/CNIC": "buyerNTNCNIC",
+    "Buyer Buisness Name": "buyerBusinessName",
+    "Buyer Province": "buyerProvince",
+    "Buyer Address": "buyerAddress",
+  };
 
   const downloadTemplate = async () => {
     try {
@@ -88,12 +96,18 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         views: [{ state: "frozen", ySplit: 1 }],
       });
 
-      // Header row
-      worksheet.addRow(expectedColumns);
+      // Header row with visual labels
+      const visualHeaders = [
+        "Buyer NTN/CNIC",
+        "Buyer Buisness Name",
+        "Buyer Province",
+        "Buyer Address",
+      ];
+      worksheet.addRow(visualHeaders);
       worksheet.getRow(1).font = { bold: true };
 
       // Ensure NTN/CNIC column is treated as text and readable
-      const ntnIdx = expectedColumns.indexOf("buyerNTNCNIC") + 1;
+      const ntnIdx = visualHeaders.indexOf("Buyer NTN/CNIC") + 1;
       if (ntnIdx > 0) {
         const col = worksheet.getColumn(ntnIdx);
         col.numFmt = "@";
@@ -245,8 +259,9 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       // Parse headers
       const headers = parseCSVLine(lines[0]);
 
-      // Validate headers
-      const missingHeaders = expectedColumns.filter(
+      // Validate headers - check if visual labels are present
+      const visualHeaders = Object.keys(displayToInternalHeaderMap);
+      const missingHeaders = visualHeaders.filter(
         (col) => !headers.includes(col)
       );
       if (missingHeaders.length > 0) {
@@ -266,13 +281,15 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
             row[header] = values[index] || "";
           });
 
-          // Only include expected columns
-          const filteredRow = {};
-          expectedColumns.forEach((col) => {
-            filteredRow[col] = row[col] || "";
-          });
+          // Map visual headers to internal keys
+          const mappedRow = {};
+          Object.entries(displayToInternalHeaderMap).forEach(
+            ([visualHeader, internalKey]) => {
+              mappedRow[internalKey] = row[visualHeader] || "";
+            }
+          );
 
-          data.push(filteredRow);
+          data.push(mappedRow);
         }
       }
 
@@ -298,8 +315,9 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
           String(header || "").trim()
         );
 
-        // Validate headers
-        const missingHeaders = expectedColumns.filter(
+        // Validate headers - check if visual labels are present
+        const visualHeaders = Object.keys(displayToInternalHeaderMap);
+        const missingHeaders = visualHeaders.filter(
           (col) => !headers.includes(col)
         );
         if (missingHeaders.length > 0) {
@@ -328,13 +346,15 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
                   : "";
             });
 
-            // Only include expected columns
-            const filteredRow = {};
-            expectedColumns.forEach((col) => {
-              filteredRow[col] = rowData[col] || "";
-            });
+            // Map visual headers to internal keys
+            const mappedRow = {};
+            Object.entries(displayToInternalHeaderMap).forEach(
+              ([visualHeader, internalKey]) => {
+                mappedRow[internalKey] = rowData[visualHeader] || "";
+              }
+            );
 
-            data.push(filteredRow);
+            data.push(mappedRow);
           }
         }
 
@@ -726,8 +746,8 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       <DialogContent>
         <Box sx={{ mb: 3 }}>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Upload a CSV or Excel file with the following columns: buyerNTNCNIC,
-            buyerBusinessName, buyerProvince, buyerAddress.
+            Upload a CSV or Excel file with the following columns: Buyer
+            NTN/CNIC, Buyer Buisness Name, Buyer Province, Buyer Address.
             <br />
             <strong>Note:</strong> Buyer registration status will be
             automatically checked with FBR via backend proxy when you upload the
@@ -891,19 +911,23 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
                       >
                         Status
                       </TableCell>
-                      {[...expectedColumns, "buyerRegistrationType"].map(
-                        (column) => (
-                          <TableCell
-                            key={column}
-                            sx={{
-                              fontWeight: "bold",
-                              backgroundColor: "#f5f5f5",
-                            }}
-                          >
-                            {column}
-                          </TableCell>
-                        )
-                      )}
+                      {[
+                        "Buyer NTN/CNIC",
+                        "Buyer Buisness Name",
+                        "Buyer Province",
+                        "Buyer Address",
+                        "Registration Type",
+                      ].map((header) => (
+                        <TableCell
+                          key={header}
+                          sx={{
+                            fontWeight: "bold",
+                            backgroundColor: "#f5f5f5",
+                          }}
+                        >
+                          {header}
+                        </TableCell>
+                      ))}
                     </TableRow>
                   </TableHead>
                   <TableBody>

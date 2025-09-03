@@ -293,12 +293,12 @@ const Products = () => {
       />
 
       {/* Product Uploader */}
-      {/* <ProductUploader
+      <ProductUploader
         isOpen={isUploaderOpen}
         onClose={closeUploader}
         onUpload={handleBulkUpload}
         selectedTenant={selectedTenant}
-      /> */}
+      />
     </Container>
   );
 };

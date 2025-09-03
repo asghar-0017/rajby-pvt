@@ -4671,128 +4671,68 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
       }
     }
 
-    // Fallback UoM data for common HS Codes
+    // Hardcoded UoM options from API response (same as Product template)
+    const hardcodedUomOptions = [
+      { uoM_ID: 3, description: "MT" },
+      { uoM_ID: 4, description: "Bill of lading" },
+      { uoM_ID: 5, description: "SET" },
+      { uoM_ID: 6, description: "KWH" },
+      { uoM_ID: 8, description: "40KG" },
+      { uoM_ID: 9, description: "Liter" },
+      { uoM_ID: 11, description: "SqY" },
+      { uoM_ID: 12, description: "Bag" },
+      { uoM_ID: 13, description: "KG" },
+      { uoM_ID: 46, description: "MMBTU" },
+      { uoM_ID: 48, description: "Meter" },
+      { uoM_ID: 50, description: "Pcs" },
+      { uoM_ID: 53, description: "Carat" },
+      { uoM_ID: 55, description: "Cubic Metre" },
+      { uoM_ID: 57, description: "Dozen" },
+      { uoM_ID: 59, description: "Gram" },
+      { uoM_ID: 61, description: "Gallon" },
+      { uoM_ID: 63, description: "Kilogram" },
+      { uoM_ID: 65, description: "Pound" },
+      { uoM_ID: 67, description: "Timber Logs" },
+      { uoM_ID: 69, description: "Numbers, pieces, units" },
+      { uoM_ID: 71, description: "Packs" },
+      { uoM_ID: 73, description: "Pair" },
+      { uoM_ID: 75, description: "Square Foot" },
+      { uoM_ID: 77, description: "Square Metre" },
+      { uoM_ID: 79, description: "Thousand Unit" },
+      { uoM_ID: 81, description: "Mega Watt" },
+      { uoM_ID: 83, description: "Foot" },
+      { uoM_ID: 85, description: "Barrels" },
+      { uoM_ID: 87, description: "NO" },
+      { uoM_ID: 118, description: "Meter" },
+      { uoM_ID: 110, description: "KWH" },
+      { uoM_ID: 112, description: "Packs" },
+      { uoM_ID: 114, description: "Meter" },
+      { uoM_ID: 116, description: "Liter" },
+      { uoM_ID: 117, description: "Bag" },
+      { uoM_ID: 98, description: "MMBTU" },
+      { uoM_ID: 99, description: "Numbers, pieces, units" },
+      { uoM_ID: 100, description: "Square Foot" },
+      { uoM_ID: 101, description: "Thousand Unit" },
+      { uoM_ID: 102, description: "Barrels" },
+      { uoM_ID: 88, description: "Others" },
+      { uoM_ID: 96, description: "1000 kWh" },
+    ];
 
+    // Fallback UoM data using hardcoded options
     const fallbackUomData = {
-      "0101.10.00": [
-        { uoM_ID: "kg", description: "Kilogram" },
-
-        { uoM_ID: "pcs", description: "Pieces" },
-      ],
-
-      "0101.90.00": [
-        { uoM_ID: "kg", description: "Kilogram" },
-
-        { uoM_ID: "pcs", description: "Pieces" },
-      ],
-
-      "0102.10.00": [
-        { uoM_ID: "kg", description: "Kilogram" },
-
-        { uoM_ID: "pcs", description: "Pieces" },
-      ],
-
-      "0102.90.00": [
-        { uoM_ID: "kg", description: "Kilogram" },
-
-        { uoM_ID: "pcs", description: "Pieces" },
-      ],
-
-      "0103.10.00": [
-        { uoM_ID: "kg", description: "Kilogram" },
-
-        { uoM_ID: "pcs", description: "Pieces" },
-      ],
-
-      "0103.91.00": [
-        { uoM_ID: "kg", description: "Kilogram" },
-
-        { uoM_ID: "pcs", description: "Pieces" },
-      ],
-
-      "0103.92.00": [
-        { uoM_ID: "kg", description: "Kilogram" },
-
-        { uoM_ID: "pcs", description: "Pieces" },
-      ],
-
-      "0104.10.00": [
-        { uoM_ID: "kg", description: "Kilogram" },
-
-        { uoM_ID: "pcs", description: "Pieces" },
-      ],
-
-      "0104.20.00": [
-        { uoM_ID: "kg", description: "Kilogram" },
-
-        { uoM_ID: "pcs", description: "Pieces" },
-      ],
-
-      "0105.11.00": [
-        { uoM_ID: "kg", description: "Kilogram" },
-
-        { uoM_ID: "pcs", description: "Pieces" },
-      ],
-
-      "0105.12.00": [
-        { uoM_ID: "kg", description: "Kilogram" },
-
-        { uoM_ID: "pcs", description: "Pieces" },
-      ],
-
+      "0101.10.00": hardcodedUomOptions,
+      "0101.90.00": hardcodedUomOptions,
+      "0102.10.00": hardcodedUomOptions,
+      "0102.90.00": hardcodedUomOptions,
+      "0103.10.00": hardcodedUomOptions,
+      "0103.91.00": hardcodedUomOptions,
+      "0103.92.00": hardcodedUomOptions,
+      "0104.10.00": hardcodedUomOptions,
+      "0104.20.00": hardcodedUomOptions,
+      "0105.11.00": hardcodedUomOptions,
+      "0105.12.00": hardcodedUomOptions,
       // Add more common HS codes as needed
-
-      default: [
-        { uoM_ID: "kg", description: "Kilogram" },
-
-        { uoM_ID: "pcs", description: "Pieces" },
-
-        { uoM_ID: "ltr", description: "Litre" },
-
-        { uoM_ID: "mtr", description: "Meter" },
-
-        { uoM_ID: "sqm", description: "Square Meter" },
-
-        { uoM_ID: "cbm", description: "Cubic Meter" },
-
-        { uoM_ID: "ton", description: "Ton" },
-
-        { uoM_ID: "g", description: "Gram" },
-
-        { uoM_ID: "ml", description: "Millilitre" },
-
-        { uoM_ID: "cm", description: "Centimeter" },
-
-        { uoM_ID: "mm", description: "Millimeter" },
-
-        { uoM_ID: "km", description: "Kilometer" },
-
-        { uoM_ID: "doz", description: "Dozen" },
-
-        { uoM_ID: "pair", description: "Pair" },
-
-        { uoM_ID: "set", description: "Set" },
-
-        { uoM_ID: "box", description: "Box" },
-
-        { uoM_ID: "carton", description: "Carton" },
-
-        { uoM_ID: "bottle", description: "Bottle" },
-
-        { uoM_ID: "can", description: "Can" },
-
-        { uoM_ID: "bag", description: "Bag" },
-
-        { uoM_ID: "roll", description: "Roll" },
-
-        { uoM_ID: "sheet", description: "Sheet" },
-
-        { uoM_ID: "unit", description: "Unit" },
-
-        { uoM_ID: "bill_of_lading", description: "Bill of lading" },
-
-        { uoM_ID: "sqy", description: "SqY" },
-      ],
+      default: hardcodedUomOptions,
     };
 
     // Merge API UoM data with fallback data
@@ -4838,6 +4778,7 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
     const columns = [
       "invoiceType",
       "invoiceDate",
+      "invoiceRefNo",
       "companyInvoiceRefNo",
       // Buyer details
       "buyerNTNCNIC",
@@ -4871,6 +4812,7 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
     const displayLabelMap = {
       invoiceType: "Invoice Type",
       invoiceDate: "Invoice Date",
+      invoiceRefNo: "DN Invoice Ref No",
       companyInvoiceRefNo: "Company Invoice Ref No",
       buyerNTNCNIC: "Buyer NTN/CNIC",
       buyerBusinessName: "Buyer Buisness Name",
@@ -4908,6 +4850,87 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
     const buyerNtnIdx = columns.indexOf("buyerNTNCNIC") + 1;
     if (buyerNtnIdx > 0) {
       const col = template.getColumn(buyerNtnIdx);
+      col.numFmt = "@";
+      col.alignment = { horizontal: "left" };
+      if (!col.width || col.width < 18) col.width = 20;
+    }
+
+    // HS Code formatting: Treat as text to preserve format (e.g., 0101.10.00)
+    const hsCodeIdx = columns.indexOf("item_hsCode") + 1;
+    if (hsCodeIdx > 0) {
+      const col = template.getColumn(hsCodeIdx);
+      col.numFmt = "@";
+      col.alignment = { horizontal: "left" };
+      if (!col.width || col.width < 18) col.width = 20;
+    }
+
+    // Rate formatting: Treat as text to preserve rate format (e.g., "17%", "Exempt")
+    const rateIdx = columns.indexOf("item_rate") + 1;
+    if (rateIdx > 0) {
+      const col = template.getColumn(rateIdx);
+      col.numFmt = "@";
+      col.alignment = { horizontal: "left" };
+      if (!col.width || col.width < 18) col.width = 20;
+    }
+
+    // SRO Schedule No formatting: Treat as text to preserve format
+    const sroScheduleIdx = columns.indexOf("item_sroScheduleNo") + 1;
+    if (sroScheduleIdx > 0) {
+      const col = template.getColumn(sroScheduleIdx);
+      col.numFmt = "@";
+      col.alignment = { horizontal: "left" };
+      if (!col.width || col.width < 18) col.width = 20;
+    }
+
+    // UoM formatting: Treat as text to preserve unit format
+    const uoMIdx = columns.indexOf("item_uoM") + 1;
+    if (uoMIdx > 0) {
+      const col = template.getColumn(uoMIdx);
+      col.numFmt = "@";
+      col.alignment = { horizontal: "left" };
+      if (!col.width || col.width < 18) col.width = 20;
+    }
+
+    // SRO Item Serial No formatting: Treat as text to preserve format
+    const sroItemIdx = columns.indexOf("item_sroItemSerialNo") + 1;
+    if (sroItemIdx > 0) {
+      const col = template.getColumn(sroItemIdx);
+      col.numFmt = "@";
+      col.alignment = { horizontal: "left" };
+      if (!col.width || col.width < 18) col.width = 20;
+    }
+
+    // Sale Type formatting: Treat as text to preserve format
+    const saleTypeIdx = columns.indexOf("item_saleType") + 1;
+    if (saleTypeIdx > 0) {
+      const col = template.getColumn(saleTypeIdx);
+      col.numFmt = "@";
+      col.alignment = { horizontal: "left" };
+      if (!col.width || col.width < 18) col.width = 20;
+    }
+
+    // Transaction Type formatting: Treat as text to preserve format
+    const transTypeIdx = columns.indexOf("transctypeId") + 1;
+    if (transTypeIdx > 0) {
+      const col = template.getColumn(transTypeIdx);
+      col.numFmt = "@";
+      col.alignment = { horizontal: "left" };
+      if (!col.width || col.width < 18) col.width = 20;
+    }
+
+    // Invoice Reference Number formatting: Treat as text to preserve format
+    const invoiceRefIdx = columns.indexOf("invoiceRefNo") + 1;
+    if (invoiceRefIdx > 0) {
+      const col = template.getColumn(invoiceRefIdx);
+      col.numFmt = "@";
+      col.alignment = { horizontal: "left" };
+      if (!col.width || col.width < 18) col.width = 20;
+    }
+
+    // Company Invoice Reference Number formatting: Treat as text to preserve format
+    const companyInvoiceRefIdx = columns.indexOf("companyInvoiceRefNo") + 1;
+    if (companyInvoiceRefIdx > 0) {
+      const col = template.getColumn(companyInvoiceRefIdx);
       col.numFmt = "@";
       col.alignment = { horizontal: "left" };
       if (!col.width || col.width < 18) col.width = 20;
@@ -5731,25 +5754,8 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
         };
       }
 
-      // item_hsCode - HSCode dropdown
-
-      template.getCell(r, headerIndex("item_hsCode")).dataValidation = {
-        type: "list",
-
-        allowBlank: true,
-
-        formulae: [
-          `$${getColLetter(hsCodeListCol)}$${hsCodeListRange.startRow}:$${getColLetter(hsCodeListCol)}$${hsCodeListRange.endRow}`,
-        ],
-
-        showErrorMessage: true,
-
-        errorStyle: "warning",
-
-        errorTitle: "Invalid HS Code",
-
-        error: "Select a valid HS Code from the dropdown list.",
-      };
+      // item_hsCode - Free text input (dropdown removed)
+      // Users can now input their own HS Code values
 
       // item_uoM - UoM dropdown (shows ALL available UoM values from API and fallback data)
 
@@ -5911,7 +5917,7 @@ IF($${dscColLetter}${r}="",0,VALUE($${dscColLetter}${r})))`,
       "3. Sales Tax Applicable auto-calculates: Value Sales (Excl. ST) × (rate ÷ 100).",
       "4. Total Values = (Value Excl. ST + Sales Tax + FED + ST W/H + Further Tax) minus Discount Amount.",
       "5. Enter Quantity and Value Sales (Excl. ST) to compute Unit Cost.",
-      "6. Use the dropdowns for validated selections (HS Code, UoM, Rate, etc.)",
+      "6. HS Code is now free text input. Use dropdowns for validated selections (UoM, Rate, etc.)",
       "7. Rate dropdown now includes ALL available rates from API and hardcoded data.",
       "8. UoM dropdown now includes ALL available UoM values from API and fallback data.",
       "9. SRO Schedule dropdown now includes ALL available SRO Schedule Numbers from API and fallback data.",

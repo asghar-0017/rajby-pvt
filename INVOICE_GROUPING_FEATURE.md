@@ -48,7 +48,7 @@ Each grouped invoice maintains the same structure expected by the backend:
 
 **Note**: The `Internal Invoice No` column has been removed from the Excel template as it is no longer needed for invoice grouping. All grouping is now done using the `Company Invoice Ref No` field.
 
-**Note**: The `Invoice Ref No` column is now optional and not required for Excel file uploads. Users can leave this field empty if they don't have an invoice reference number.
+**Note**: The `Invoice Ref No` column is now optional and not required for Excel file uploads. Users can leave this field empty if they don't have an invoice reference number. The column remains in the Excel template but is not mandatory for successful uploads.
 
 ## User Experience Improvements
 

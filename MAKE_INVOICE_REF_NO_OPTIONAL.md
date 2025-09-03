@@ -22,8 +22,9 @@ This error occurred because `invoiceRefNo` was still listed in the `expectedColu
 
 **Changes**:
 
-- Removed `"invoiceRefNo"` from the `expectedColumns` array
-- This makes the column optional during Excel file parsing and validation
+- Kept `"invoiceRefNo"` in the `expectedColumns` array (so it appears in the template)
+- Added `requiredColumns` array that excludes `invoiceRefNo` for validation
+- Updated validation logic to use `requiredColumns` instead of `expectedColumns`
 
 **Before**:
 
@@ -43,9 +44,13 @@ const expectedColumns = [
 const expectedColumns = [
   "invoiceType",
   "invoiceDate",
-  "companyInvoiceRefNo", // ← invoiceRefNo removed, now optional
+  "invoiceRefNo", // ← invoiceRefNo kept in template
+  "companyInvoiceRefNo",
   // ... other columns
 ];
+
+// Required columns (invoiceRefNo is optional)
+const requiredColumns = expectedColumns.filter((col) => col !== "invoiceRefNo");
 ```
 
 ### 2. Backend Changes - invoiceController.js
@@ -54,8 +59,8 @@ const expectedColumns = [
 
 **Changes**:
 
-- Removed `"invoiceRefNo"` from the `columns` array used for Excel template generation
-- Removed `invoiceRefNo: "DN Invoice Ref No"` from the `displayLabelMap`
+- Kept `"invoiceRefNo"` in the `columns` array used for Excel template generation
+- Kept `invoiceRefNo: "DN Invoice Ref No"` in the `displayLabelMap`
 
 **Before**:
 
@@ -83,14 +88,16 @@ const displayLabelMap = {
 const columns = [
   "invoiceType",
   "invoiceDate",
-  "companyInvoiceRefNo", // ← invoiceRefNo removed from template
+  "invoiceRefNo", // ← invoiceRefNo kept in template
+  "companyInvoiceRefNo",
   // ... other columns
 ];
 
 const displayLabelMap = {
   invoiceType: "Invoice Type",
   invoiceDate: "Invoice Date",
-  companyInvoiceRefNo: "Company Invoice Ref No", // ← invoiceRefNo mapping removed
+  invoiceRefNo: "DN Invoice Ref No", // ← invoiceRefNo mapping kept
+  companyInvoiceRefNo: "Company Invoice Ref No",
   // ... other mappings
 };
 ```
@@ -114,10 +121,10 @@ const displayLabelMap = {
 
 ### What This Change Accomplishes
 
-1. **Eliminates Upload Errors**: Users can now upload Excel files without the `invoiceRefNo` column
+1. **Eliminates Upload Errors**: Users can now upload Excel files with empty `invoiceRefNo` values
 2. **Maintains Functionality**: The `invoiceRefNo` field is still processed if present in the uploaded data
-3. **Flexible Uploads**: Users have the choice to include or exclude this field based on their needs
-4. **Template Simplification**: The Excel template no longer includes the `Invoice Ref No` column
+3. **Flexible Uploads**: Users can leave the field empty or fill it based on their needs
+4. **Template Consistency**: The Excel template still includes the `Invoice Ref No` column for user convenience
 
 ### What This Change Does NOT Affect
 
@@ -130,24 +137,24 @@ const displayLabelMap = {
 
 ### Before the Change
 
-- Users were required to include the `Invoice Ref No` column in their Excel files
+- Users were required to provide values for the `Invoice Ref No` column in their Excel files
 - Uploads would fail with "Missing required columns: invoiceRefNo" error if the column was missing
-- Users had to manually add the column even if they didn't have invoice reference numbers
+- Users had to fill in the column even if they didn't have invoice reference numbers
 
 ### After the Change
 
-- Users can upload Excel files with or without the `Invoice Ref No` column
-- The system gracefully handles missing `invoiceRefNo` values
+- Users can upload Excel files with the `Invoice Ref No` column but leave values empty
+- The system gracefully handles empty `invoiceRefNo` values
 - Users have more flexibility in their data preparation process
-- Uploads succeed regardless of whether `invoiceRefNo` is present
+- Uploads succeed regardless of whether `invoiceRefNo` values are provided
 
 ## Testing Recommendations
 
 To verify this change works correctly:
 
-1. **Upload Excel file without `invoiceRefNo` column**: Should succeed without errors
-2. **Upload Excel file with `invoiceRefNo` column**: Should still work as before
-3. **Upload Excel file with empty `invoiceRefNo` values**: Should handle empty values gracefully
+1. **Upload Excel file with `invoiceRefNo` column but empty values**: Should succeed without errors
+2. **Upload Excel file with `invoiceRefNo` column and filled values**: Should still work as before
+3. **Upload Excel file with mixed empty and filled `invoiceRefNo` values**: Should handle both cases gracefully
 4. **Verify grouping still works**: Invoice grouping by `companyInvoiceRefNo` should continue to function
 
 ## Files Modified
@@ -158,11 +165,10 @@ To verify this change works correctly:
 
 ## Summary
 
-The `invoiceRefNo` column is now completely optional in the Excel sheet uploader. Users can:
+The `invoiceRefNo` column is now optional in the Excel sheet uploader. Users can:
 
-- ✅ Upload files without the `Invoice Ref No` column
-- ✅ Upload files with the `Invoice Ref No` column (if they want to include it)
-- ✅ Leave `invoiceRefNo` values empty in their data
+- ✅ Upload files with the `Invoice Ref No` column but leave values empty
+- ✅ Upload files with the `Invoice Ref No` column and fill in values
 - ✅ Continue using all other functionality as before
 
-This change resolves the "Missing required columns: invoiceRefNo" error and provides users with more flexibility in their Excel file preparation process.
+This change resolves the "Missing required columns: invoiceRefNo" error and provides users with more flexibility in their Excel file preparation process while keeping the column visible in the template.

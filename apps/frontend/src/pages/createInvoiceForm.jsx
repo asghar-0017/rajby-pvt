@@ -2450,10 +2450,37 @@ export default function CreateInvoice() {
         ),
       };
 
+      // Create items for backend that include all fields (including advanceIncomeTax)
+      const backendItems = itemsToSave.map((item) => ({
+        ...item,
+        quantity: item.quantity === "" ? 0 : parseFloat(item.quantity),
+        unitPrice: Number(Number(item.unitPrice || 0).toFixed(2)),
+        valueSalesExcludingST: Number(
+          Number(item.valueSalesExcludingST || 0).toFixed(2)
+        ),
+        salesTaxApplicable:
+          Math.round(Number(item.salesTaxApplicable) * 100) / 100,
+        salesTaxWithheldAtSource: Number(
+          Number(item.salesTaxWithheldAtSource || 0).toFixed(2)
+        ),
+        totalValues: Number(Number(item.totalValues).toFixed(2)),
+        furtherTax: Number(Number(item.furtherTax || 0).toFixed(2)),
+        fedPayable: Number(Number(item.fedPayable || 0).toFixed(2)),
+        discount: Number(Number(item.discount || 0).toFixed(2)),
+        advanceIncomeTax: Number(Number(item.advanceIncomeTax || 0).toFixed(2)), // Keep in database
+      }));
+
+      const backendData = {
+        ...formData,
+        invoiceDate: dayjs(formData.invoiceDate).format("YYYY-MM-DD"),
+        transctypeId: formData.transctypeId,
+        items: backendItems, // Use backend items that include all fields
+      };
+
       // Include id when editing to update the same draft instead of creating a new one
       const payload = editingId
-        ? { id: editingId, ...cleanedData }
-        : cleanedData;
+        ? { id: editingId, ...backendData }
+        : backendData;
       console.log(
         "Saving invoice with payload:",
         JSON.stringify(payload, null, 2)
@@ -2657,6 +2684,7 @@ export default function CreateInvoice() {
               isSalesTaxWithheldManual,
               isFurtherTaxManual,
               isFedPayableManual,
+              advanceIncomeTax, // Remove from FBR API payload
               ...rest
             },
             index
@@ -2684,9 +2712,7 @@ export default function CreateInvoice() {
               furtherTax: Number(Number(rest.furtherTax || 0).toFixed(2)),
               fedPayable: Number(Number(rest.fedPayable || 0).toFixed(2)),
               discount: Number(Number(rest.discount || 0).toFixed(2)),
-              advanceIncomeTax: Number(
-                Number(rest.advanceIncomeTax || 0).toFixed(2)
-              ),
+              // advanceIncomeTax removed from FBR API payload but kept in database
             };
 
             if (rest.saleType?.trim() !== "Goods at Reduced Rate") {
@@ -2719,9 +2745,38 @@ export default function CreateInvoice() {
 
       if (isSuccess) {
         // If validation passes, save the invoice with status 'saved'
+        // Create items for backend that include all fields (including advanceIncomeTax)
+        const backendItems = itemsToSave.map((item) => ({
+          ...item,
+          quantity: item.quantity === "" ? 0 : parseFloat(item.quantity),
+          unitPrice: Number(Number(item.unitPrice || 0).toFixed(2)),
+          valueSalesExcludingST: Number(
+            Number(item.valueSalesExcludingST || 0).toFixed(2)
+          ),
+          salesTaxApplicable:
+            Math.round(Number(item.salesTaxApplicable) * 100) / 100,
+          salesTaxWithheldAtSource: Number(
+            Number(item.salesTaxWithheldAtSource || 0).toFixed(2)
+          ),
+          totalValues: Number(Number(item.totalValues).toFixed(2)),
+          furtherTax: Number(Number(item.furtherTax || 0).toFixed(2)),
+          fedPayable: Number(Number(item.fedPayable || 0).toFixed(2)),
+          discount: Number(Number(item.discount || 0).toFixed(2)),
+          advanceIncomeTax: Number(
+            Number(item.advanceIncomeTax || 0).toFixed(2)
+          ), // Keep in database
+        }));
+
+        const backendData = {
+          ...formData,
+          invoiceDate: dayjs(formData.invoiceDate).format("YYYY-MM-DD"),
+          transctypeId: formData.transctypeId,
+          items: backendItems, // Use backend items that include all fields
+        };
+
         const payload = editingId
-          ? { id: editingId, ...cleanedData }
-          : cleanedData;
+          ? { id: editingId, ...backendData }
+          : backendData;
         console.log(
           "Saving and validating invoice with payload:",
           JSON.stringify(payload, null, 2)
@@ -3032,6 +3087,7 @@ export default function CreateInvoice() {
             isSalesTaxWithheldManual,
             isFurtherTaxManual,
             isFedPayableManual,
+            advanceIncomeTax, // Remove from FBR API payload
             ...rest
           },
           index
@@ -3062,6 +3118,7 @@ export default function CreateInvoice() {
             discount: Number(Number(rest.discount || 0).toFixed(2)),
             billOfLadingUoM: rest.billOfLadingUoM?.trim() || null,
             uoM: rest.uoM?.trim() || null,
+            // advanceIncomeTax removed from FBR API payload but kept in database
           };
 
           // Only include extraTax if saleType is NOT "Goods at Reduced Rate"
@@ -3173,11 +3230,32 @@ export default function CreateInvoice() {
       // STEP 2: Hit Your Backend API Second
       // Prepare data for backend with FBR invoice number
       // Note: We need to include the original form data fields that were removed during FBR cleaning
+
+      // Create items for backend that include all fields (including advanceIncomeTax)
+      const backendItems = itemsToSubmit.map((item) => ({
+        ...item,
+        quantity: item.quantity === "" ? 0 : parseFloat(item.quantity),
+        unitPrice: Number(Number(item.unitPrice || 0).toFixed(2)),
+        valueSalesExcludingST: Number(
+          Number(item.valueSalesExcludingST || 0).toFixed(2)
+        ),
+        salesTaxApplicable:
+          Math.round(Number(item.salesTaxApplicable) * 100) / 100,
+        salesTaxWithheldAtSource: Number(
+          Number(item.salesTaxWithheldAtSource || 0).toFixed(2)
+        ),
+        totalValues: Number(Number(item.totalValues).toFixed(2)),
+        furtherTax: Number(Number(item.furtherTax || 0).toFixed(2)),
+        fedPayable: Number(Number(item.fedPayable || 0).toFixed(2)),
+        discount: Number(Number(item.discount || 0).toFixed(2)),
+        advanceIncomeTax: Number(Number(item.advanceIncomeTax || 0).toFixed(2)), // Keep in database
+      }));
+
       const backendData = {
         ...formData, // Use original form data to preserve all fields
         invoiceDate: dayjs(formData.invoiceDate).format("YYYY-MM-DD"),
         transctypeId: formData.transctypeId,
-        items: cleanedItems, // Use cleaned items for consistency
+        items: backendItems, // Use backend items that include all fields
         fbr_invoice_number: fbrInvoiceNumber,
         status: "posted", // Set status as posted since it's been submitted to FBR
       };

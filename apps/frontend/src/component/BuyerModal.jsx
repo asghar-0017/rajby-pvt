@@ -15,6 +15,9 @@ import {
   CircularProgress,
   Alert,
   Snackbar,
+  FormControlLabel,
+  Radio,
+  RadioGroup,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import { fetchData } from "../API/GetApi";
@@ -32,6 +35,7 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
     buyerProvince: "",
     buyerAddress: "",
     buyerRegistrationType: "",
+    documentType: "NTN", // Default to NTN
   });
   const [provinces, setProvinces] = useState([]);
   const [loadingProvinces, setLoadingProvinces] = useState(false);
@@ -63,6 +67,7 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
           buyerProvince: buyer.buyerProvince || "",
           buyerAddress: buyer.buyerAddress || "",
           buyerRegistrationType: buyer.buyerRegistrationType || "",
+          documentType: buyer.documentType || "NTN",
         });
         setRegistrationTypeLocked(false);
       } else {
@@ -73,6 +78,7 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
           buyerProvince: "",
           buyerAddress: "",
           buyerRegistrationType: "",
+          documentType: "NTN",
         });
         setRegistrationTypeLocked(false);
       }
@@ -160,7 +166,25 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+
+    // Special handling for NTN/CNIC field with restrictions
+    if (name === "buyerNTNCNIC") {
+      let restrictedValue = "";
+
+      if (formData.documentType === "NTN") {
+        // NTN: only alphanumeric characters, maximum 7 characters
+        const cleanValue = value.replace(/[^a-zA-Z0-9]/g, "");
+        restrictedValue = cleanValue.slice(0, 7);
+      } else if (formData.documentType === "CNIC") {
+        // CNIC: only numbers, exactly 13 digits
+        const numbersOnly = value.replace(/[^0-9]/g, "");
+        restrictedValue = numbersOnly.slice(0, 13);
+      }
+
+      setFormData((prev) => ({ ...prev, [name]: restrictedValue }));
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    }
   };
 
   const handleSave = async (e) => {
@@ -214,16 +238,13 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
       setCheckingBuyerRegistration(true);
       setBuyerRegistrationHint("");
 
-      const response = await fetch(
-        "http://localhost:5150/api/buyer-check",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ registrationNo }),
-        }
-      );
+      const response = await fetch("http://localhost:5150/api/buyer-check", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ registrationNo }),
+      });
 
       console.log(
         "FBR buyer check response status:",
@@ -279,6 +300,15 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
       setCheckingBuyerRegistration(false);
     }
   };
+
+  // Clear NTN/CNIC field when document type changes
+  useEffect(() => {
+    if (isOpen) {
+      setFormData((prev) => ({ ...prev, buyerNTNCNIC: "" }));
+      setBuyerRegistrationHint("");
+      setRegistrationTypeLocked(false);
+    }
+  }, [formData.documentType, isOpen]);
 
   // Debounce API call when NTN/CNIC changes so user doesn't have to blur
   useEffect(() => {
@@ -446,6 +476,43 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
             sx={{ width: "100%" }}
           >
             <Stack spacing={{ xs: 1, sm: 1.5 }}>
+              {/* Document Type Radio Buttons */}
+              <FormControl component="fieldset">
+                <RadioGroup
+                  row
+                  name="documentType"
+                  value={formData.documentType}
+                  onChange={handleChange}
+                  sx={{
+                    "& .MuiFormControlLabel-root": {
+                      marginRight: 2,
+                    },
+                    "& .MuiRadio-root": {
+                      color: "rgba(0, 122, 255, 0.6)",
+                      "&.Mui-checked": {
+                        color: "#007AFF",
+                      },
+                    },
+                    "& .MuiFormControlLabel-label": {
+                      color: "#1a1a1a",
+                      fontWeight: 400,
+                      fontSize: "0.875rem",
+                    },
+                  }}
+                >
+                  <FormControlLabel
+                    value="NTN"
+                    control={<Radio size="small" />}
+                    label="NTN"
+                  />
+                  <FormControlLabel
+                    value="CNIC"
+                    control={<Radio size="small" />}
+                    label="CNIC"
+                  />
+                </RadioGroup>
+              </FormControl>
+
               {/* Modern text fields with frosted styling */}
               <TextField
                 label="NTN/CNIC"
@@ -493,7 +560,8 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
                 helperText={
                   checkingBuyerRegistration
                     ? "Checking registration from FBR..."
-                    : buyerRegistrationHint || " "
+                    : buyerRegistrationHint ||
+                      `${formData.documentType === "NTN" ? "NTN: Max 7 alphanumeric characters" : "CNIC: Exactly 13 numbers only"} (${formData.buyerNTNCNIC.length}/${formData.documentType === "NTN" ? "7" : "13"})`
                 }
               />
 

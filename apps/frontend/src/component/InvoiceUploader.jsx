@@ -140,8 +140,10 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
 
   // Expected columns for invoice data (including buyer details)
   const expectedColumns = [
+    // Invoice details
     "invoiceType",
     "invoiceDate",
+    "invoiceRefNo",
     "companyInvoiceRefNo",
     // Buyer details
     "buyerNTNCNIC",
@@ -170,6 +172,11 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     "item_discount",
     "item_totalValues",
   ];
+
+  // Required columns (invoiceRefNo is optional)
+  const requiredColumns = expectedColumns.filter(
+    (col) => col !== "invoiceRefNo"
+  );
 
   // Map display headers (as shown in Excel) back to internal keys
   const displayToInternalHeaderMap = {
@@ -329,8 +336,8 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       // Parse headers and normalize to internal keys
       const headers = parseCSVLine(lines[0]).map((h) => normalizeHeader(h));
 
-      // Validate headers (normalized)
-      const missingHeaders = expectedColumns.filter(
+      // Validate headers (normalized) - invoiceRefNo is optional
+      const missingHeaders = requiredColumns.filter(
         (col) => !headers.includes(col)
       );
       if (missingHeaders.length > 0) {
@@ -428,8 +435,8 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         // Get headers from first row and normalize
         const headers = jsonData[0].map((header) => normalizeHeader(header));
 
-        // Validate headers (normalized)
-        const missingHeaders = expectedColumns.filter(
+        // Validate headers (normalized) - invoiceRefNo is optional
+        const missingHeaders = requiredColumns.filter(
           (col) => !headers.includes(col)
         );
         if (missingHeaders.length > 0) {
