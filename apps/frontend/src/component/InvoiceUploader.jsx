@@ -1612,39 +1612,25 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
             </Alert>
           )}
 
-          {/* Download Template Button - Generate from backend route */}
+          {/* Download Template Button - Download from public folder */}
           <Box sx={{ mb: 2 }}>
             <Button
               variant="outlined"
               startIcon={<Download />}
               onClick={() => {
-                (async () => {
-                  if (!selectedTenant?.tenant_id) {
-                    toast.error("Please select a company first");
-                    return;
-                  }
-                  try {
-                    const res = await api.get(
-                      `/tenant/${selectedTenant.tenant_id}/invoices/template.xlsx`,
-                      { responseType: "blob" }
-                    );
-                    const blob = new Blob([res.data], {
-                      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    });
-                    const url = window.URL.createObjectURL(blob);
-                    const link = document.createElement("a");
-                    link.href = url;
-                    link.download = "invoice_template.xlsx";
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    window.URL.revokeObjectURL(url);
-                    toast.success("Excel template generated successfully!");
-                  } catch (error) {
-                    console.error("Error generating template:", error);
-                    toast.error("Could not generate Excel template.");
-                  }
-                })();
+                try {
+                  // Create a link element to download the template from public folder
+                  const link = document.createElement("a");
+                  link.href = "/invoiceTemplate/invoice_template.xlsx";
+                  link.download = "invoice_template.xlsx";
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  toast.success("Excel template downloaded successfully!");
+                } catch (error) {
+                  console.error("Error downloading template:", error);
+                  toast.error("Could not download Excel template.");
+                }
               }}
               size="small"
             >
