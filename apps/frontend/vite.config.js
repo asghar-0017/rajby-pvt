@@ -17,7 +17,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "https://tulip-towel.inplsoftwares.online",
+        target: "https://meditec.inplsoftwares.online",
         changeOrigin: true,
         secure: false,
       },
