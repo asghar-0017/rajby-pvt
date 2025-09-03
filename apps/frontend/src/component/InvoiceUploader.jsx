@@ -856,7 +856,7 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         continue;
       }
       try {
-        const resp = await fetch("https://syahimpex.inplsoftwares.online/api/buyer-check", {
+        const resp = await fetch("https://aferoz.inplsoftwares.online/api/buyer-check", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ registrationNo: ntn }),
