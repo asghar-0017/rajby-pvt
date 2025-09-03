@@ -61,14 +61,32 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
 
       if (buyer) {
         // If editing an existing buyer, populate the form
+        console.log("=== EDITING BUYER ===");
+        console.log("Buyer data received:", buyer);
+
+        // Determine document type based on NTN/CNIC value
+        const determineDocumentType = (ntnCnic) => {
+          if (!ntnCnic) return "NTN";
+          // If it's exactly 13 digits, it's likely CNIC
+          if (/^\d{13}$/.test(ntnCnic)) return "CNIC";
+          // Otherwise, assume it's NTN
+          return "NTN";
+        };
+
+        const documentType = determineDocumentType(buyer.buyerNTNCNIC);
+        console.log("Document type determined:", documentType);
+
         setFormData({
           buyerNTNCNIC: buyer.buyerNTNCNIC || "",
           buyerBusinessName: buyer.buyerBusinessName || "",
           buyerProvince: buyer.buyerProvince || "",
           buyerAddress: buyer.buyerAddress || "",
           buyerRegistrationType: buyer.buyerRegistrationType || "",
-          documentType: buyer.documentType || "NTN",
+          documentType: documentType,
         });
+        console.log("Form data set with NTN/CNIC:", buyer.buyerNTNCNIC || "");
+        console.log("Form data set with province:", buyer.buyerProvince || "");
+        console.log("=== END EDITING BUYER ===");
         setRegistrationTypeLocked(false);
       } else {
         // If adding a new buyer, reset the form to empty
@@ -84,6 +102,13 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
       }
     }
   }, [isOpen, buyer]);
+
+  // Debug effect to monitor formData changes
+  useEffect(() => {
+    if (isOpen && buyer) {
+      console.log("FormData changed:", formData);
+    }
+  }, [formData, isOpen, buyer]);
 
   // Enhanced function to fetch provinces with retry mechanism
   const handleFetchProvinces = async () => {
@@ -142,6 +167,26 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
         return;
       }
 
+      // Fallback: Try to load provinces from localStorage if API fails
+      try {
+        const cachedProvinces = localStorage.getItem("provinceResponse");
+        if (cachedProvinces) {
+          const parsedProvinces = JSON.parse(cachedProvinces);
+          console.log(
+            "Using cached provinces from localStorage:",
+            parsedProvinces
+          );
+          setProvinces(parsedProvinces);
+          setErrorMessage(
+            "Using cached province data. Some provinces may be outdated."
+          );
+          setShowError(true);
+          return;
+        }
+      } catch (cacheError) {
+        console.error("Error loading cached provinces:", cacheError);
+      }
+
       setErrorMessage(
         error.message || "Failed to fetch provinces. Please try again."
       );
@@ -163,6 +208,44 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
       return () => clearTimeout(timer);
     }
   }, [isOpen, tokensLoaded]);
+
+  // Additional effect to handle province loading when editing a buyer
+  useEffect(() => {
+    if (isOpen && buyer && buyer.buyerProvince && provinces.length === 0) {
+      // If we're editing a buyer and provinces haven't loaded yet, try to load them
+      // This ensures the province field shows the current value even if FBR API fails
+      if (tokensLoaded) {
+        const timer = setTimeout(() => {
+          handleFetchProvinces();
+        }, 300);
+
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [isOpen, buyer, buyer?.buyerProvince, provinces.length, tokensLoaded]);
+
+  // Initialize provinces from cache when modal opens
+  useEffect(() => {
+    if (isOpen && provinces.length === 0) {
+      // Try to load cached provinces first for immediate display
+      try {
+        const cachedProvinces = localStorage.getItem("provinceResponse");
+        if (cachedProvinces) {
+          const parsedProvinces = JSON.parse(cachedProvinces);
+          console.log(
+            "Loading cached provinces on modal open:",
+            parsedProvinces
+          );
+          setProvinces(parsedProvinces);
+        }
+      } catch (cacheError) {
+        console.error(
+          "Error loading cached provinces on modal open:",
+          cacheError
+        );
+      }
+    }
+  }, [isOpen]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -301,14 +384,14 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
     }
   };
 
-  // Clear NTN/CNIC field when document type changes
+  // Clear NTN/CNIC field when document type changes (only for new buyers, not when editing)
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !buyer) {
       setFormData((prev) => ({ ...prev, buyerNTNCNIC: "" }));
       setBuyerRegistrationHint("");
       setRegistrationTypeLocked(false);
     }
-  }, [formData.documentType, isOpen]);
+  }, [formData.documentType, isOpen, buyer]);
 
   // Debounce API call when NTN/CNIC changes so user doesn't have to blur
   useEffect(() => {
@@ -316,13 +399,17 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
     const value = (formData.buyerNTNCNIC || "").trim();
     if (ntnDebounceTimer) clearTimeout(ntnDebounceTimer);
     if (!value) return;
+
+    // Don't check registration if we're editing an existing buyer (to avoid interference)
+    if (buyer) return;
+
     const id = setTimeout(() => {
       console.log("Debounce fire -> checking buyer with:", value);
       checkBuyerRegistration(value);
     }, 700);
     setNtnDebounceTimer(id);
     return () => clearTimeout(id);
-  }, [formData.buyerNTNCNIC, isOpen]);
+  }, [formData.buyerNTNCNIC, isOpen, buyer]);
 
   if (!isOpen) return null;
 
@@ -524,7 +611,10 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
                 }}
                 onBlur={(e) => {
                   console.log("NTN/CNIC onBlur ->", e.target.value);
-                  checkBuyerRegistration(e.target.value?.trim());
+                  // Only check registration if we're not editing an existing buyer
+                  if (!buyer) {
+                    checkBuyerRegistration(e.target.value?.trim());
+                  }
                 }}
                 fullWidth
                 required
@@ -652,6 +742,60 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
                       },
                     }}
                   >
+                    {/* Debug info */}
+                    {console.log(
+                      "Province dropdown - formData.buyerProvince:",
+                      formData.buyerProvince
+                    )}
+                    {console.log("Province dropdown - provinces:", provinces)}
+                    {console.log(
+                      "Province dropdown - provinces length:",
+                      provinces.length
+                    )}
+
+                    {/* Show current province value if it exists and is not in the FBR list */}
+                    {formData.buyerProvince &&
+                      !provinces.some(
+                        (p) => p.stateProvinceDesc === formData.buyerProvince
+                      ) && (
+                        <MenuItem
+                          value={formData.buyerProvince}
+                          sx={{
+                            color: "#1a1a1a",
+                            backgroundColor: "rgba(0, 122, 255, 0.05)",
+                            "&:hover": {
+                              backgroundColor: "rgba(0, 122, 255, 0.1)",
+                            },
+                          }}
+                        >
+                          {formData.buyerProvince} (Current)
+                        </MenuItem>
+                      )}
+
+                    {/* Add standard uppercase provinces for consistency */}
+                    {[
+                      "BALOCHISTAN",
+                      "AZAD JAMMU AND KASHMIR",
+                      "CAPITAL TERRITORY",
+                      "PUNJAB",
+                      "KHYBER PAKHTUNKHWA",
+                      "GILGIT BALTISTAN",
+                      "SINDH",
+                    ].map((province) => (
+                      <MenuItem
+                        key={province}
+                        value={province}
+                        sx={{
+                          color: "#1a1a1a",
+                          "&:hover": {
+                            backgroundColor: "rgba(0, 122, 255, 0.1)",
+                          },
+                        }}
+                      >
+                        {province}
+                      </MenuItem>
+                    ))}
+
                     {provinces.length === 0 ? (
                       <MenuItem disabled>
                         {loadingProvinces
@@ -676,6 +820,32 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
                     )}
                   </Select>
                 </FormControl>
+
+                {/* Fallback text field to show current province when dropdown is empty */}
+                {formData.buyerProvince &&
+                  provinces.length === 0 &&
+                  !loadingProvinces && (
+                    <TextField
+                      label="Current Province (Read-only)"
+                      value={formData.buyerProvince}
+                      fullWidth
+                      size="small"
+                      disabled
+                      sx={{
+                        mt: 1,
+                        "& .MuiOutlinedInput-root": {
+                          backgroundColor: "rgba(255, 255, 255, 0.4)",
+                          "& fieldset": {
+                            borderColor: "rgba(0, 122, 255, 0.3)",
+                          },
+                        },
+                        "& .MuiInputLabel-root": {
+                          color: "rgba(0, 122, 255, 0.7)",
+                        },
+                      }}
+                      helperText="Province data is currently unavailable. Your current province value is preserved."
+                    />
+                  )}
 
                 {/* Get Province Button */}
                 <Button

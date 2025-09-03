@@ -71,6 +71,18 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
   // FBR API configuration - using backend proxy like BuyerModal
   const FBR_API_URL = "/api/buyer-check";
 
+  // Helper function to determine NTN/CNIC type
+  const getNTNCNICType = (value) => {
+    if (!value || !value.trim()) return null;
+    const trimmed = value.trim();
+    if (trimmed.length === 7 && /^[A-Za-z0-9]{7}$/.test(trimmed)) {
+      return "NTN";
+    } else if (trimmed.length === 13 && /^[0-9]{13}$/.test(trimmed)) {
+      return "CNIC";
+    }
+    return "Invalid";
+  };
+
   // Internal keys for buyer data
   const expectedColumns = [
     "buyerNTNCNIC",
@@ -132,34 +144,25 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         listsSheet.getCell(1 + i, 1).value = p; // Column A
       });
 
-      // Helper to convert column index to Excel letter
-      const getColLetter = (col) => {
-        let temp = "";
-        let n = col;
-        while (n > 0) {
-          const rem = (n - 1) % 26;
-          temp = String.fromCharCode(65 + rem) + temp;
-          n = Math.floor((n - 1) / 26);
-        }
-        return temp;
-      };
-
       const provinceColIdx = expectedColumns.indexOf("buyerProvince") + 1;
-      // No row limit - allow unlimited rows of data
-      const maxRows = 100000; // allow up to 100,000 rows of data for template generation
-
       const provinceRange = `'Lists'!$A$1:$A$${provinces.length}`;
 
-      // Apply data validations row-wise (limited to reasonable number for template)
-      for (let r = 2; r <= Math.min(maxRows, 10000); r++) {
-        if (provinceColIdx > 0) {
-          worksheet.getCell(r, provinceColIdx).dataValidation = {
-            type: "list",
-            allowBlank: true,
-            formulae: [provinceRange],
-            showErrorMessage: true,
-          };
+      // Apply province dropdown validation for all rows
+      try {
+        for (let r = 2; r <= 10000; r++) {
+          // Apply to 10,000 rows
+          if (provinceColIdx > 0) {
+            worksheet.getCell(r, provinceColIdx).dataValidation = {
+              type: "list",
+              allowBlank: true,
+              formulae: [provinceRange],
+              showErrorMessage: true,
+            };
+          }
         }
+      } catch (err) {
+        console.warn("Could not add province validation:", err);
+        // Continue without validation if it fails
       }
 
       // Start with empty body rows; users will fill data beneath the headers
@@ -415,8 +418,29 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       // Validate NTN/CNIC format (if provided)
       if (row.buyerNTNCNIC && row.buyerNTNCNIC.trim()) {
         const ntnCnic = row.buyerNTNCNIC.trim();
-        if (ntnCnic.length < 7 || ntnCnic.length > 15) {
-          rowErrors.push("NTN/CNIC should be between 7-15 characters");
+
+        // NTN/CNIC validation logic
+        if (ntnCnic.length === 7) {
+          // 7 characters - should be NTN (digits and alphabets only, no special characters)
+          const ntnRegex = /^[A-Za-z0-9]{7}$/;
+          if (!ntnRegex.test(ntnCnic)) {
+            rowErrors.push(
+              "BuyerNTN: NTN should be 7 digits/alphabets (No special characters)"
+            );
+          }
+        } else if (ntnCnic.length === 13) {
+          // 13 characters - should be CNIC (digits only, no alphabets or special characters)
+          const cnicRegex = /^[0-9]{13}$/;
+          if (!cnicRegex.test(ntnCnic)) {
+            rowErrors.push(
+              "BuyerNTN: CNIC should be 13 digits (No alphabets and Special Characters)"
+            );
+          }
+        } else {
+          // Invalid length
+          rowErrors.push(
+            "BuyerNTN: Should be either 7 characters (NTN) or 13 characters (CNIC)"
+          );
         }
 
         // Check for duplicate NTN/CNIC within the same file
@@ -749,6 +773,12 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
             Upload a CSV or Excel file with the following columns: Buyer
             NTN/CNIC, Buyer Buisness Name, Buyer Province, Buyer Address.
             <br />
+            <strong>NTN/CNIC Format:</strong>
+            <br />• <strong>NTN:</strong> 7 characters (digits and alphabets
+            only, no special characters)
+            <br />• <strong>CNIC:</strong> 13 digits only (no alphabets or
+            special characters)
+            <br />
             <strong>Note:</strong> Buyer registration status will be
             automatically checked with FBR via backend proxy when you upload the
             file.
@@ -911,6 +941,15 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
                       >
                         Status
                       </TableCell>
+                      <TableCell
+                        sx={{
+                          fontWeight: "bold",
+                          backgroundColor: "#f5f5f5",
+                          width: 80,
+                        }}
+                      >
+                        Type
+                      </TableCell>
                       {[
                         "Buyer NTN/CNIC",
                         "Buyer Buisness Name",
@@ -967,7 +1006,26 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
                               />
                             )}
                           </TableCell>
-                          {expectedColumns.map((column) => (
+                          <TableCell>{row.buyerNTNCNIC || "-"}</TableCell>
+                          <TableCell>
+                            {row.buyerNTNCNIC ? (
+                              <Chip
+                                label={getNTNCNICType(row.buyerNTNCNIC)}
+                                size="small"
+                                color={
+                                  getNTNCNICType(row.buyerNTNCNIC) === "Invalid"
+                                    ? "error"
+                                    : getNTNCNICType(row.buyerNTNCNIC) === "NTN"
+                                      ? "primary"
+                                      : "success"
+                                }
+                                variant="outlined"
+                              />
+                            ) : (
+                              "-"
+                            )}
+                          </TableCell>
+                          {expectedColumns.slice(1).map((column) => (
                             <TableCell key={column}>
                               {row[column] || "-"}
                             </TableCell>
@@ -993,7 +1051,7 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
                     {getCombinedPreviewData().length > 10 && (
                       <TableRow>
                         <TableCell
-                          colSpan={expectedColumns.length + 1}
+                          colSpan={expectedColumns.length + 2}
                           align="center"
                           sx={{ fontStyle: "italic", color: "text.secondary" }}
                         >

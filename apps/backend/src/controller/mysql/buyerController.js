@@ -21,6 +21,31 @@ export const createBuyer = async (req, res) => {
       });
     }
 
+    // Normalize province to uppercase for consistency
+    const normalizeProvince = (province) => {
+      const provinceMap = {
+        Punjab: "PUNJAB",
+        Sindh: "SINDH",
+        "Khyber Pakhtunkhwa": "KHYBER PAKHTUNKHWA",
+        Balochistan: "BALOCHISTAN",
+        "Capital Territory": "CAPITAL TERRITORY",
+        "Gilgit Baltistan": "GILGIT BALTISTAN",
+        "Azad Jammu and Kashmir": "AZAD JAMMU AND KASHMIR",
+        // Also handle any mixed case variations
+        punjab: "PUNJAB",
+        sindh: "SINDH",
+        "khyber pakhtunkhwa": "KHYBER PAKHTUNKHWA",
+        balochistan: "BALOCHISTAN",
+        "capital territory": "CAPITAL TERRITORY",
+        "gilgit baltistan": "GILGIT BALTISTAN",
+        "azad jammu and kashmir": "AZAD JAMMU AND KASHMIR",
+      };
+      const trimmedProvince = province.trim();
+      return provinceMap[trimmedProvince] || trimmedProvince.toUpperCase();
+    };
+
+    const normalizedProvince = normalizeProvince(buyerProvince);
+
     // Check if buyer with same NTN already exists
     if (buyerNTNCNIC) {
       const existingBuyer = await Buyer.findOne({
@@ -39,7 +64,7 @@ export const createBuyer = async (req, res) => {
     const buyer = await Buyer.create({
       buyerNTNCNIC,
       buyerBusinessName,
-      buyerProvince,
+      buyerProvince: normalizedProvince,
       buyerAddress,
       buyerRegistrationType,
     });
@@ -238,10 +263,35 @@ export const updateBuyer = async (req, res) => {
       }
     }
 
+    // Normalize province to uppercase for consistency
+    const normalizeProvince = (province) => {
+      const provinceMap = {
+        Punjab: "PUNJAB",
+        Sindh: "SINDH",
+        "Khyber Pakhtunkhwa": "KHYBER PAKHTUNKHWA",
+        Balochistan: "BALOCHISTAN",
+        "Capital Territory": "CAPITAL TERRITORY",
+        "Gilgit Baltistan": "GILGIT BALTISTAN",
+        "Azad Jammu and Kashmir": "AZAD JAMMU AND KASHMIR",
+        // Also handle any mixed case variations
+        punjab: "PUNJAB",
+        sindh: "SINDH",
+        "khyber pakhtunkhwa": "KHYBER PAKHTUNKHWA",
+        balochistan: "BALOCHISTAN",
+        "capital territory": "CAPITAL TERRITORY",
+        "gilgit baltistan": "GILGIT BALTISTAN",
+        "azad jammu and kashmir": "AZAD JAMMU AND KASHMIR",
+      };
+      const trimmedProvince = province.trim();
+      return provinceMap[trimmedProvince] || trimmedProvince.toUpperCase();
+    };
+
+    const normalizedProvince = normalizeProvince(buyerProvince);
+
     await buyer.update({
       buyerNTNCNIC,
       buyerBusinessName,
-      buyerProvince,
+      buyerProvince: normalizedProvince,
       buyerAddress,
       buyerRegistrationType,
     });
@@ -390,29 +440,36 @@ export const bulkCreateBuyers = async (req, res) => {
           continue;
         }
 
-        // Validate province - accept both uppercase and title case
+        // Validate province - accept both uppercase and title case, but will be stored as uppercase
         const validProvinces = [
           "Balochistan",
-          "Azad Jammu and Kashmir",
-          "Capital Territory",
-          "Punjab",
-          "Khyber Pakhtunkhwa",
-          "Gilgit Baltistan",
-          "Sindh",
           "BALOCHISTAN",
+          "balochistan",
+          "Azad Jammu and Kashmir",
           "AZAD JAMMU AND KASHMIR",
+          "azad jammu and kashmir",
+          "Capital Territory",
           "CAPITAL TERRITORY",
+          "capital territory",
+          "Punjab",
           "PUNJAB",
+          "punjab",
+          "Khyber Pakhtunkhwa",
           "KHYBER PAKHTUNKHWA",
+          "khyber pakhtunkhwa",
+          "Gilgit Baltistan",
           "GILGIT BALTISTAN",
+          "gilgit baltistan",
+          "Sindh",
           "SINDH",
+          "sindh",
         ];
         if (!validProvinces.includes(buyerData.buyerProvince.trim())) {
           results.errors.push({
             index: i,
             row: i + 1,
             error:
-              "Invalid province. Valid provinces are: Balochistan, Azad Jammu and Kashmir, Capital Territory, Punjab, Khyber Pakhtunkhwa, Gilgit Baltistan, Sindh",
+              "Invalid province. Valid provinces are: Balochistan, Azad Jammu and Kashmir, Capital Territory, Punjab, Khyber Pakhtunkhwa, Gilgit Baltistan, Sindh (case insensitive)",
           });
           continue;
         }
@@ -478,18 +535,27 @@ export const bulkCreateBuyers = async (req, res) => {
           }
         }
 
-        // Normalize province to title case
+        // Normalize province to uppercase (keep as SINDH, PUNJAB, etc.)
         const normalizeProvince = (province) => {
           const provinceMap = {
-            PUNJAB: "Punjab",
-            SINDH: "Sindh",
-            "KHYBER PAKHTUNKHWA": "Khyber Pakhtunkhwa",
-            BALOCHISTAN: "Balochistan",
-            "CAPITAL TERRITORY": "Capital Territory",
-            "GILGIT BALTISTAN": "Gilgit Baltistan",
-            "AZAD JAMMU AND KASHMIR": "Azad Jammu and Kashmir",
+            Punjab: "PUNJAB",
+            Sindh: "SINDH",
+            "Khyber Pakhtunkhwa": "KHYBER PAKHTUNKHWA",
+            Balochistan: "BALOCHISTAN",
+            "Capital Territory": "CAPITAL TERRITORY",
+            "Gilgit Baltistan": "GILGIT BALTISTAN",
+            "Azad Jammu and Kashmir": "AZAD JAMMU AND KASHMIR",
+            // Also handle any mixed case variations
+            punjab: "PUNJAB",
+            sindh: "SINDH",
+            "khyber pakhtunkhwa": "KHYBER PAKHTUNKHWA",
+            balochistan: "BALOCHISTAN",
+            "capital territory": "CAPITAL TERRITORY",
+            "gilgit baltistan": "GILGIT BALTISTAN",
+            "azad jammu and kashmir": "AZAD JAMMU AND KASHMIR",
           };
-          return provinceMap[province.trim()] || province.trim();
+          const trimmedProvince = province.trim();
+          return provinceMap[trimmedProvince] || trimmedProvince.toUpperCase();
         };
 
         // Create buyer with trimmed values
