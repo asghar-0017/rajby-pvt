@@ -49,7 +49,7 @@ const testBulkUpload = async () => {
       sampleInvoice: testInvoices[0]
     });
 
-    const response = await fetch('https://maritimeseafood.inplsoftwares.online/api/tenant/tenant_1756409312403_uo1hmt4tz/invoices/bulk', {
+    const response = await fetch('https://habibsugar.inplsoftwares.online/api/tenant/tenant_1756409312403_uo1hmt4tz/invoices/bulk', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
