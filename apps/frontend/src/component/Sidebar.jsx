@@ -219,13 +219,14 @@ export default function Sidebar({ onLogout }) {
             }}
           >
             <img
-              src="/images/PakistanGumAndChemicals.png"
-              alt="Pakistan Gum and Chemicals"
+              src="/images/Pakprogressive.png"
+              alt="Pak Progressive"
               style={{
-                maxWidth: "100%",
-                height: "auto",
+                // maxWidth: "100%",
+                width: "2500px",
+                height: "100%",
                 maxHeight: "60px",
-                objectFit: "contain",
+                objectFit: "cover",
               }}
             />
           </Box> */}
