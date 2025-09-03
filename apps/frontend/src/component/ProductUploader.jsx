@@ -318,21 +318,28 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     reader.onload = async (e) => {
       try {
         const content = e.target.result;
-        const data = await parseFileContent(content, selectedFile.type, selectedFile);
+        const data = await parseFileContent(
+          content,
+          selectedFile.type,
+          selectedFile
+        );
         validateAndSetPreview(data);
-              } catch (error) {
-          console.error("Error parsing file:", error);
-          
-          // Provide helpful error message with CSV conversion suggestion
-          if (error.message.includes("Excel parsing error") || error.message.includes("oi is not a constructor")) {
-            toast.error(
-              "Excel file parsing failed. Please convert your file to CSV format or try a different Excel file.",
-              { autoClose: 8000 }
-            );
-          } else {
-            toast.error("Error parsing file. Please check the file format.");
-          }
+      } catch (error) {
+        console.error("Error parsing file:", error);
+
+        // Provide helpful error message with CSV conversion suggestion
+        if (
+          error.message.includes("Excel parsing error") ||
+          error.message.includes("oi is not a constructor")
+        ) {
+          toast.error(
+            "Excel file parsing failed. Please convert your file to CSV format or try a different Excel file.",
+            { autoClose: 8000 }
+          );
+        } else {
+          toast.error("Error parsing file. Please check the file format.");
         }
+      }
     };
 
     // Use different reading methods based on file type
@@ -400,7 +407,7 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       try {
         // Dynamic import to avoid XLSX constructor issues
         const XLSX = await import("xlsx");
-        
+
         const workbook = XLSX.read(content, { type: "array" });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
@@ -467,7 +474,7 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         return data;
       } catch (error) {
         console.error("Error parsing Excel file:", error);
-        
+
         // Provide more specific error messages
         if (error.message.includes("oi is not a constructor")) {
           throw new Error(
@@ -625,7 +632,11 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       return;
     }
 
-    console.log("Starting checkExistingProducts with", productsData.length, "products");
+    console.log(
+      "Starting checkExistingProducts with",
+      productsData.length,
+      "products"
+    );
     setCheckingExisting(true);
     try {
       const response = await api.post(
@@ -638,7 +649,7 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       const { existing, new: newProductsData } = response.data.data;
       console.log("Setting existing products:", existing.length);
       console.log("Setting new products:", newProductsData.length);
-      
+
       setExistingProducts(existing);
       setNewProducts(newProductsData);
 
@@ -758,21 +769,26 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     });
 
     // Add existing products with status
-    existingProducts.forEach((item) => {
+    existingProducts.forEach((item, index) => {
+      const rowNumber = item?.row ?? item?.productData?._row ?? index + 1; // fallback if API didn't return row
       combined.push({
         ...normalize(item.productData),
         _status: "existing",
         _existingProduct: item.existingProduct,
-        _row: item.row,
+        _row: rowNumber,
       });
     });
 
     // Add new products with status
-    newProducts.forEach((item) => {
+    newProducts.forEach((item, index) => {
+      const rowNumber =
+        item?.row ??
+        item?.productData?._row ??
+        existingProducts.length + index + 1; // maintain order
       combined.push({
         ...normalize(item.productData),
         _status: "new",
-        _row: item.row,
+        _row: rowNumber,
       });
     });
 
@@ -800,7 +816,8 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
             <strong>Note:</strong> Products with duplicate names or HS codes
             will be skipped during upload.
             <br />
-            <strong>Tip:</strong> If you encounter issues with Excel files, try converting them to CSV format for better compatibility.
+            <strong>Tip:</strong> If you encounter issues with Excel files, try
+            converting them to CSV format for better compatibility.
           </Typography>
 
           {/* Download Template Button */}
@@ -983,6 +1000,14 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
                 </Box>
               )}
             </Box>
+
+            {/* Only-existing validation */}
+            {existingProducts.length > 0 && newProducts.length === 0 && (
+              <Alert severity="warning" sx={{ mt: 2 }}>
+                All selected products already exist in the system. Please modify
+                the file to include at least one new product to enable upload.
+              </Alert>
+            )}
           </Box>
         )}
       </DialogContent>
@@ -1000,7 +1025,11 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
           onClick={handleUpload}
           variant="contained"
           disabled={
-            !file || newProducts.length === 0 || uploading || checkingExisting
+            !file ||
+            newProducts.length === 0 ||
+            uploading ||
+            checkingExisting ||
+            (existingProducts.length > 0 && newProducts.length === 0)
           }
           startIcon={
             uploading ? <CircularProgress size={20} /> : <FileUpload />
@@ -1008,7 +1037,9 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         >
           {uploading
             ? "Uploading..."
-            : `Upload ${newProducts.length} New Products`}
+            : newProducts.length === 0
+              ? "No new products to upload"
+              : `Upload ${newProducts.length} New Products`}
         </Button>
       </DialogActions>
     </Dialog>

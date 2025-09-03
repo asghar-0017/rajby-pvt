@@ -256,14 +256,14 @@ export default function ProductTable({
               : `Delete Selected (${selectedIds.size})`}
           </Button>
         )}
-        {/* <Button
+        <Button
           variant="outlined"
           color="primary"
           onClick={onUpload}
           sx={{ ml: 1 }}
         >
           Upload Products
-        </Button> */}
+        </Button>
         <Button variant="contained" color="primary" onClick={onAdd}>
           Add Product
         </Button>

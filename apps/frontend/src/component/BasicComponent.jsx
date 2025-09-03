@@ -37,6 +37,7 @@ import { useTenantSelection } from "../Context/TenantSelectionProvider";
 import InvoiceViewModal from "./InvoiceViewModal";
 import CustomPagination from "./CustomPagination";
 import InvoiceUploader from "./InvoiceUploader";
+import hsCodeCache from "../utils/hsCodeCache";
 
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
@@ -313,8 +314,15 @@ export default function BasicTable() {
       invoicesData.forEach((invoice) => {
         if (invoice.items && Array.isArray(invoice.items)) {
           invoice.items.forEach((item) => {
+            // Clean HS code to extract only the numeric part (e.g., "8432.1010 - DESC" -> "8432.1010")
+            const rawHsCode = item.item_hsCode || item.hsCode || "";
+            const cleanedHsCode =
+              typeof rawHsCode === "string" && rawHsCode.includes(" - ")
+                ? rawHsCode.split(" - ")[0].trim()
+                : String(rawHsCode).trim();
+
             // Create a unique key for each product
-            const productKey = `${item.item_name || item.name || ""}-${item.item_hsCode || item.hsCode || ""}`;
+            const productKey = `${item.item_name || item.name || ""}-${cleanedHsCode}`;
 
             if (productKey && productKey !== "-") {
               allProducts.add(productKey);
@@ -323,7 +331,7 @@ export default function BasicTable() {
               if (!productDetails.has(productKey)) {
                 productDetails.set(productKey, {
                   name: item.item_name || item.name || "",
-                  hsCode: item.item_hsCode || item.hsCode || "",
+                  hsCode: cleanedHsCode,
                   description:
                     item.item_description ||
                     item.productDescription ||
@@ -387,11 +395,24 @@ export default function BasicTable() {
 
       for (const product of missingProducts) {
         try {
+          // Resolve UOM via HS Code if not provided
+          let resolvedUom = product.uom && String(product.uom).trim();
+          if (!resolvedUom && product.hsCode) {
+            try {
+              const uoms = await hsCodeCache.getUOM(product.hsCode);
+              if (Array.isArray(uoms) && uoms.length > 0) {
+                resolvedUom = uoms[0].description || uoms[0].uoM || "";
+              }
+            } catch (_) {
+              // ignore, fallback below
+            }
+          }
+
           const productData = {
             name: product.name,
             hsCode: product.hsCode,
             description: product.description || product.name,
-            uom: product.uom || "PCS", // Default UOM if not specified
+            uom: resolvedUom || "PCS", // Fallback only if nothing resolved
             // Add other required fields with defaults
             category: "Auto-Created",
             isActive: true,
@@ -448,28 +469,34 @@ export default function BasicTable() {
   };
 
   const handleBulkUpload = async (invoicesData, options = {}) => {
-    const { 
+    const {
       onProgress = () => {},
       onChunkComplete = () => {},
       onError = () => {},
-      chunkSize = 1000 
+      chunkSize = 1000,
     } = options;
 
     try {
       // For large uploads, use streaming service
       if (invoicesData.length > 100) {
-        const StreamingUploadService = (await import('../services/StreamingUploadService')).default;
-        
-        const result = await StreamingUploadService.uploadInvoices(invoicesData, {
-          tenantId: selectedTenant.tenant_id,
-          chunkSize,
-          onProgress,
-          onChunkComplete,
-          onError,
-        });
+        const StreamingUploadService = (
+          await import("../services/StreamingUploadService")
+        ).default;
+
+        const result = await StreamingUploadService.uploadInvoices(
+          invoicesData,
+          {
+            tenantId: selectedTenant.tenant_id,
+            chunkSize,
+            onProgress,
+            onChunkComplete,
+            onError,
+          }
+        );
 
         if (result.success) {
-          const { successfulInvoices, failedInvoices, errors, warnings } = result;
+          const { successfulInvoices, failedInvoices, errors, warnings } =
+            result;
 
           if (failedInvoices > 0) {
             toast.warning(

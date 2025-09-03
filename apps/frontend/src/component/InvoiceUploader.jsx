@@ -38,6 +38,7 @@ import { api } from "../API/Api";
 import * as XLSX from "xlsx";
 import { useFileProcessor } from "../hooks/useFileProcessor";
 import { useStreamingUpload } from "../hooks/useStreamingUpload";
+import hsCodeCache from "../utils/hsCodeCache";
 
 // Utility function to convert Excel date to YYYY-MM-DD format
 const convertExcelDateToYYYYMMDD = (excelDate) => {
@@ -141,7 +142,7 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
   const [checkingExisting, setCheckingExisting] = useState(false);
 
   const fileInputRef = useRef(null);
-  
+
   // Use Web Worker for file processing
   const {
     isProcessing,
@@ -248,23 +249,23 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
 
   const normalizeHeader = (h) => {
     const header = String(h || "").trim();
-    
+
     // First try exact match
     if (displayToInternalHeaderMap[header]) {
       return displayToInternalHeaderMap[header];
     }
-    
+
     // Try partial matches for truncated headers
     const partialMatches = {
       "Invoice Da": "invoiceDate",
-      "Invoice Re": "invoiceRefNo", 
+      "Invoice Re": "invoiceRefNo",
       "Company I": "companyInvoiceRefNo",
       "Buyer NTN": "buyerNTNCNIC",
       "Buyer Buis": "buyerBusinessName",
       "Buyer Prov": "buyerProvince",
       "Buyer Addı": "buyerAddress",
       "Buyer Regi": "buyerRegistrationType",
-      "Transactio": "transctypeId",
+      Transactio: "transctypeId",
       "SRO Sched": "item_sroScheduleNo",
       "SRO Item": "item_sroItemSerialNo",
       "Product Na": "item_productName",
@@ -274,13 +275,13 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       "Sales Tax": "item_salesTaxApplicable",
       "ST Withheld": "item_salesTaxWithheldAtSource",
       "FED Payab": "item_fedPayable",
-      "Total Valu": "item_totalValues"
+      "Total Valu": "item_totalValues",
     };
-    
+
     if (partialMatches[header]) {
       return partialMatches[header];
     }
-    
+
     // Fallback to original header
     return header;
   };
@@ -288,26 +289,45 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
   // Utility function to check if a row has meaningful data
   const hasMeaningfulData = (row, rowIndex) => {
     // Check for meaningful invoice-level data
-    const hasInvoiceData = 
-      (row.invoiceType && row.invoiceType.trim() !== "" && row.invoiceType !== "Standard") ||
+    const hasInvoiceData =
+      (row.invoiceType &&
+        row.invoiceType.trim() !== "" &&
+        row.invoiceType !== "Standard") ||
       (row.invoiceDate && row.invoiceDate.trim() !== "") ||
-      (row.companyInvoiceRefNo && row.companyInvoiceRefNo.trim() !== "" && row.companyInvoiceRefNo !== `row_${rowIndex + 1}`) ||
-      (row.buyerBusinessName && row.buyerBusinessName.trim() !== "" && row.buyerBusinessName !== "Unknown Buyer") ||
+      (row.companyInvoiceRefNo &&
+        row.companyInvoiceRefNo.trim() !== "" &&
+        row.companyInvoiceRefNo !== `row_${rowIndex + 1}`) ||
+      (row.buyerBusinessName &&
+        row.buyerBusinessName.trim() !== "" &&
+        row.buyerBusinessName !== "Unknown Buyer") ||
       (row.buyerNTNCNIC && row.buyerNTNCNIC.trim() !== "");
 
     // Check for meaningful item-level data
-    const hasItemData = 
+    const hasItemData =
       (row.item_productName && row.item_productName.trim() !== "") ||
       (row.item_hsCode && row.item_hsCode.trim() !== "") ||
-      (row.item_quantity && row.item_quantity !== "" && row.item_quantity !== "0" && row.item_quantity !== 0) ||
-      (row.item_unitPrice && row.item_unitPrice !== "" && row.item_unitPrice !== "0" && row.item_unitPrice !== 0) ||
-      (row.item_totalValues && row.item_totalValues !== "" && row.item_totalValues !== "0" && row.item_totalValues !== 0) ||
-      (row.item_valueSalesExcludingST && row.item_valueSalesExcludingST !== "" && row.item_valueSalesExcludingST !== "0" && row.item_valueSalesExcludingST !== 0);
+      (row.item_quantity &&
+        row.item_quantity !== "" &&
+        row.item_quantity !== "0" &&
+        row.item_quantity !== 0) ||
+      (row.item_unitPrice &&
+        row.item_unitPrice !== "" &&
+        row.item_unitPrice !== "0" &&
+        row.item_unitPrice !== 0) ||
+      (row.item_totalValues &&
+        row.item_totalValues !== "" &&
+        row.item_totalValues !== "0" &&
+        row.item_totalValues !== 0) ||
+      (row.item_valueSalesExcludingST &&
+        row.item_valueSalesExcludingST !== "" &&
+        row.item_valueSalesExcludingST !== "0" &&
+        row.item_valueSalesExcludingST !== 0);
 
     const hasData = hasInvoiceData || hasItemData;
-    
+
     // Debug logging for empty rows
-    if (!hasData && rowIndex < 10) { // Only log first 10 for debugging
+    if (!hasData && rowIndex < 10) {
+      // Only log first 10 for debugging
       console.log(`🚫 Row ${rowIndex + 1} filtered out as empty:`, {
         invoiceType: row.invoiceType,
         buyerBusinessName: row.buyerBusinessName,
@@ -315,7 +335,7 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         item_productName: row.item_productName,
         item_hsCode: row.item_hsCode,
         item_quantity: row.item_quantity,
-        item_unitPrice: row.item_unitPrice
+        item_unitPrice: row.item_unitPrice,
       });
     }
 
@@ -325,9 +345,14 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
   // Flexible meaningful data check that works with any column structure
   const hasMeaningfulDataFlexible = (row, headers, rowIndex) => {
     // Check if any cell has meaningful data (not empty, not just whitespace, not "0")
-    const hasAnyData = Object.values(row).some(value => {
+    const hasAnyData = Object.values(row).some((value) => {
       const strValue = String(value).trim();
-      return strValue !== "" && strValue !== "0" && strValue !== "null" && strValue !== "undefined";
+      return (
+        strValue !== "" &&
+        strValue !== "0" &&
+        strValue !== "null" &&
+        strValue !== "undefined"
+      );
     });
 
     // If no data at all, skip
@@ -337,13 +362,24 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
 
     // Check for instruction patterns in any field - if found, reject
     const instructionPatterns = [
-      'auto-calculates', 'enter ', 'use the', 'dropdown', 'validated', 'hardcoded', 'fallback',
-      'unit cost', 'value sales', 'sales tax', 'computed', 'computed as', 'divided by'
+      "auto-calculates",
+      "enter ",
+      "use the",
+      "dropdown",
+      "validated",
+      "hardcoded",
+      "fallback",
+      "unit cost",
+      "value sales",
+      "sales tax",
+      "computed",
+      "computed as",
+      "divided by",
     ];
-    
-    const hasInstructionPatterns = Object.values(row).some(value => {
+
+    const hasInstructionPatterns = Object.values(row).some((value) => {
       const strValue = String(value).toLowerCase();
-      return instructionPatterns.some(pattern => strValue.includes(pattern));
+      return instructionPatterns.some((pattern) => strValue.includes(pattern));
     });
 
     if (hasInstructionPatterns) {
@@ -351,7 +387,7 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     }
 
     // Check for numbered list patterns (1., 2., a., b., etc.)
-    const hasNumberedListPattern = Object.values(row).some(value => {
+    const hasNumberedListPattern = Object.values(row).some((value) => {
       const strValue = String(value).trim();
       return /^\d+\.\s/.test(strValue) || /^[a-z]\.\s/i.test(strValue);
     });
@@ -361,25 +397,40 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     }
 
     // Check for common invoice-related keywords in any field
-    const invoiceKeywords = ['invoice', 'bill', 'receipt', 'order', 'purchase', 'sale', 'product', 'item', 'quantity', 'price', 'amount', 'total'];
-    const hasInvoiceKeywords = Object.values(row).some(value => {
+    const invoiceKeywords = [
+      "invoice",
+      "bill",
+      "receipt",
+      "order",
+      "purchase",
+      "sale",
+      "product",
+      "item",
+      "quantity",
+      "price",
+      "amount",
+      "total",
+    ];
+    const hasInvoiceKeywords = Object.values(row).some((value) => {
       const strValue = String(value).toLowerCase();
-      return invoiceKeywords.some(keyword => strValue.includes(keyword));
+      return invoiceKeywords.some((keyword) => strValue.includes(keyword));
     });
 
     // Check for numeric values that might indicate quantities or prices
-    const hasNumericData = Object.values(row).some(value => {
+    const hasNumericData = Object.values(row).some((value) => {
       const strValue = String(value).trim();
       const numValue = parseFloat(strValue);
       return !isNaN(numValue) && numValue > 0;
     });
 
     // Check for date-like values
-    const hasDateData = Object.values(row).some(value => {
+    const hasDateData = Object.values(row).some((value) => {
       const strValue = String(value).trim();
       // Simple date pattern check
-      return /^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}$/.test(strValue) || 
-             /^\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}$/.test(strValue);
+      return (
+        /^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}$/.test(strValue) ||
+        /^\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}$/.test(strValue)
+      );
     });
 
     // Accept if it has any meaningful data and either invoice keywords, numeric data, or date data
@@ -436,8 +487,11 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       return "";
 
     const stringValue = String(value).trim();
-    
-    console.log("🔍 cleanHsCode input:", stringValue.substring(0, 100) + (stringValue.length > 100 ? "..." : ""));
+
+    console.log(
+      "🔍 cleanHsCode input:",
+      stringValue.substring(0, 100) + (stringValue.length > 100 ? "..." : "")
+    );
 
     // If it contains " - ", extract the part before the first " - "
     if (stringValue.includes(" - ")) {
@@ -476,18 +530,22 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     try {
       // Use Web Worker for file processing
       const result = await processFileWithWorker(selectedFile, expectedColumns);
-      
+
       if (result.success) {
         const { invoices, errors: processingErrors, warnings } = result.data;
         setPreviewData(invoices);
         setErrors(processingErrors);
-        
+
         if (processingErrors.length > 0) {
-          toast.warning(`File processed with ${processingErrors.length} errors`);
+          toast.warning(
+            `File processed with ${processingErrors.length} errors`
+          );
         } else {
-          toast.success(`File processed successfully: ${invoices.length} invoices found`);
+          toast.success(
+            `File processed successfully: ${invoices.length} invoices found`
+          );
         }
-        
+
         // Check for existing invoices
         await checkExistingInvoices(invoices);
       } else {
@@ -520,7 +578,9 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         (col) => !headers.includes(col)
       );
       if (missingHeaders.length > 0) {
-        console.warn(`Missing expected columns: ${missingHeaders.join(", ")}. Processing with available columns.`);
+        console.warn(
+          `Missing expected columns: ${missingHeaders.join(", ")}. Processing with available columns.`
+        );
       }
 
       const data = [];
@@ -603,15 +663,17 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         const headers = jsonData[0].map((header) => normalizeHeader(header));
 
         // Log available headers for debugging
-        console.log('Available headers in Excel file:', headers);
-        console.log('Expected columns:', expectedColumns);
+        console.log("Available headers in Excel file:", headers);
+        console.log("Expected columns:", expectedColumns);
 
         // Log missing headers but don't throw error - process whatever columns are available
         const missingHeaders = expectedColumns.filter(
           (col) => !headers.includes(col)
         );
         if (missingHeaders.length > 0) {
-          console.warn(`Missing expected columns: ${missingHeaders.join(", ")}. Processing with available columns.`);
+          console.warn(
+            `Missing expected columns: ${missingHeaders.join(", ")}. Processing with available columns.`
+          );
         }
 
         const data = [];
@@ -674,7 +736,7 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
                   productDescription: rowData.item_productDescription,
                   hsCode: rowData.item_hsCode,
                   quantity: rowData.item_quantity,
-                  unitPrice: rowData.item_unitPrice
+                  unitPrice: rowData.item_unitPrice,
                 });
               }
 
@@ -711,7 +773,10 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
 
               // Use utility function to check for meaningful data
               // Also try with the raw row data in case the filtered row is empty
-              if (hasMeaningfulData(filteredRow, i - 1) || hasMeaningfulDataFlexible(rowData, headers, i - 1)) {
+              if (
+                hasMeaningfulData(filteredRow, i - 1) ||
+                hasMeaningfulDataFlexible(rowData, headers, i - 1)
+              ) {
                 data.push(filteredRow);
               }
             }
@@ -811,7 +876,7 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       });
 
     console.log(`Valid data rows after filtering: ${validData.length}`);
-    
+
     // Log details about filtered rows for debugging
     const filteredOutCount = data.length - validData.length;
     if (filteredOutCount > 0) {
@@ -856,7 +921,7 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         continue;
       }
       try {
-        const resp = await fetch("https://united-tubes.inplsoftwares.online/api/buyer-check", {
+        const resp = await fetch("http://localhost:5150/api/buyer-check", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ registrationNo: ntn }),
@@ -989,8 +1054,12 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
               name: item.name,
               item_hsCode: item.item_hsCode,
               hsCode: item.hsCode,
-              hasProductName: !!(item.item_productName || item.item_name || item.name),
-              hasHsCode: !!(item.item_hsCode || item.hsCode)
+              hasProductName: !!(
+                item.item_productName ||
+                item.item_name ||
+                item.name
+              ),
+              hasHsCode: !!(item.item_hsCode || item.hsCode),
             });
 
             // Create a unique key for each product using cleaned HS code
@@ -999,9 +1068,11 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
             const productKey = `${item.item_productName || item.item_name || item.name || ""}-${cleanedHsCode}`;
 
             console.log("🔍 HS Code cleaning:", {
-              rawHsCode: rawHsCode.substring(0, 100) + (rawHsCode.length > 100 ? "..." : ""),
+              rawHsCode:
+                rawHsCode.substring(0, 100) +
+                (rawHsCode.length > 100 ? "..." : ""),
               cleanedHsCode: cleanedHsCode,
-              productKey: productKey
+              productKey: productKey,
             });
 
             if (productKey && productKey !== "-") {
@@ -1012,7 +1083,7 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
                 // Clean HS code to extract only the numeric part
                 const rawHsCode = item.item_hsCode || item.hsCode || "";
                 const cleanedHsCode = cleanHsCode(rawHsCode);
-                
+
                 productDetails.set(productKey, {
                   name:
                     item.item_productName || item.item_name || item.name || "",
@@ -1033,7 +1104,10 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         return;
       }
 
-      console.log(`Found ${allProducts.size} unique products in invoice data:`, Array.from(allProducts));
+      console.log(
+        `Found ${allProducts.size} unique products in invoice data:`,
+        Array.from(allProducts)
+      );
       console.log("Product details:", Array.from(productDetails.entries()));
 
       // Get existing products to check which ones need to be created
@@ -1078,11 +1152,24 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
 
       for (const product of missingProducts) {
         try {
+          // Resolve UOM using HS Code if not provided
+          let resolvedUom = product.uom && String(product.uom).trim();
+          if (!resolvedUom) {
+            try {
+              const uoms = await hsCodeCache.getUOM(product.hsCode);
+              if (Array.isArray(uoms) && uoms.length > 0) {
+                resolvedUom = uoms[0].description || uoms[0].uoM || "";
+              }
+            } catch (_) {
+              // ignore and fallback below
+            }
+          }
+
           const productData = {
             name: product.name,
             hsCode: product.hsCode,
             description: product.description || product.name,
-            uom: product.uom || "PCS", // Default UOM if not specified
+            uom: resolvedUom || "PCS", // Fallback to PCS only if nothing resolved
             // Add other required fields with defaults
             category: "Auto-Created",
             isActive: true,
@@ -1149,14 +1236,17 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     setUploading(true);
     try {
       // Check if previewData contains already-grouped invoices (from worker) or individual rows
-      const isAlreadyGrouped = previewData.length > 0 && previewData[0].items && Array.isArray(previewData[0].items);
-      
+      const isAlreadyGrouped =
+        previewData.length > 0 &&
+        previewData[0].items &&
+        Array.isArray(previewData[0].items);
+
       let invoicesToUpload;
-      
+
       if (isAlreadyGrouped) {
         // Data is already grouped by worker, use it directly
         console.log("🔍 Using already-grouped invoices from worker");
-        invoicesToUpload = previewData.map(invoice => ({
+        invoicesToUpload = previewData.map((invoice) => ({
           ...invoice,
           // Ensure seller details are populated from selected tenant
           sellerNTNCNIC: selectedTenant?.sellerNTNCNIC || "",
@@ -1172,203 +1262,206 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         const groupingErrors = [];
 
         previewData.forEach((row, index) => {
-        // Clean the row data before processing
-        const cleanedItem = { ...row };
+          // Clean the row data before processing
+          const cleanedItem = { ...row };
 
-        // Clean transctypeId - extract only the ID part
-        if (cleanedItem.transctypeId) {
-          cleanedItem.transctypeId = cleanTransctypeId(
-            cleanedItem.transctypeId
-          );
-        }
-
-        // Clean item_hsCode - extract only the code part
-        if (cleanedItem.item_hsCode) {
-          cleanedItem.item_hsCode = cleanHsCode(cleanedItem.item_hsCode);
-        }
-
-        // Map Excel field names to backend expected field names
-        // Backend expects productName or name, but Excel sends item_productName
-        console.log("🔍 Frontend Debug: Before mapping:", {
-          item_productName: cleanedItem.item_productName,
-          name: cleanedItem.name,
-          productName: cleanedItem.productName,
-        });
-
-        if (
-          cleanedItem.item_productName &&
-          cleanedItem.item_productName.trim() !== ""
-        ) {
-          cleanedItem.productName = cleanedItem.item_productName;
-          cleanedItem.name = cleanedItem.item_productName;
-          console.log(
-            "✅ Frontend: Mapped product name:",
-            cleanedItem.item_productName
-          );
-        } else {
-          console.log("❌ Frontend: No valid item_productName found");
-        }
-
-        console.log("🔍 Frontend Debug: After mapping:", {
-          name: cleanedItem.name,
-          productName: cleanedItem.productName,
-        });
-
-        // Map other item fields to remove the 'item_' prefix
-        if (cleanedItem.item_hsCode) {
-          cleanedItem.hsCode = cleanedItem.item_hsCode;
-        }
-        if (cleanedItem.item_productDescription) {
-          cleanedItem.productDescription = cleanedItem.item_productDescription;
-        }
-        if (cleanedItem.item_rate) {
-          cleanedItem.rate = cleanedItem.item_rate;
-        }
-        if (cleanedItem.item_uoM) {
-          cleanedItem.uoM = cleanedItem.item_uoM;
-        }
-        if (cleanedItem.item_quantity) {
-          cleanedItem.quantity = cleanedItem.item_quantity;
-        }
-        if (cleanedItem.item_unitPrice) {
-          cleanedItem.unitPrice = cleanedItem.item_unitPrice;
-        }
-        if (cleanedItem.item_totalValues) {
-          cleanedItem.totalValues = cleanedItem.item_totalValues;
-        }
-        if (cleanedItem.item_valueSalesExcludingST) {
-          cleanedItem.valueSalesExcludingST =
-            cleanedItem.item_valueSalesExcludingST;
-        }
-        if (cleanedItem.item_fixedNotifiedValueOrRetailPrice) {
-          cleanedItem.fixedNotifiedValueOrRetailPrice =
-            cleanedItem.item_fixedNotifiedValueOrRetailPrice;
-        }
-        if (cleanedItem.item_salesTaxApplicable) {
-          cleanedItem.salesTaxApplicable = cleanedItem.item_salesTaxApplicable;
-        }
-        if (cleanedItem.item_extraTax) {
-          cleanedItem.extraTax = cleanedItem.item_extraTax;
-        }
-        if (cleanedItem.item_furtherTax) {
-          cleanedItem.furtherTax = cleanedItem.item_furtherTax;
-        }
-        if (cleanedItem.item_sroScheduleNo) {
-          cleanedItem.sroScheduleNo = cleanedItem.item_sroScheduleNo;
-        }
-        if (cleanedItem.item_fedPayable) {
-          cleanedItem.fedPayable = cleanedItem.item_fedPayable;
-        }
-        if (cleanedItem.item_discount) {
-          cleanedItem.discount = cleanedItem.item_discount;
-        }
-        if (cleanedItem.item_saleType) {
-          cleanedItem.saleType = cleanedItem.item_saleType;
-        }
-        if (cleanedItem.item_sroItemSerialNo) {
-          cleanedItem.sroItemSerialNo = cleanedItem.item_sroItemSerialNo;
-        }
-
-        // Get the companyInvoiceRefNo for grouping (changed from internalInvoiceNo)
-        const companyInvoiceRefNo =
-          cleanedItem.companyInvoiceRefNo?.trim() || `row_${index + 1}`;
-
-        // Add row number for tracking
-        cleanedItem._row = index + 1;
-
-        if (groupedInvoices.has(companyInvoiceRefNo)) {
-          // Add item to existing invoice group
-          const existingInvoice = groupedInvoices.get(companyInvoiceRefNo);
-
-          // Validate consistency of invoice-level data
-          const consistencyErrors = [];
-
-          if (existingInvoice.invoiceType !== cleanedItem.invoiceType) {
-            consistencyErrors.push(
-              `Invoice Type mismatch: ${existingInvoice.invoiceType} vs ${cleanedItem.invoiceType}`
+          // Clean transctypeId - extract only the ID part
+          if (cleanedItem.transctypeId) {
+            cleanedItem.transctypeId = cleanTransctypeId(
+              cleanedItem.transctypeId
             );
           }
-          if (existingInvoice.invoiceDate !== cleanedItem.invoiceDate) {
-            consistencyErrors.push(
-              `Invoice Date mismatch: ${existingInvoice.invoiceDate} vs ${cleanedItem.invoiceDate}`
-            );
+
+          // Clean item_hsCode - extract only the code part
+          if (cleanedItem.item_hsCode) {
+            cleanedItem.item_hsCode = cleanHsCode(cleanedItem.item_hsCode);
           }
-          if (existingInvoice.buyerNTNCNIC !== cleanedItem.buyerNTNCNIC) {
-            consistencyErrors.push(
-              `Buyer NTN/CNIC mismatch: ${existingInvoice.buyerNTNCNIC} vs ${cleanedItem.buyerNTNCNIC}`
-            );
-          }
+
+          // Map Excel field names to backend expected field names
+          // Backend expects productName or name, but Excel sends item_productName
+          console.log("🔍 Frontend Debug: Before mapping:", {
+            item_productName: cleanedItem.item_productName,
+            name: cleanedItem.name,
+            productName: cleanedItem.productName,
+          });
+
           if (
-            existingInvoice.buyerBusinessName !== cleanedItem.buyerBusinessName
+            cleanedItem.item_productName &&
+            cleanedItem.item_productName.trim() !== ""
           ) {
-            consistencyErrors.push(
-              `Buyer Business Name mismatch: ${existingInvoice.buyerBusinessName} vs ${cleanedItem.buyerBusinessName}`
+            cleanedItem.productName = cleanedItem.item_productName;
+            cleanedItem.name = cleanedItem.item_productName;
+            console.log(
+              "✅ Frontend: Mapped product name:",
+              cleanedItem.item_productName
             );
-          }
-          if (existingInvoice.buyerProvince !== cleanedItem.buyerProvince) {
-            consistencyErrors.push(
-              `Buyer Province mismatch: ${existingInvoice.buyerProvince} vs ${cleanedItem.buyerProvince}`
-            );
-          }
-          if (existingInvoice.buyerAddress !== cleanedItem.buyerAddress) {
-            consistencyErrors.push(
-              `Buyer Address mismatch: ${existingInvoice.buyerAddress} vs ${cleanedItem.buyerAddress}`
-            );
-          }
-          if (
-            existingInvoice.buyerRegistrationType !==
-            cleanedItem.buyerRegistrationType
-          ) {
-            consistencyErrors.push(
-              `Buyer Registration Type mismatch: ${existingInvoice.buyerRegistrationType} vs ${cleanedItem.buyerRegistrationType}`
-            );
+          } else {
+            console.log("❌ Frontend: No valid item_productName found");
           }
 
-          if (consistencyErrors.length > 0) {
-            groupingErrors.push({
-              row: index + 1,
-              companyInvoiceRefNo: companyInvoiceRefNo,
-              errors: consistencyErrors,
-              message: `Row ${index + 1} has different invoice-level data than other rows with companyInvoiceRefNo: ${companyInvoiceRefNo}`,
+          console.log("🔍 Frontend Debug: After mapping:", {
+            name: cleanedItem.name,
+            productName: cleanedItem.productName,
+          });
+
+          // Map other item fields to remove the 'item_' prefix
+          if (cleanedItem.item_hsCode) {
+            cleanedItem.hsCode = cleanedItem.item_hsCode;
+          }
+          if (cleanedItem.item_productDescription) {
+            cleanedItem.productDescription =
+              cleanedItem.item_productDescription;
+          }
+          if (cleanedItem.item_rate) {
+            cleanedItem.rate = cleanedItem.item_rate;
+          }
+          if (cleanedItem.item_uoM) {
+            cleanedItem.uoM = cleanedItem.item_uoM;
+          }
+          if (cleanedItem.item_quantity) {
+            cleanedItem.quantity = cleanedItem.item_quantity;
+          }
+          if (cleanedItem.item_unitPrice) {
+            cleanedItem.unitPrice = cleanedItem.item_unitPrice;
+          }
+          if (cleanedItem.item_totalValues) {
+            cleanedItem.totalValues = cleanedItem.item_totalValues;
+          }
+          if (cleanedItem.item_valueSalesExcludingST) {
+            cleanedItem.valueSalesExcludingST =
+              cleanedItem.item_valueSalesExcludingST;
+          }
+          if (cleanedItem.item_fixedNotifiedValueOrRetailPrice) {
+            cleanedItem.fixedNotifiedValueOrRetailPrice =
+              cleanedItem.item_fixedNotifiedValueOrRetailPrice;
+          }
+          if (cleanedItem.item_salesTaxApplicable) {
+            cleanedItem.salesTaxApplicable =
+              cleanedItem.item_salesTaxApplicable;
+          }
+          if (cleanedItem.item_extraTax) {
+            cleanedItem.extraTax = cleanedItem.item_extraTax;
+          }
+          if (cleanedItem.item_furtherTax) {
+            cleanedItem.furtherTax = cleanedItem.item_furtherTax;
+          }
+          if (cleanedItem.item_sroScheduleNo) {
+            cleanedItem.sroScheduleNo = cleanedItem.item_sroScheduleNo;
+          }
+          if (cleanedItem.item_fedPayable) {
+            cleanedItem.fedPayable = cleanedItem.item_fedPayable;
+          }
+          if (cleanedItem.item_discount) {
+            cleanedItem.discount = cleanedItem.item_discount;
+          }
+          if (cleanedItem.item_saleType) {
+            cleanedItem.saleType = cleanedItem.item_saleType;
+          }
+          if (cleanedItem.item_sroItemSerialNo) {
+            cleanedItem.sroItemSerialNo = cleanedItem.item_sroItemSerialNo;
+          }
+
+          // Get the companyInvoiceRefNo for grouping (changed from internalInvoiceNo)
+          const companyInvoiceRefNo =
+            cleanedItem.companyInvoiceRefNo?.trim() || `row_${index + 1}`;
+
+          // Add row number for tracking
+          cleanedItem._row = index + 1;
+
+          if (groupedInvoices.has(companyInvoiceRefNo)) {
+            // Add item to existing invoice group
+            const existingInvoice = groupedInvoices.get(companyInvoiceRefNo);
+
+            // Validate consistency of invoice-level data
+            const consistencyErrors = [];
+
+            if (existingInvoice.invoiceType !== cleanedItem.invoiceType) {
+              consistencyErrors.push(
+                `Invoice Type mismatch: ${existingInvoice.invoiceType} vs ${cleanedItem.invoiceType}`
+              );
+            }
+            if (existingInvoice.invoiceDate !== cleanedItem.invoiceDate) {
+              consistencyErrors.push(
+                `Invoice Date mismatch: ${existingInvoice.invoiceDate} vs ${cleanedItem.invoiceDate}`
+              );
+            }
+            if (existingInvoice.buyerNTNCNIC !== cleanedItem.buyerNTNCNIC) {
+              consistencyErrors.push(
+                `Buyer NTN/CNIC mismatch: ${existingInvoice.buyerNTNCNIC} vs ${cleanedItem.buyerNTNCNIC}`
+              );
+            }
+            if (
+              existingInvoice.buyerBusinessName !==
+              cleanedItem.buyerBusinessName
+            ) {
+              consistencyErrors.push(
+                `Buyer Business Name mismatch: ${existingInvoice.buyerBusinessName} vs ${cleanedItem.buyerBusinessName}`
+              );
+            }
+            if (existingInvoice.buyerProvince !== cleanedItem.buyerProvince) {
+              consistencyErrors.push(
+                `Buyer Province mismatch: ${existingInvoice.buyerProvince} vs ${cleanedItem.buyerProvince}`
+              );
+            }
+            if (existingInvoice.buyerAddress !== cleanedItem.buyerAddress) {
+              consistencyErrors.push(
+                `Buyer Address mismatch: ${existingInvoice.buyerAddress} vs ${cleanedItem.buyerAddress}`
+              );
+            }
+            if (
+              existingInvoice.buyerRegistrationType !==
+              cleanedItem.buyerRegistrationType
+            ) {
+              consistencyErrors.push(
+                `Buyer Registration Type mismatch: ${existingInvoice.buyerRegistrationType} vs ${cleanedItem.buyerRegistrationType}`
+              );
+            }
+
+            if (consistencyErrors.length > 0) {
+              groupingErrors.push({
+                row: index + 1,
+                companyInvoiceRefNo: companyInvoiceRefNo,
+                errors: consistencyErrors,
+                message: `Row ${index + 1} has different invoice-level data than other rows with companyInvoiceRefNo: ${companyInvoiceRefNo}`,
+              });
+            }
+
+            existingInvoice.items.push(cleanedItem);
+          } else {
+            // Create new invoice group
+            groupedInvoices.set(companyInvoiceRefNo, {
+              invoiceType: cleanedItem.invoiceType,
+              invoiceDate: cleanedItem.invoiceDate,
+              invoiceRefNo: cleanedItem.invoiceRefNo,
+              companyInvoiceRefNo: cleanedItem.companyInvoiceRefNo,
+              internalInvoiceNo: cleanedItem.internalInvoiceNo, // Keep this for reference
+              // Seller details from selected tenant
+              sellerNTNCNIC: selectedTenant?.sellerNTNCNIC || "",
+              sellerFullNTN: selectedTenant?.sellerFullNTN || "",
+              sellerBusinessName: selectedTenant?.sellerBusinessName || "",
+              sellerProvince: selectedTenant?.sellerProvince || "",
+              sellerAddress: selectedTenant?.sellerAddress || "",
+              // Buyer details
+              buyerNTNCNIC: cleanedItem.buyerNTNCNIC,
+              buyerBusinessName: cleanedItem.buyerBusinessName,
+              buyerProvince: cleanedItem.buyerProvince,
+              buyerAddress: cleanedItem.buyerAddress,
+              buyerRegistrationType: cleanedItem.buyerRegistrationType,
+              items: [cleanedItem],
+              _row: index + 1, // Track the first row for this invoice
             });
           }
+        });
 
-          existingInvoice.items.push(cleanedItem);
-        } else {
-          // Create new invoice group
-          groupedInvoices.set(companyInvoiceRefNo, {
-            invoiceType: cleanedItem.invoiceType,
-            invoiceDate: cleanedItem.invoiceDate,
-            invoiceRefNo: cleanedItem.invoiceRefNo,
-            companyInvoiceRefNo: cleanedItem.companyInvoiceRefNo,
-            internalInvoiceNo: cleanedItem.internalInvoiceNo, // Keep this for reference
-            // Seller details from selected tenant
-            sellerNTNCNIC: selectedTenant?.sellerNTNCNIC || "",
-            sellerFullNTN: selectedTenant?.sellerFullNTN || "",
-            sellerBusinessName: selectedTenant?.sellerBusinessName || "",
-            sellerProvince: selectedTenant?.sellerProvince || "",
-            sellerAddress: selectedTenant?.sellerAddress || "",
-            // Buyer details
-            buyerNTNCNIC: cleanedItem.buyerNTNCNIC,
-            buyerBusinessName: cleanedItem.buyerBusinessName,
-            buyerProvince: cleanedItem.buyerProvince,
-            buyerAddress: cleanedItem.buyerAddress,
-            buyerRegistrationType: cleanedItem.buyerRegistrationType,
-            items: [cleanedItem],
-            _row: index + 1, // Track the first row for this invoice
-          });
+        // Check for grouping errors
+        if (groupingErrors.length > 0) {
+          console.error("Grouping validation errors:", groupingErrors);
+          toast.error(
+            `Found ${groupingErrors.length} grouping validation errors. Rows with the same Company Invoice Ref No must have consistent invoice-level data. Check console for details.`
+          );
+          setUploading(false);
+          return;
         }
-      });
-
-      // Check for grouping errors
-      if (groupingErrors.length > 0) {
-        console.error("Grouping validation errors:", groupingErrors);
-        toast.error(
-          `Found ${groupingErrors.length} grouping validation errors. Rows with the same Company Invoice Ref No must have consistent invoice-level data. Check console for details.`
-        );
-        setUploading(false);
-        return;
-      }
 
         // Ensure all invoice groups have seller details from selected tenant
         invoicesToUpload = Array.from(groupedInvoices.values()).map(
@@ -1412,7 +1505,9 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       if (invoicesToUpload.length > 100) {
         // Estimate upload time
         const estimate = estimateUploadTime(invoicesToUpload.length);
-        toast.info(`Starting upload of ${invoicesToUpload.length} invoices. Estimated time: ${estimate.estimatedTimeMinutes} minutes`);
+        toast.info(
+          `Starting upload of ${invoicesToUpload.length} invoices. Estimated time: ${estimate.estimatedTimeMinutes} minutes`
+        );
 
         // Use streaming upload
         const result = await startUpload(invoicesToUpload, {
@@ -1641,7 +1736,12 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
           {/* File Processing Progress */}
           {isProcessing && (
             <Box sx={{ mb: 2 }}>
-              <Box display="flex" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+              <Box
+                display="flex"
+                alignItems="center"
+                justifyContent="space-between"
+                sx={{ mb: 1 }}
+              >
                 <Typography variant="body2" color="text.secondary">
                   {progressMessage}
                 </Typography>
@@ -1654,12 +1754,16 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
                   Cancel
                 </Button>
               </Box>
-              <LinearProgress 
-                variant="determinate" 
-                value={progress} 
+              <LinearProgress
+                variant="determinate"
+                value={progress}
                 sx={{ height: 8, borderRadius: 4 }}
               />
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ mt: 1, display: "block" }}
+              >
                 {Math.round(progress)}% complete
               </Typography>
             </Box>
@@ -1675,7 +1779,12 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
           {/* Upload Progress */}
           {isUploading && (
             <Box sx={{ mb: 2 }}>
-              <Box display="flex" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+              <Box
+                display="flex"
+                alignItems="center"
+                justifyContent="space-between"
+                sx={{ mb: 1 }}
+              >
                 <Typography variant="body2" color="text.secondary">
                   {uploadProgress.message}
                 </Typography>
@@ -1688,21 +1797,22 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
                   Cancel Upload
                 </Button>
               </Box>
-              <LinearProgress 
-                variant="determinate" 
-                value={uploadProgress.percentage} 
+              <LinearProgress
+                variant="determinate"
+                value={uploadProgress.percentage}
                 sx={{ height: 8, borderRadius: 4 }}
               />
               <Box display="flex" justifyContent="space-between" sx={{ mt: 1 }}>
                 <Typography variant="caption" color="text.secondary">
-                  {uploadProgress.completedInvoices} / {uploadProgress.totalInvoices} invoices
+                  {uploadProgress.completedInvoices} /{" "}
+                  {uploadProgress.totalInvoices} invoices
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
-                  Chunk {uploadProgress.currentChunk} / {uploadProgress.totalChunks}
+                  Chunk {uploadProgress.currentChunk} /{" "}
+                  {uploadProgress.totalChunks}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
                   {Math.round(uploadProgress.percentage)}% complete
-
                 </Typography>
               </Box>
             </Box>
@@ -2105,4 +2215,3 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
 };
 
 export default InvoiceUploader;
-
