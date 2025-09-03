@@ -447,59 +447,102 @@ export default function BasicTable() {
     }
   };
 
-  const handleBulkUpload = async (invoicesData) => {
+  const handleBulkUpload = async (invoicesData, options = {}) => {
+    const { 
+      onProgress = () => {},
+      onChunkComplete = () => {},
+      onError = () => {},
+      chunkSize = 1000 
+    } = options;
+
     try {
-      const response = await api.post(
-        `/tenant/${selectedTenant.tenant_id}/invoices/bulk`,
-        { invoices: invoicesData }
-      );
+      // For large uploads, use streaming service
+      if (invoicesData.length > 100) {
+        const StreamingUploadService = (await import('../services/StreamingUploadService')).default;
+        
+        const result = await StreamingUploadService.uploadInvoices(invoicesData, {
+          tenantId: selectedTenant.tenant_id,
+          chunkSize,
+          onProgress,
+          onChunkComplete,
+          onError,
+        });
 
-      if (response.data.success) {
-        const { summary, errors, warnings } = response.data.data;
+        if (result.success) {
+          const { successfulInvoices, failedInvoices, errors, warnings } = result;
 
-        if (summary.failed > 0) {
-          // Show detailed error information
-          let errorDetails = errors
-            .slice(0, 10)
-            .map((err) => `Row ${err.row}: ${err.error}`)
-            .join("\n");
-
-          if (errors.length > 10) {
-            errorDetails += `\n... and ${errors.length - 10} more errors`;
+          if (failedInvoices > 0) {
+            toast.warning(
+              `Upload completed with issues: ${successfulInvoices} invoices added successfully, ${failedInvoices} invoices failed.`,
+              {
+                autoClose: 8000,
+                closeOnClick: false,
+                pauseOnHover: true,
+              }
+            );
+            console.error("Upload errors:", errors);
+          } else {
+            getMyInvoices();
+            toast.success(
+              `Successfully uploaded ${successfulInvoices} invoices as drafts!`
+            );
           }
 
-          // Show error details in a toast instead of alert
-          toast.warning(
-            `Upload completed with issues: ${summary.successful} invoices added successfully, ${summary.failed} invoices failed. Check console for error details.`,
-            {
-              autoClose: 8000,
-              closeOnClick: false,
-              pauseOnHover: true,
-            }
-          );
-          console.error("Upload errors:", errors);
+          // Create missing products
+          try {
+            await createMissingProducts(invoicesData);
+          } catch (productError) {
+            console.error("Error creating missing products:", productError);
+            toast.warning(
+              "Invoices uploaded successfully, but some products could not be created automatically."
+            );
+          }
+
+          return result;
         } else {
-          // Refresh the invoices list
-          getMyInvoices();
-          toast.success(
-            `Successfully uploaded ${summary.successful} invoices as drafts!`
-          );
+          throw new Error("Streaming upload failed");
         }
-
-        // NEW: Automatically create products that don't exist
-        try {
-          await createMissingProducts(invoicesData);
-        } catch (productError) {
-          console.error("Error creating missing products:", productError);
-          // Don't fail the upload if product creation fails
-          toast.warning(
-            "Invoices uploaded successfully, but some products could not be created automatically."
-          );
-        }
-
-        return response.data;
       } else {
-        throw new Error(response.data.message || "Upload failed");
+        // For small uploads, use regular API
+        const response = await api.post(
+          `/tenant/${selectedTenant.tenant_id}/invoices/bulk`,
+          { invoices: invoicesData, chunkSize }
+        );
+
+        if (response.data.success) {
+          const { summary, errors, warnings } = response.data.data;
+
+          if (summary.failed > 0) {
+            toast.warning(
+              `Upload completed with issues: ${summary.successful} invoices added successfully, ${summary.failed} invoices failed.`,
+              {
+                autoClose: 8000,
+                closeOnClick: false,
+                pauseOnHover: true,
+              }
+            );
+            console.error("Upload errors:", errors);
+          } else {
+            getMyInvoices();
+            toast.success(
+              `Successfully uploaded ${summary.successful} invoices as drafts!`
+            );
+          }
+
+          // Create missing products
+          try {
+            await createMissingProducts(invoicesData);
+          } catch (productError) {
+            console.error("Error creating missing products:", productError);
+            toast.warning(
+              "Invoices uploaded successfully, but some products could not be created automatically."
+            );
+          }
+
+          return response.data;
+        } else {
+          throw new Error(response.data.message || "Upload failed");
+        }
       }
     } catch (error) {
       console.error("Error in bulk upload:", error);

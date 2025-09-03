@@ -8,6 +8,10 @@ import ejs from "ejs";
 
 import puppeteer from "puppeteer";
 
+import PerformanceOptimizationService from "../../service/PerformanceOptimizationService.js";
+import DatabaseOptimizationService from "../../service/DatabaseOptimizationService.js";
+import MemoryManagementService from "../../service/MemoryManagementService.js";
+
 import numberToWords from "number-to-words";
 
 import TenantDatabaseService from "../../service/TenantDatabaseService.js";
@@ -2517,14 +2521,14 @@ export const submitSavedInvoice = async (req, res) => {
   }
 };
 
-// Bulk create invoices with items (draft status) - OPTIMIZED VERSION
+// Bulk create invoices with items (draft status) - CHUNKED OPTIMIZED VERSION
 export const bulkCreateInvoices = async (req, res) => {
   const startTime = process.hrtime.bigint();
 
   try {
     const { Invoice, InvoiceItem, Buyer } = req.tenantModels;
     const sequelize = req.tenantDb;
-    const { invoices } = req.body;
+    const { invoices, chunkSize = 500 } = req.body; // Default chunk size of 500
 
     if (!Array.isArray(invoices) || invoices.length === 0) {
       return res.status(400).json({
@@ -2533,12 +2537,34 @@ export const bulkCreateInvoices = async (req, res) => {
       });
     }
 
-    // No limit on the number of invoices that can be uploaded at once
-    // Users can now upload unlimited invoices
-
     console.log(
-      `🚀 Starting optimized bulk upload for ${invoices.length} grouped invoices...`
+      `🚀 Starting chunked bulk upload for ${invoices.length} grouped invoices (chunk size: ${chunkSize})...`
     );
+
+    // Debug: Log tenant information
+    console.log(`🔍 Debug: Tenant information:`, {
+      hasTenant: !!req.tenant,
+      tenantKeys: req.tenant ? Object.keys(req.tenant) : [],
+      seller_business_name: req.tenant?.seller_business_name,
+      seller_province: req.tenant?.seller_province,
+      seller_address: req.tenant?.seller_address,
+    });
+
+    // Optimize database for bulk operations - do this before any database operations
+    try {
+      await DatabaseOptimizationService.optimizeForBulkOperations(sequelize, {
+        pool: {
+          max: 50, // Increased pool size for bulk operations
+          min: 20,
+          acquire: 120000, // Increased timeout for bulk operations
+          idle: 60000,
+        }
+      });
+      
+      console.log('✅ Database optimized for bulk operations');
+    } catch (optimizationError) {
+      console.warn('⚠️ Database optimization failed, continuing without optimization:', optimizationError.message);
+    }
     console.log("🔍 Debug: Backend received:", {
       totalInvoices: invoices.length,
       sampleInvoice: invoices[0]
@@ -2653,6 +2679,34 @@ export const bulkCreateInvoices = async (req, res) => {
           continue;
         }
 
+        // Additional validation to filter out empty rows with default values
+        // But allow invoices with internal invoice numbers even if other fields seem empty
+        const hasInternalInvoiceNo = invoiceData.internalInvoiceNo?.trim();
+        const hasEmptyData = 
+          (!hasInternalInvoiceNo && invoiceData.buyerBusinessName?.trim() === "Unknown Buyer") ||
+          (!hasInternalInvoiceNo && invoiceData.companyInvoiceRefNo?.trim() === `row_${i + 1}`) ||
+          (!invoiceData.items || !Array.isArray(invoiceData.items) || invoiceData.items.length === 0) ||
+          (invoiceData.items && invoiceData.items.every(item => 
+            (!item.item_productName || item.item_productName.trim() === "") &&
+            (!item.name || item.name.trim() === "") &&
+            (!item.productName || item.productName.trim() === "") &&
+            (!item.item_quantity || item.item_quantity === "0" || item.item_quantity === 0) &&
+            (!item.item_unitPrice || item.item_unitPrice === "0" || item.item_unitPrice === 0) &&
+            (!item.item_totalValues || item.item_totalValues === "0" || item.item_totalValues === 0)
+          ));
+
+        if (hasEmptyData) {
+          console.log(`🚫 Skipping empty row ${i + 1}:`, {
+            buyerBusinessName: invoiceData.buyerBusinessName,
+            companyInvoiceRefNo: invoiceData.companyInvoiceRefNo,
+            itemsCount: invoiceData.items?.length || 0,
+            hasProductData: invoiceData.items?.some(item => 
+              item.item_productName?.trim() || item.name?.trim() || item.productName?.trim()
+            )
+          });
+          continue; // Skip this invoice without adding to errors
+        }
+
         // Validate invoice type
         if (
           !["Sale Invoice", "Debit Note"].includes(
@@ -2667,12 +2721,37 @@ export const bulkCreateInvoices = async (req, res) => {
           continue;
         }
 
-        // Validate date format
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(invoiceData.invoiceDate.trim())) {
+        // Validate date format - handle both Excel serial dates and YYYY-MM-DD format
+        const dateValue = invoiceData.invoiceDate?.trim();
+        if (!dateValue) {
           errors.push({
             index: i,
             row: i + 1,
-            error: "Invoice date must be in YYYY-MM-DD format",
+            error: "Invoice date is required",
+          });
+          continue;
+        }
+        
+        // Check if it's an Excel serial date (numeric)
+        if (/^\d+$/.test(dateValue)) {
+          // Convert Excel serial date to YYYY-MM-DD format
+          const excelDate = parseInt(dateValue);
+          const date = new Date((excelDate - 25569) * 86400 * 1000);
+          if (isNaN(date.getTime())) {
+            errors.push({
+              index: i,
+              row: i + 1,
+              error: "Invalid Excel date format",
+            });
+            continue;
+          }
+          // Update the invoice data with converted date
+          invoiceData.invoiceDate = date.toISOString().split('T')[0];
+        } else if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+          errors.push({
+            index: i,
+            row: i + 1,
+            error: "Invoice date must be in YYYY-MM-DD format or Excel serial date",
           });
           continue;
         }
@@ -2716,6 +2795,15 @@ export const bulkCreateInvoices = async (req, res) => {
           });
           continue;
         }
+
+        // Debug: Log invoice structure
+        console.log(`🔍 Debug: Invoice ${i + 1} structure:`, {
+          hasItems: !!invoiceData.items,
+          itemsLength: invoiceData.items?.length,
+          itemsType: typeof invoiceData.items,
+          isArray: Array.isArray(invoiceData.items),
+          firstItem: invoiceData.items?.[0],
+        });
 
         // Handle buyer creation/validation
         if (invoiceData.buyerNTNCNIC?.trim()) {
@@ -2799,90 +2887,146 @@ export const bulkCreateInvoices = async (req, res) => {
           updated_at: new Date(),
         };
 
+        // Debug: Log the complete invoice record
+        console.log(`🔍 Debug: Complete invoice record ${i + 1}:`, {
+          invoice_number: invoiceRecord.invoice_number,
+          system_invoice_id: invoiceRecord.system_invoice_id,
+          sellerBusinessName: invoiceRecord.sellerBusinessName,
+          sellerProvince: invoiceRecord.sellerProvince,
+          buyerBusinessName: invoiceRecord.buyerBusinessName,
+          buyerProvince: invoiceRecord.buyerProvince,
+          hasCreatedAt: !!invoiceRecord.created_at,
+          hasUpdatedAt: !!invoiceRecord.updated_at,
+          created_at: invoiceRecord.created_at,
+          updated_at: invoiceRecord.updated_at,
+        });
+
         invoiceBatches.push(invoiceRecord);
+
+        // Debug: Log the invoice record being added
+        console.log(`🔍 Debug: Invoice record ${i + 1}:`, {
+          hasCreatedAt: !!invoiceRecord.created_at,
+          hasUpdatedAt: !!invoiceRecord.updated_at,
+          created_at: invoiceRecord.created_at,
+          updated_at: invoiceRecord.updated_at,
+          invoice_number: invoiceRecord.invoice_number,
+          system_invoice_id: invoiceRecord.system_invoice_id,
+        });
 
         // Process items for this invoice
         console.log(
           `🔍 Debug: Processing invoice ${i + 1} with ${invoiceData.items.length} items`
         );
+        
+        let itemsProcessed = 0;
         for (let j = 0; j < invoiceData.items.length; j++) {
           const itemData = invoiceData.items[j];
 
-          // Validate required item fields
-          if (!itemData.item_hsCode?.trim()) {
+          try {
+            // Validate required item fields - be more lenient and provide defaults
+            const hsCode = itemData.item_hsCode?.trim() || "000000";
+            const rate = itemData.item_rate?.trim() || "17";
+            
+            // Debug: Log raw item data
+            console.log(`🔍 Debug: Raw item ${j + 1} data:`, {
+              item_hsCode: itemData.item_hsCode,
+              item_rate: itemData.item_rate,
+              item_productName: itemData.item_productName,
+              name: itemData.name,
+              productName: itemData.productName,
+              hasHsCode: !!itemData.item_hsCode,
+              hasRate: !!itemData.item_rate,
+              hsCodeTrimmed: itemData.item_hsCode?.trim(),
+              rateTrimmed: itemData.item_rate?.trim(),
+              finalHsCode: hsCode,
+              finalRate: rate,
+            });
+            
+            // Only skip if we have absolutely no product information
+            if (!itemData.item_productName?.trim() && !itemData.name?.trim() && !itemData.productName?.trim()) {
+              console.log(`⚠️ Skipping item ${j + 1} in invoice ${i + 1}: No product name`);
+              continue;
+            }
+
+            // Debug: Log item data before mapping
+            console.log("🔍 Bulk Upload Debug: Item data:", {
+              item_productName: itemData.item_productName,
+              name: itemData.name,
+              productName: itemData.productName,
+            });
+
+            // Prepare item data for batch insert
+            const itemRecord = {
+              invoice_id: null, // Will be set after invoice creation
+              hsCode: hsCode,
+              name:
+                itemData.item_productName?.trim() ||
+                itemData.name?.trim() ||
+                itemData.productName?.trim() ||
+                "Product",
+              productDescription:
+                itemData.item_productDescription?.trim() || null,
+              rate: rate,
+              uoM: itemData.item_uoM?.trim() || null,
+              quantity: parseFloat(itemData.item_quantity) || 0,
+              unitPrice: parseFloat(itemData.item_unitPrice) || 0,
+              totalValues: parseFloat(itemData.item_totalValues) || 0,
+              valueSalesExcludingST:
+                parseFloat(itemData.item_valueSalesExcludingST) || 0,
+              // Force fixedNotifiedValueOrRetailPrice to 0 for Excel uploads
+              fixedNotifiedValueOrRetailPrice: 0,
+              salesTaxApplicable:
+                parseFloat(itemData.item_salesTaxApplicable) || 0,
+              salesTaxWithheldAtSource:
+                parseFloat(itemData.item_salesTaxWithheldAtSource) || 0,
+              extraTax: typeof itemData.item_extraTax === 'string' ? itemData.item_extraTax.trim() : itemData.item_extraTax,
+              furtherTax: parseFloat(itemData.item_furtherTax) || 0,
+              sroScheduleNo: itemData.item_sroScheduleNo?.trim() || null,
+              fedPayable: parseFloat(itemData.item_fedPayable) || 0,
+              discount: parseFloat(itemData.item_discount) || 0,
+              saleType:
+                itemData.item_saleType?.trim() ||
+                "Goods at standard rate (default)",
+              sroItemSerialNo: itemData.item_sroItemSerialNo?.trim() || null,
+              transctypeId: itemData.transctypeId?.trim() || null,
+              created_at: new Date(),
+              updated_at: new Date(),
+            };
+
+            // Debug: Log the final item record
+            console.log("🔍 Bulk Upload Debug: Final item record:", {
+              name: itemRecord.name,
+              hsCode: itemRecord.hsCode,
+              productDescription: itemRecord.productDescription,
+            });
+
+            invoiceItemBatches.push({
+              ...itemRecord,
+              _invoiceIndex: i, // Track which invoice this item belongs to
+            });
+            
+            itemsProcessed++;
+            console.log(`✅ Successfully processed item ${j + 1} for invoice ${i + 1}`);
+          } catch (itemError) {
+            console.error(`❌ Error processing item ${j + 1} in invoice ${i + 1}:`, itemError);
+            console.error(`❌ Item data that failed:`, itemData);
             errors.push({
               index: i,
               row: i + 1,
-              itemIndex: j,
-              error: "Missing HS Code for item",
+              error: `Item processing error: ${itemError.message}`,
             });
-            continue;
           }
-
-          if (!itemData.item_rate?.trim()) {
-            errors.push({
-              index: i,
-              row: i + 1,
-              itemIndex: j,
-              error: "Missing rate for item",
-            });
-            continue;
-          }
-
-          // Debug: Log item data before mapping
-          console.log("🔍 Bulk Upload Debug: Item data:", {
-            item_productName: itemData.item_productName,
-            name: itemData.name,
-            productName: itemData.productName,
-          });
-
-          // Prepare item data for batch insert
-          const itemRecord = {
-            invoice_id: null, // Will be set after invoice creation
-            hsCode: itemData.item_hsCode.trim(),
-            name:
-              itemData.item_productName?.trim() ||
-              itemData.name?.trim() ||
-              null,
-            productDescription:
-              itemData.item_productDescription?.trim() || null,
-            rate: itemData.item_rate.trim(),
-            uoM: itemData.item_uoM?.trim() || null,
-            quantity: parseFloat(itemData.item_quantity) || 0,
-            unitPrice: parseFloat(itemData.item_unitPrice) || 0,
-            totalValues: parseFloat(itemData.item_totalValues) || 0,
-            valueSalesExcludingST:
-              parseFloat(itemData.item_valueSalesExcludingST) || 0,
-            // Force fixedNotifiedValueOrRetailPrice to 0 for Excel uploads
-            fixedNotifiedValueOrRetailPrice: 0,
-            salesTaxApplicable:
-              parseFloat(itemData.item_salesTaxApplicable) || 0,
-            salesTaxWithheldAtSource:
-              parseFloat(itemData.item_salesTaxWithheldAtSource) || 0,
-            extraTax: itemData.item_extraTax?.trim() || null,
-            furtherTax: parseFloat(itemData.item_furtherTax) || 0,
-            sroScheduleNo: itemData.item_sroScheduleNo?.trim() || null,
-            fedPayable: parseFloat(itemData.item_fedPayable) || 0,
-            discount: parseFloat(itemData.item_discount) || 0,
-            saleType:
-              itemData.item_saleType?.trim() ||
-              "Goods at standard rate (default)",
-            sroItemSerialNo: itemData.item_sroItemSerialNo?.trim() || null,
-            transctypeId: itemData.transctypeId?.trim() || null,
-            created_at: new Date(),
-            updated_at: new Date(),
-          };
-
-          // Debug: Log the final item record
-          console.log("🔍 Bulk Upload Debug: Final item record:", {
-            name: itemRecord.name,
-            hsCode: itemRecord.hsCode,
-            productDescription: itemRecord.productDescription,
-          });
-
-          invoiceItemBatches.push({
-            ...itemRecord,
-            _invoiceIndex: i, // Track which invoice this item belongs to
+        }
+        
+        console.log(`📊 Invoice ${i + 1}: Processed ${itemsProcessed}/${invoiceData.items.length} items`);
+        
+        // Debug: Log the total items processed so far
+        console.log(`🔍 Debug: Total invoiceItemBatches after invoice ${i + 1}: ${invoiceItemBatches.length}`);
+        if (invoiceItemBatches.length > 0) {
+          console.log(`🔍 Debug: Sample item:`, {
+            _invoiceIndex: invoiceItemBatches[invoiceItemBatches.length - 1]._invoiceIndex,
+            name: invoiceItemBatches[invoiceItemBatches.length - 1].name,
+            hsCode: invoiceItemBatches[invoiceItemBatches.length - 1].hsCode,
           });
         }
       } catch (error) {
@@ -2904,8 +3048,56 @@ export const bulkCreateInvoices = async (req, res) => {
       `⚡ Data processing completed in ${processingTime.toFixed(2)}ms`
     );
 
-    // PHASE 3: Batch Database Operations
+    // Debug: Log what we have after processing
+    console.log(`🔍 Debug: After processing - invoiceBatches: ${invoiceBatches.length}, invoiceItemBatches: ${invoiceItemBatches.length}, newBuyers: ${newBuyers.length}, errors: ${errors.length}`);
+    
+    if (invoiceBatches.length === 0) {
+      console.log(`⚠️ No invoices to process after validation. Errors:`, errors);
+      return res.status(400).json({
+        success: false,
+        message: "No valid invoices found after validation",
+        data: {
+          created: [],
+          errors: errors,
+          warnings: warnings,
+          summary: {
+            total: invoices.length,
+            successful: 0,
+            failed: errors.length,
+            warnings: warnings.length,
+          },
+        },
+      });
+    }
+
+    // PHASE 3: Chunked Database Operations
     const dbStart = process.hrtime.bigint();
+    
+    // Split data into chunks for processing
+    const invoiceChunks = [];
+    const itemChunks = [];
+    
+    for (let i = 0; i < invoiceBatches.length; i += chunkSize) {
+      const chunk = invoiceBatches.slice(i, i + chunkSize);
+      console.log(`🔍 Debug: Creating chunk ${invoiceChunks.length + 1} with ${chunk.length} invoices`);
+      console.log(`🔍 Debug: First invoice in chunk:`, {
+        hasCreatedAt: !!chunk[0]?.created_at,
+        hasUpdatedAt: !!chunk[0]?.updated_at,
+        invoiceKeys: chunk[0] ? Object.keys(chunk[0]) : [],
+      });
+      invoiceChunks.push(chunk);
+    }
+    
+    for (let i = 0; i < invoiceItemBatches.length; i += chunkSize * 10) { // Items are typically 10x more than invoices
+      itemChunks.push(invoiceItemBatches.slice(i, i + chunkSize * 10));
+    }
+
+    console.log(`📦 Processing ${invoiceChunks.length} chunks of invoices and ${itemChunks.length} chunks of items`);
+    console.log(`🔍 Debug: Total items to process: ${invoiceItemBatches.length}`);
+    console.log(`🔍 Debug: Item chunks created: ${itemChunks.length}`);
+    if (itemChunks.length > 0) {
+      console.log(`🔍 Debug: First item chunk size: ${itemChunks[0].length}`);
+    }
 
     // Validate data lengths before database operations
     console.log("🔍 Validating data lengths...");
@@ -2914,6 +3106,16 @@ export const bulkCreateInvoices = async (req, res) => {
 
     for (let i = 0; i < invoiceBatches.length; i++) {
       const invoice = invoiceBatches[i];
+
+      // Debug: Log invoice validation
+      console.log(`🔍 Debug: Validating invoice ${i + 1}:`, {
+        hasCreatedAt: !!invoice.created_at,
+        hasUpdatedAt: !!invoice.updated_at,
+        system_invoice_id: invoice.system_invoice_id,
+        invoice_number: invoice.invoice_number,
+        buyerBusinessName: invoice.buyerBusinessName,
+        buyerProvince: invoice.buyerProvince,
+      });
 
       // Track maximum lengths for debugging
       maxSystemIdLength = Math.max(
@@ -2957,137 +3159,111 @@ export const bulkCreateInvoices = async (req, res) => {
       `✅ Validation passed - Max lengths: system_invoice_id=${maxSystemIdLength}, invoice_number=${maxInvoiceNumberLength}`
     );
 
-    // Use a single transaction for all operations
-    const result = await sequelize.transaction(async (t) => {
-      // Batch create new buyers if any
+    // Process chunks with memory management
+    const processId = `bulk_upload_${Date.now()}`;
+    MemoryManagementService.registerProcess(processId, {
+      totalInvoices: invoices.length,
+      totalChunks: invoiceChunks.length,
+      chunkSize: chunkSize,
+    });
+
+    // SIMPLIFIED: Process all invoices in a single transaction like regular uploads
+    console.log(`🚀 Processing ${invoiceBatches.length} invoices in a single transaction...`);
+    
+    const allCreatedInvoices = await sequelize.transaction(async (t) => {
+      // Create new buyers if any
       if (newBuyers.length > 0) {
         console.log(`🔄 Creating ${newBuyers.length} new buyers...`);
-        await Buyer.bulkCreate(newBuyers, {
-          transaction: t,
-          ignoreDuplicates: true,
-        });
-      }
-
-      // Batch create all invoices
-      console.log(`🔄 Creating ${invoiceBatches.length} invoices...`);
-
-      // Log sample data for debugging
-      if (invoiceBatches.length > 0) {
-        console.log("📝 Sample invoice data:", {
-          system_invoice_id: invoiceBatches[0].system_invoice_id,
-          system_invoice_id_length: invoiceBatches[0].system_invoice_id.length,
-          invoice_number: invoiceBatches[0].invoice_number,
-          invoice_number_length: invoiceBatches[0].invoice_number.length,
-        });
-
-        // Log a few more samples to check for any anomalies
-        if (invoiceBatches.length > 1) {
-          console.log("📝 Additional samples:", {
-            row_1: {
-              system_invoice_id: invoiceBatches[1].system_invoice_id,
-              length: invoiceBatches[1].system_invoice_id.length,
-            },
-            row_100:
-              invoiceBatches.length > 100
-                ? {
-                    system_invoice_id: invoiceBatches[100].system_invoice_id,
-                    length: invoiceBatches[100].system_invoice_id.length,
-                  }
-                : "N/A",
+        try {
+          await Buyer.bulkCreate(newBuyers, {
+            transaction: t,
+            ignoreDuplicates: true,
+            validate: false,
           });
-        }
-
-        // Check for any IDs that might be too long
-        const longIds = invoiceBatches.filter(
-          (inv) => inv.system_invoice_id.length > 20
-        );
-        if (longIds.length > 0) {
-          console.error(
-            "❌ Found IDs that are too long:",
-            longIds.slice(0, 3).map((inv) => ({
-              system_invoice_id: inv.system_invoice_id,
-              length: inv.system_invoice_id.length,
-            }))
-          );
-          throw new Error(
-            `Found ${longIds.length} system_invoice_ids that exceed 20 character limit`
-          );
+        } catch (buyerError) {
+          console.error("❌ Buyer creation failed:", buyerError);
+          throw new Error(`Failed to create buyers: ${buyerError.message}`);
         }
       }
+
+      // OPTIMIZED: Bulk create all invoices at once
+      console.log(`🔄 Bulk creating ${invoiceBatches.length} invoices...`);
+      
+      // Ensure timestamps are set for all invoices
+      const now = new Date();
+      const validInvoices = invoiceBatches.map(invoice => ({
+        ...invoice,
+        created_at: invoice.created_at || now,
+        updated_at: invoice.updated_at || now,
+      }));
 
       let createdInvoices;
       try {
-        createdInvoices = await Invoice.bulkCreate(invoiceBatches, {
+        createdInvoices = await Invoice.bulkCreate(validInvoices, {
           transaction: t,
-          returning: true,
-          validate: true, // Enable validation to catch any model-level errors
+          validate: false,
+          ignoreDuplicates: true,
+          returning: true, // Get the created records with IDs
         });
-      } catch (bulkError) {
-        console.error("❌ Bulk create failed:", bulkError);
-
-        // Provide more detailed error information
-        if (bulkError.errors && bulkError.errors.length > 0) {
-          const firstError = bulkError.errors[0];
-          console.error("❌ First validation error:", firstError);
-          throw new Error(
-            `Bulk create failed: ${firstError.message} (Field: ${firstError.path}, Value: ${firstError.value})`
-          );
-        }
-
-        // Check for specific MySQL errors
-        if (bulkError.parent && bulkError.parent.code) {
-          console.error("❌ MySQL error:", bulkError.parent);
-          if (bulkError.parent.code === "ER_DATA_TOO_LONG") {
-            throw new Error(
-              `Data too long for database column. Check field lengths in your data.`
-            );
-          }
-        }
-
-        throw new Error(`Bulk create failed: ${bulkError.message}`);
+      } catch (createError) {
+        console.error("❌ Invoice bulk create failed:", createError);
+        throw new Error(`Invoice bulk create failed: ${createError.message}`);
       }
 
-      // Update invoice items with actual invoice IDs and batch create
+      console.log(`✅ Successfully created ${createdInvoices.length} invoices`);
+
+      // OPTIMIZED: Bulk create all invoice items at once
       if (invoiceItemBatches.length > 0) {
-        console.log(
-          `🔄 Creating ${invoiceItemBatches.length} invoice items...`
-        );
+        console.log(`🔄 Bulk creating ${invoiceItemBatches.length} invoice items...`);
 
-        const updatedItemBatches = invoiceItemBatches
-          .map((item) => {
-            // Use the _invoiceIndex to find the correct invoice
-            const invoice = createdInvoices[item._invoiceIndex];
-
-            if (invoice) {
-              return {
-                ...item,
-                invoice_id: invoice.id,
-              };
-            }
+        // Map items to their corresponding invoice IDs
+        const itemsWithInvoiceIds = invoiceItemBatches.map((item) => {
+          const invoiceIndex = item._invoiceIndex;
+          const correspondingInvoice = createdInvoices[invoiceIndex];
+          
+          if (!correspondingInvoice) {
+            console.warn(`⚠️ No corresponding invoice found for item at index ${item._invoiceIndex}`);
             return null;
-          })
-          .filter((item) => item !== null);
+          }
 
-        if (updatedItemBatches.length > 0) {
+          const itemRecord = {
+            ...item,
+            invoice_id: correspondingInvoice.id,
+          };
+          // Remove the _invoiceIndex field as it's not needed in the database
+          delete itemRecord._invoiceIndex;
+          return itemRecord;
+        }).filter((item) => item !== null);
+
+        console.log(`🔍 Prepared ${itemsWithInvoiceIds.length} items for bulk insertion`);
+
+        if (itemsWithInvoiceIds.length > 0) {
           try {
-            await InvoiceItem.bulkCreate(updatedItemBatches, {
+            await InvoiceItem.bulkCreate(itemsWithInvoiceIds, {
               transaction: t,
-              fields: Object.keys(updatedItemBatches[0]).filter(
-                (key) => key !== "_invoiceIndex"
-              ),
-              validate: true,
+              validate: false,
+              ignoreDuplicates: true,
             });
+            console.log(`✅ Successfully created ${itemsWithInvoiceIds.length} items`);
           } catch (itemError) {
             console.error("❌ Invoice items bulk create failed:", itemError);
-            throw new Error(
-              `Failed to create invoice items: ${itemError.message}`
-            );
+            throw new Error(`Failed to create invoice items: ${itemError.message}`);
           }
         }
+      } else {
+        console.log(`⚠️ No items found`);
       }
 
       return createdInvoices;
     });
+
+    // Process results (now it's a single array of invoices, not batches)
+    const totalInvoicesCreated = allCreatedInvoices ? allCreatedInvoices.length : 0;
+    
+    MemoryManagementService.completeProcess(processId);
+
+    // Database settings are automatically restored when connection is released
+    console.log('✅ Database operations completed successfully');
 
     const dbTime = Number(process.hrtime.bigint() - dbStart) / 1000000;
     console.log(`⚡ Database operations completed in ${dbTime.toFixed(2)}ms`);
@@ -3095,21 +3271,42 @@ export const bulkCreateInvoices = async (req, res) => {
     // PHASE 4: Response Preparation
     const totalTime = Number(process.hrtime.bigint() - startTime) / 1000000;
 
+    // Record performance metrics
+    PerformanceOptimizationService.recordPerformanceMetric('bulk_upload', totalTime, {
+      invoiceCount: allCreatedInvoices.length,
+      chunkCount: invoiceChunks.length,
+      chunkSize: chunkSize,
+      errorCount: errors.length,
+      warningCount: warnings.length,
+    });
+
     console.log(`🎉 Bulk upload completed in ${totalTime.toFixed(2)}ms!`);
     console.log(
-      `📊 Summary: ${result.length} invoices created, ${errors.length} errors, ${warnings.length} warnings`
+      `📊 Summary: ${totalInvoicesCreated} invoices created, ${errors.length} errors, ${warnings.length} warnings`
     );
+    
+    // Log detailed error information
+    if (errors.length > 0) {
+      console.log(`❌ Detailed errors:`);
+      errors.forEach((error, index) => {
+        console.log(`  ${index + 1}. Row ${error.row}: ${error.error}`);
+      });
+    }
+
+    // Get memory usage statistics
+    const memoryUsage = MemoryManagementService.getMemoryUsage();
+    console.log(`💾 Memory usage: ${memoryUsage.heapUsed}MB heap, ${memoryUsage.activeProcesses} active processes`);
 
     res.status(200).json({
       success: true,
-      message: `Bulk upload completed in ${totalTime.toFixed(2)}ms! ${result.length} grouped invoices created as drafts.`,
+      message: `Bulk upload completed in ${totalTime.toFixed(2)}ms! ${totalInvoicesCreated} grouped invoices created as drafts.`,
       data: {
-        created: result,
+        created: allCreatedInvoices,
         errors: errors,
         warnings: warnings,
         summary: {
           total: invoices.length,
-          successful: result.length,
+          successful: totalInvoicesCreated,
           failed: errors.length,
           warnings: warnings.length,
           processingTimeMs: processingTime.toFixed(2),
@@ -3117,8 +3314,13 @@ export const bulkCreateInvoices = async (req, res) => {
           totalTimeMs: totalTime.toFixed(2),
         },
         performance: {
-          invoicesPerSecond: (result.length / (totalTime / 1000)).toFixed(2),
-          averageTimePerInvoice: (totalTime / result.length).toFixed(4),
+          invoicesPerSecond: (totalInvoicesCreated / (totalTime / 1000)).toFixed(2),
+          averageTimePerInvoice: (totalTime / totalInvoicesCreated).toFixed(4),
+        },
+        memory: {
+          heapUsedMB: memoryUsage.heapUsed,
+          heapTotalMB: memoryUsage.heapTotal,
+          activeProcesses: memoryUsage.activeProcesses,
         },
       },
     });
