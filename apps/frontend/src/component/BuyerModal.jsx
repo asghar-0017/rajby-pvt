@@ -238,7 +238,7 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
       setCheckingBuyerRegistration(true);
       setBuyerRegistrationHint("");
 
-      const response = await fetch("https://meditec.inplsoftwares.online/api/buyer-check", {
+      const response = await fetch("https://paramount-corp.inplsoftwares.online/api/buyer-check", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
