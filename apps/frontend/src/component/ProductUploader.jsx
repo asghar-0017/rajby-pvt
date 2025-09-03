@@ -60,8 +60,21 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
   const [checkingExisting, setCheckingExisting] = useState(false);
   const fileInputRef = useRef(null);
 
-  // Expected columns for product data
-  const expectedColumns = ["name", "description", "hsCode", "uom"];
+  // Internal keys for product data
+  const expectedColumns = [
+    "productName",
+    "productDescription",
+    "hsCode",
+    "uom",
+  ];
+
+  // Map display headers (as shown in Excel) back to internal keys
+  const displayToInternalHeaderMap = {
+    "Product Name": "productName",
+    "Product Description": "productDescription",
+    "HS Code": "hsCode",
+    "Unit Of Measurement": "uom",
+  };
 
   const downloadTemplate = async () => {
     try {
@@ -72,17 +85,27 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         views: [{ state: "frozen", ySplit: 1 }],
       });
 
-      // Header row
-      worksheet.addRow(expectedColumns);
+      // Header row with visual labels
+      const visualHeaders = [
+        "Product Name",
+        "Product Description",
+        "HS Code",
+        "Unit Of Measurement",
+      ];
+      worksheet.addRow(visualHeaders);
       worksheet.getRow(1).font = { bold: true };
 
       // Ensure HS Code column is treated as text and readable
-      const hsCodeIdx = expectedColumns.indexOf("hsCode") + 1;
+      const hsCodeIdx = visualHeaders.indexOf("HS Code") + 1;
       if (hsCodeIdx > 0) {
         const col = worksheet.getColumn(hsCodeIdx);
-        col.numFmt = "@";
+        col.numFmt = "@"; // Force string format for entire column
         col.alignment = { horizontal: "left" };
         if (!col.width || col.width < 18) col.width = 20;
+
+        // Also set string format for the header row to ensure consistency
+        const headerCell = worksheet.getCell(1, hsCodeIdx);
+        headerCell.numFmt = "@";
       }
 
       // Fetch HS Codes and build HS list from API (limit for performance)
@@ -118,48 +141,47 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         ];
       }
 
-      // Fetch UOMs via hsCode cache for a subset of HS Codes, de-duplicate
-      let uomOptions = [];
-      try {
-        const sampleCodes = hsCodeValues
-          .map((v) => String(v).split(" - ")[0])
-          .filter(Boolean)
-          .slice(0, 50);
-        const uomSet = new Set();
-        for (const code of sampleCodes) {
-          try {
-            const uoms = await hsCodeCache.getUOM(code);
-            if (Array.isArray(uoms)) {
-              uoms.forEach((u) => {
-                const desc = u?.description;
-                if (desc) uomSet.add(desc);
-              });
-            }
-          } catch (_) {}
-        }
-        uomOptions = Array.from(uomSet);
-        console.log("UOM options from cache:", uomOptions.length);
-      } catch (e) {
-        console.error("Error fetching UOMs:", e);
-        // Fallback UOM options if API fails
-        uomOptions = [
-          "KG",
-          "TON",
-          "LITRE",
-          "PIECE",
-          "METER",
-          "SQUARE METER",
-          "CUBIC METER",
-          "DOZEN",
-          "PAIR",
-          "SET",
-          "UNIT",
-          "BOX",
-          "BAG",
-          "ROLL",
-          "SHEET",
-        ];
-      }
+      // Hardcoded UOM options from API response
+      const uomOptions = [
+        "MT",
+        "Bill of lading",
+        "SET",
+        "KWH",
+        "40KG",
+        "Liter",
+        "SqY",
+        "Bag",
+        "KG",
+        "MMBTU",
+        "Meter",
+        "Pcs",
+        "Carat",
+        "Cubic Metre",
+        "Dozen",
+        "Gram",
+        "Gallon",
+        "Kilogram",
+        "Pound",
+        "Timber Logs",
+        "Numbers, pieces, units",
+        "Packs",
+        "Pair",
+        "Square Foot",
+        "Square Metre",
+        "Thousand Unit",
+        "Mega Watt",
+        "Foot",
+        "Barrels",
+        "NO",
+        "Others",
+        "1000 kWh",
+      ];
+
+      console.log(
+        "UOM dropdown enabled with",
+        uomOptions.length,
+        "hardcoded options"
+      );
 
       // Create a veryHidden worksheet to store the lists
       const listsSheet = workbook.addWorksheet("Lists");
@@ -174,9 +196,13 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       uomOptions.forEach((uom, i) => {
         listsSheet.getCell(1 + i, 1).value = uom;
       });
-      // Column B: HS Code list (with description)
+      // Column B: HS Code list (with description) - No longer used for dropdown validation
+      // Users can now input their own HS Code values
+      // Ensure HS Codes are stored as strings to prevent Excel from treating them as numbers
       hsCodeValues.forEach((val, i) => {
-        listsSheet.getCell(1 + i, 2).value = val;
+        const cell = listsSheet.getCell(1 + i, 2);
+        cell.value = val;
+        cell.numFmt = "@"; // Force string format
       });
 
       // Helper to convert column index to Excel letter
@@ -191,15 +217,19 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         return temp;
       };
 
-      const uomColIdx = expectedColumns.indexOf("uom") + 1;
-      const hsColIdx = expectedColumns.indexOf("hsCode") + 1;
+      const uomColIdx = visualHeaders.indexOf("Unit Of Measurement") + 1;
+      const hsColIdx = visualHeaders.indexOf("HS Code") + 1;
       // No row limit - allow unlimited rows of data
       const maxRows = 100000; // allow up to 100,000 rows of data for template generation
 
       const uomRange = `'Lists'!$A$1:$A$${Math.max(1, uomOptions.length)}`;
       const hsRange = `'Lists'!$B$1:$B$${Math.max(1, hsCodeValues.length)}`;
 
-      console.log("Data validation ranges:", { uomRange, hsRange });
+      console.log("Data validation ranges:", {
+        uomRange,
+        hsRange:
+          "HS Code range no longer used for validation - users input free text",
+      });
 
       // Apply data validations row-wise (limited to reasonable number for template)
       for (let r = 2; r <= Math.min(maxRows, 10000); r++) {
@@ -211,14 +241,15 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
             showErrorMessage: true,
           };
         }
-        if (hsColIdx > 0) {
-          worksheet.getCell(r, hsColIdx).dataValidation = {
-            type: "list",
-            allowBlank: true,
-            formulae: [hsRange],
-            showErrorMessage: true,
-          };
-        }
+        // HS Code dropdown removed - users can now input their own values
+        // if (hsColIdx > 0) {
+        //   worksheet.getCell(r, hsColIdx).dataValidation = {
+        //     type: "list",
+        //     allowBlank: true,
+        //     formulae: [hsRange],
+        //     showErrorMessage: true,
+        //   };
+        // }
       }
 
       // Start with empty body rows; users will fill data beneath the headers
@@ -318,8 +349,9 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       // Parse headers
       const headers = parseCSVLine(lines[0]);
 
-      // Validate headers
-      const missingHeaders = expectedColumns.filter(
+      // Validate headers - check if visual labels are present
+      const visualHeaders = Object.keys(displayToInternalHeaderMap);
+      const missingHeaders = visualHeaders.filter(
         (col) => !headers.includes(col)
       );
       if (missingHeaders.length > 0) {
@@ -339,13 +371,15 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
             row[header] = values[index] || "";
           });
 
-          // Only include expected columns
-          const filteredRow = {};
-          expectedColumns.forEach((col) => {
-            filteredRow[col] = row[col] || "";
-          });
+          // Map visual headers to internal keys
+          const mappedRow = {};
+          Object.entries(displayToInternalHeaderMap).forEach(
+            ([visualHeader, internalKey]) => {
+              mappedRow[internalKey] = row[visualHeader] || "";
+            }
+          );
 
-          data.push(filteredRow);
+          data.push(mappedRow);
         }
       }
 
@@ -371,8 +405,9 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
           String(header || "").trim()
         );
 
-        // Validate headers
-        const missingHeaders = expectedColumns.filter(
+        // Validate headers - check if visual labels are present
+        const visualHeaders = Object.keys(displayToInternalHeaderMap);
+        const missingHeaders = visualHeaders.filter(
           (col) => !headers.includes(col)
         );
         if (missingHeaders.length > 0) {
@@ -398,13 +433,15 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
               rowData[header] = row[index] || "";
             });
 
-            // Only include expected columns
-            const filteredRow = {};
-            expectedColumns.forEach((col) => {
-              filteredRow[col] = rowData[col] || "";
-            });
+            // Map visual headers to internal keys
+            const mappedRow = {};
+            Object.entries(displayToInternalHeaderMap).forEach(
+              ([visualHeader, internalKey]) => {
+                mappedRow[internalKey] = rowData[visualHeader] || "";
+              }
+            );
 
-            data.push(filteredRow);
+            data.push(mappedRow);
           }
         }
 
@@ -447,11 +484,47 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     const validData = [];
     const validationErrors = [];
 
+    // Hardcoded UOM options for validation
+    const validUOMs = [
+      "MT",
+      "Bill of lading",
+      "SET",
+      "KWH",
+      "40KG",
+      "Liter",
+      "SqY",
+      "Bag",
+      "KG",
+      "MMBTU",
+      "Meter",
+      "Pcs",
+      "Carat",
+      "Cubic Metre",
+      "Dozen",
+      "Gram",
+      "Gallon",
+      "Kilogram",
+      "Pound",
+      "Timber Logs",
+      "Numbers, pieces, units",
+      "Packs",
+      "Pair",
+      "Square Foot",
+      "Square Metre",
+      "Thousand Unit",
+      "Mega Watt",
+      "Foot",
+      "Barrels",
+      "NO",
+      "Others",
+      "1000 kWh",
+    ];
+
     data.forEach((row, index) => {
       const rowErrors = [];
 
       // Required field validation
-      if (!row.name || row.name.trim() === "") {
+      if (!row.productName || row.productName.trim() === "") {
         rowErrors.push("Product name is required");
       }
 
@@ -463,14 +536,34 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         rowErrors.push("Unit of Measurement is required");
       }
 
-      // HS Code format validation (should be numeric)
+      // UOM validation using hardcoded options
+      if (row.uom && row.uom.trim() !== "") {
+        const uomValue = String(row.uom).trim();
+        const isValidUOM = validUOMs.some(
+          (validUom) =>
+            validUom.toLowerCase() === uomValue.toLowerCase() ||
+            validUom.toLowerCase().includes(uomValue.toLowerCase()) ||
+            uomValue.toLowerCase().includes(validUom.toLowerCase())
+        );
+
+        if (!isValidUOM) {
+          rowErrors.push(
+            `Unit of Measurement "${row.uom}" is not valid. Please select from the dropdown.`
+          );
+        }
+      }
+
+      // HS Code format validation (now more flexible for user input)
       if (row.hsCode && row.hsCode.trim() !== "") {
         const hsCodeStr = String(row.hsCode).trim();
-        if (!/^\d+$/.test(hsCodeStr)) {
-          rowErrors.push("HS Code should contain only numbers");
+        // Allow alphanumeric HS Codes (e.g., "0101.10.00", "ABC123")
+        if (!/^[A-Za-z0-9.\-\s]+$/.test(hsCodeStr)) {
+          rowErrors.push(
+            "HS Code should contain only letters, numbers, dots, hyphens, and spaces"
+          );
         }
-        if (hsCodeStr.length < 4 || hsCodeStr.length > 12) {
-          rowErrors.push("HS Code should be between 4-12 digits");
+        if (hsCodeStr.length < 2 || hsCodeStr.length > 20) {
+          rowErrors.push("HS Code should be between 2-20 characters");
         }
       }
 
@@ -656,8 +749,8 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       <DialogContent>
         <Box sx={{ mb: 3 }}>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Upload a CSV or Excel file with the following columns: name,
-            description, hsCode, uom.
+            Upload a CSV or Excel file with the following columns: Product Name,
+            Product Description, HS Code, Unit Of Measurement.
             <br />
             <strong>Note:</strong> Products with duplicate names or HS codes
             will be skipped during upload.
@@ -776,10 +869,10 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
                   <TableHead>
                     <TableRow>
                       <TableCell>Row</TableCell>
-                      <TableCell>Name</TableCell>
-                      <TableCell>Description</TableCell>
+                      <TableCell>Product Name</TableCell>
+                      <TableCell>Product Description</TableCell>
                       <TableCell>HS Code</TableCell>
-                      <TableCell>UOM</TableCell>
+                      <TableCell>Unit Of Measurement</TableCell>
                       <TableCell>Status</TableCell>
                     </TableRow>
                   </TableHead>
@@ -787,8 +880,8 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
                     {getCombinedPreviewData().map((row, index) => (
                       <TableRow key={index}>
                         <TableCell>{row._row}</TableCell>
-                        <TableCell>{row.name}</TableCell>
-                        <TableCell>{row.description}</TableCell>
+                        <TableCell>{row.productName}</TableCell>
+                        <TableCell>{row.productDescription}</TableCell>
                         <TableCell>{row.hsCode}</TableCell>
                         <TableCell>{row.uom}</TableCell>
                         <TableCell>

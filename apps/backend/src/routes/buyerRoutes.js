@@ -27,5 +27,10 @@ router.post("/products", productController.createProduct);
 router.get("/products/:id", productController.getProductById);
 router.put("/products/:id", productController.updateProduct);
 router.delete("/products/:id", productController.deleteProduct);
+router.post(
+  "/products/check-existing",
+  productController.checkExistingProducts
+);
+router.post("/products/bulk", productController.bulkCreateProducts);
 
 export default router;

@@ -176,8 +176,10 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
 
   // Expected columns for invoice data (including buyer details) - now optional
   const expectedColumns = [
+    // Invoice details
     "invoiceType",
     "invoiceDate",
+    "invoiceRefNo",
     "companyInvoiceRefNo",
     // Buyer details
     "buyerNTNCNIC",
@@ -206,6 +208,11 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     "item_discount",
     "item_totalValues",
   ];
+
+  // Required columns (invoiceRefNo is optional)
+  const requiredColumns = expectedColumns.filter(
+    (col) => col !== "invoiceRefNo"
+  );
 
   // Map display headers (as shown in Excel) back to internal keys
   const displayToInternalHeaderMap = {
@@ -849,7 +856,7 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         continue;
       }
       try {
-        const resp = await fetch("http://localhost:5150/api/buyer-check", {
+        const resp = await fetch("https://biomedics.inplsoftwares.online/api/buyer-check", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ registrationNo: ntn }),
