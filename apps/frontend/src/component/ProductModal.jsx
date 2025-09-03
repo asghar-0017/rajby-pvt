@@ -79,7 +79,11 @@ const ProductModal = ({ isOpen, onClose, onSave, initialProduct }) => {
   }, [extractedHsCode]);
 
   const handleHSChange = (_index, field, value) => {
-    if (field === "hsCode") setFormData((p) => ({ ...p, hsCode: value }));
+    if (field === "hsCode") {
+      // Clear previous UoM and options when HS Code changes so UoM refreshes correctly
+      setFormData((p) => ({ ...p, hsCode: value, uoM: "" }));
+      setUomOptions([]);
+    }
   };
 
   const handleSubmit = (e) => {

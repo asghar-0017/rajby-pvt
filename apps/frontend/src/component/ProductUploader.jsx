@@ -371,11 +371,13 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
             row[header] = values[index] || "";
           });
 
-          // Map visual headers to internal keys
+          // Map visual headers to internal keys (force hsCode to string)
           const mappedRow = {};
           Object.entries(displayToInternalHeaderMap).forEach(
             ([visualHeader, internalKey]) => {
-              mappedRow[internalKey] = row[visualHeader] || "";
+              const value = row[visualHeader] || "";
+              mappedRow[internalKey] =
+                internalKey === "hsCode" ? String(value) : value;
             }
           );
 
@@ -391,8 +393,11 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
 
-        // Convert worksheet to JSON
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        // Convert worksheet to JSON and get formatted values as strings
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, {
+          header: 1,
+          raw: false,
+        });
 
         if (jsonData.length < 2) {
           throw new Error(
@@ -433,11 +438,13 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
               rowData[header] = row[index] || "";
             });
 
-            // Map visual headers to internal keys
+            // Map visual headers to internal keys (force hsCode to string)
             const mappedRow = {};
             Object.entries(displayToInternalHeaderMap).forEach(
               ([visualHeader, internalKey]) => {
-                mappedRow[internalKey] = rowData[visualHeader] || "";
+                const value = rowData[visualHeader] || "";
+                mappedRow[internalKey] =
+                  internalKey === "hsCode" ? String(value) : value;
               }
             );
 
@@ -712,10 +719,18 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
   const getCombinedPreviewData = () => {
     const combined = [];
 
+    const normalize = (data) => ({
+      // Ensure preview consistently uses productName/description keys
+      productName: data.productName || data.name || "",
+      productDescription: data.productDescription || data.description || "",
+      hsCode: data.hsCode || "",
+      uom: data.uom || "",
+    });
+
     // Add existing products with status
     existingProducts.forEach((item) => {
       combined.push({
-        ...item.productData,
+        ...normalize(item.productData),
         _status: "existing",
         _existingProduct: item.existingProduct,
         _row: item.row,
@@ -725,7 +740,7 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     // Add new products with status
     newProducts.forEach((item) => {
       combined.push({
-        ...item.productData,
+        ...normalize(item.productData),
         _status: "new",
         _row: item.row,
       });

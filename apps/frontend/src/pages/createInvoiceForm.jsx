@@ -3019,10 +3019,10 @@ export default function CreateInvoice() {
             field: "quantity",
             message: `Quantity is required for item ${index + 1}`,
           },
-          {
-            field: "retailPrice",
-            message: `Retail Price is required for item ${index + 1}`,
-          },
+          // {
+          //   field: "retailPrice",
+          //   message: `Retail Price is required for item ${index + 1}`,
+          // },
           {
             field: "valueSalesExcludingST",
             message: `Value Sales Excluding ST is required for item ${
