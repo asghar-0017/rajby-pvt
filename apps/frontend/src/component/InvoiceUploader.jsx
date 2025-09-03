@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   Box,
   Button,
@@ -19,6 +19,7 @@ import {
   IconButton,
   Chip,
   Link,
+  LinearProgress,
 } from "@mui/material";
 import {
   CloudUpload,
@@ -30,10 +31,13 @@ import {
   Warning,
   Download,
   Info,
+  Cancel,
 } from "@mui/icons-material";
 import { toast } from "react-toastify";
 import { api } from "../API/Api";
 import * as XLSX from "xlsx";
+import { useFileProcessor } from "../hooks/useFileProcessor";
+import { useStreamingUpload } from "../hooks/useStreamingUpload";
 
 // Utility function to convert Excel date to YYYY-MM-DD format
 const convertExcelDateToYYYYMMDD = (excelDate) => {
@@ -137,8 +141,40 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
   const [checkingExisting, setCheckingExisting] = useState(false);
 
   const fileInputRef = useRef(null);
+  
+  // Use Web Worker for file processing
+  const {
+    isProcessing,
+    progress,
+    progressMessage,
+    error: processingError,
+    processFile: processFileWithWorker,
+    cancelProcessing,
+    cleanup,
+    reset: resetProcessor,
+  } = useFileProcessor();
 
-  // Expected columns for invoice data (including buyer details)
+  // Use streaming upload for large uploads
+  const {
+    isUploading,
+    uploadProgress,
+    uploadResult,
+    uploadError,
+    startUpload,
+    cancelUpload,
+    resetUpload,
+    estimateUploadTime,
+    getUploadStats,
+  } = useStreamingUpload();
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      cleanup();
+    };
+  }, [cleanup]);
+
+  // Expected columns for invoice data (including buyer details) - now optional
   const expectedColumns = [
     // Invoice details
     "invoiceType",
@@ -210,9 +246,145 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     "Total Values": "item_totalValues",
   };
 
-  const normalizeHeader = (h) =>
-    displayToInternalHeaderMap[String(h || "").trim()] ||
-    String(h || "").trim();
+  const normalizeHeader = (h) => {
+    const header = String(h || "").trim();
+    
+    // First try exact match
+    if (displayToInternalHeaderMap[header]) {
+      return displayToInternalHeaderMap[header];
+    }
+    
+    // Try partial matches for truncated headers
+    const partialMatches = {
+      "Invoice Da": "invoiceDate",
+      "Invoice Re": "invoiceRefNo", 
+      "Company I": "companyInvoiceRefNo",
+      "Buyer NTN": "buyerNTNCNIC",
+      "Buyer Buis": "buyerBusinessName",
+      "Buyer Prov": "buyerProvince",
+      "Buyer Addı": "buyerAddress",
+      "Buyer Regi": "buyerRegistrationType",
+      "Transactio": "transctypeId",
+      "SRO Sched": "item_sroScheduleNo",
+      "SRO Item": "item_sroItemSerialNo",
+      "Product Na": "item_productName",
+      "Product De": "item_productDescription",
+      "Value Sale": "item_valueSalesExcludingST",
+      "Unit Of Me": "item_uoM",
+      "Sales Tax": "item_salesTaxApplicable",
+      "ST Withheld": "item_salesTaxWithheldAtSource",
+      "FED Payab": "item_fedPayable",
+      "Total Valu": "item_totalValues"
+    };
+    
+    if (partialMatches[header]) {
+      return partialMatches[header];
+    }
+    
+    // Fallback to original header
+    return header;
+  };
+
+  // Utility function to check if a row has meaningful data
+  const hasMeaningfulData = (row, rowIndex) => {
+    // Check for meaningful invoice-level data
+    const hasInvoiceData = 
+      (row.invoiceType && row.invoiceType.trim() !== "" && row.invoiceType !== "Standard") ||
+      (row.invoiceDate && row.invoiceDate.trim() !== "") ||
+      (row.companyInvoiceRefNo && row.companyInvoiceRefNo.trim() !== "" && row.companyInvoiceRefNo !== `row_${rowIndex + 1}`) ||
+      (row.buyerBusinessName && row.buyerBusinessName.trim() !== "" && row.buyerBusinessName !== "Unknown Buyer") ||
+      (row.buyerNTNCNIC && row.buyerNTNCNIC.trim() !== "");
+
+    // Check for meaningful item-level data
+    const hasItemData = 
+      (row.item_productName && row.item_productName.trim() !== "") ||
+      (row.item_hsCode && row.item_hsCode.trim() !== "") ||
+      (row.item_quantity && row.item_quantity !== "" && row.item_quantity !== "0" && row.item_quantity !== 0) ||
+      (row.item_unitPrice && row.item_unitPrice !== "" && row.item_unitPrice !== "0" && row.item_unitPrice !== 0) ||
+      (row.item_totalValues && row.item_totalValues !== "" && row.item_totalValues !== "0" && row.item_totalValues !== 0) ||
+      (row.item_valueSalesExcludingST && row.item_valueSalesExcludingST !== "" && row.item_valueSalesExcludingST !== "0" && row.item_valueSalesExcludingST !== 0);
+
+    const hasData = hasInvoiceData || hasItemData;
+    
+    // Debug logging for empty rows
+    if (!hasData && rowIndex < 10) { // Only log first 10 for debugging
+      console.log(`🚫 Row ${rowIndex + 1} filtered out as empty:`, {
+        invoiceType: row.invoiceType,
+        buyerBusinessName: row.buyerBusinessName,
+        companyInvoiceRefNo: row.companyInvoiceRefNo,
+        item_productName: row.item_productName,
+        item_hsCode: row.item_hsCode,
+        item_quantity: row.item_quantity,
+        item_unitPrice: row.item_unitPrice
+      });
+    }
+
+    return hasData;
+  };
+
+  // Flexible meaningful data check that works with any column structure
+  const hasMeaningfulDataFlexible = (row, headers, rowIndex) => {
+    // Check if any cell has meaningful data (not empty, not just whitespace, not "0")
+    const hasAnyData = Object.values(row).some(value => {
+      const strValue = String(value).trim();
+      return strValue !== "" && strValue !== "0" && strValue !== "null" && strValue !== "undefined";
+    });
+
+    // If no data at all, skip
+    if (!hasAnyData) {
+      return false;
+    }
+
+    // Check for instruction patterns in any field - if found, reject
+    const instructionPatterns = [
+      'auto-calculates', 'enter ', 'use the', 'dropdown', 'validated', 'hardcoded', 'fallback',
+      'unit cost', 'value sales', 'sales tax', 'computed', 'computed as', 'divided by'
+    ];
+    
+    const hasInstructionPatterns = Object.values(row).some(value => {
+      const strValue = String(value).toLowerCase();
+      return instructionPatterns.some(pattern => strValue.includes(pattern));
+    });
+
+    if (hasInstructionPatterns) {
+      return false;
+    }
+
+    // Check for numbered list patterns (1., 2., a., b., etc.)
+    const hasNumberedListPattern = Object.values(row).some(value => {
+      const strValue = String(value).trim();
+      return /^\d+\.\s/.test(strValue) || /^[a-z]\.\s/i.test(strValue);
+    });
+
+    if (hasNumberedListPattern) {
+      return false;
+    }
+
+    // Check for common invoice-related keywords in any field
+    const invoiceKeywords = ['invoice', 'bill', 'receipt', 'order', 'purchase', 'sale', 'product', 'item', 'quantity', 'price', 'amount', 'total'];
+    const hasInvoiceKeywords = Object.values(row).some(value => {
+      const strValue = String(value).toLowerCase();
+      return invoiceKeywords.some(keyword => strValue.includes(keyword));
+    });
+
+    // Check for numeric values that might indicate quantities or prices
+    const hasNumericData = Object.values(row).some(value => {
+      const strValue = String(value).trim();
+      const numValue = parseFloat(strValue);
+      return !isNaN(numValue) && numValue > 0;
+    });
+
+    // Check for date-like values
+    const hasDateData = Object.values(row).some(value => {
+      const strValue = String(value).trim();
+      // Simple date pattern check
+      return /^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}$/.test(strValue) || 
+             /^\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}$/.test(strValue);
+    });
+
+    // Accept if it has any meaningful data and either invoice keywords, numeric data, or date data
+    return hasAnyData && (hasInvoiceKeywords || hasNumericData || hasDateData);
+  };
 
   // Buyer selection removed; buyer details should be provided in the sheet
 
@@ -264,20 +436,24 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       return "";
 
     const stringValue = String(value).trim();
+    
+    console.log("🔍 cleanHsCode input:", stringValue.substring(0, 100) + (stringValue.length > 100 ? "..." : ""));
 
     // If it contains " - ", extract the part before the first " - "
     if (stringValue.includes(" - ")) {
       const parts = stringValue.split(" - ");
       const codePart = parts[0].trim();
+      console.log("🔍 cleanHsCode output:", codePart);
       // Return the code part if it's not empty
       return codePart;
     }
 
     // If no " - " found, assume the entire string is the code
+    console.log("🔍 cleanHsCode output (no dash):", stringValue);
     return stringValue;
   };
 
-  const processFile = (selectedFile) => {
+  const processFile = async (selectedFile) => {
     // Validate file type
     const validTypes = [
       "text/csv",
@@ -295,30 +471,33 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     setPreviewData([]);
     setExistingInvoices([]);
     setNewInvoices([]);
+    resetProcessor();
 
-    // Read and parse the file
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const content = e.target.result;
-        const data = processFileContent(
-          content,
-          selectedFile.type,
-          selectedFile
-        );
-        validateAndSetPreview(data);
-      } catch (error) {
-        console.error("Error parsing file:", error);
-        toast.error("Error parsing file. Please check the file format.");
+    try {
+      // Use Web Worker for file processing
+      const result = await processFileWithWorker(selectedFile, expectedColumns);
+      
+      if (result.success) {
+        const { invoices, errors: processingErrors, warnings } = result.data;
+        setPreviewData(invoices);
+        setErrors(processingErrors);
+        
+        if (processingErrors.length > 0) {
+          toast.warning(`File processed with ${processingErrors.length} errors`);
+        } else {
+          toast.success(`File processed successfully: ${invoices.length} invoices found`);
+        }
+        
+        // Check for existing invoices
+        await checkExistingInvoices(invoices);
+      } else {
+        toast.error(`File processing failed: ${result.error}`);
+        setErrors([{ message: result.error }]);
       }
-    };
-
-    // Use different reading methods based on file type
-    if (selectedFile.type === "text/csv") {
-      reader.readAsText(selectedFile);
-    } else {
-      // For Excel files, read as ArrayBuffer
-      reader.readAsArrayBuffer(selectedFile);
+    } catch (error) {
+      console.error("Error processing file:", error);
+      toast.error("Error processing file. Please try again.");
+      setErrors([{ message: error.message }]);
     }
   };
 
@@ -336,14 +515,12 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       // Parse headers and normalize to internal keys
       const headers = parseCSVLine(lines[0]).map((h) => normalizeHeader(h));
 
-      // Validate headers (normalized) - invoiceRefNo is optional
-      const missingHeaders = requiredColumns.filter(
+      // Log missing headers but don't throw error - process whatever columns are available
+      const missingHeaders = expectedColumns.filter(
         (col) => !headers.includes(col)
       );
       if (missingHeaders.length > 0) {
-        throw new Error(
-          `Missing required columns: ${missingHeaders.join(", ")}`
-        );
+        console.warn(`Missing expected columns: ${missingHeaders.join(", ")}. Processing with available columns.`);
       }
 
       const data = [];
@@ -393,18 +570,8 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
               continue;
             }
 
-            // Must have valid invoice data
-            const hasValidInvoiceType =
-              invoiceType &&
-              invoiceType !== "" &&
-              (invoiceType.includes("sale") ||
-                invoiceType.includes("purchase"));
-
-            // Validate date format (YYYY-MM-DD)
-            const hasValidDate =
-              invoiceDate && /^\d{4}-\d{2}-\d{2}$/.test(invoiceDate);
-
-            if (hasValidInvoiceType && hasValidDate) {
+            // Use utility function to check for meaningful data
+            if (hasMeaningfulData(filteredRow, i - 1)) {
               data.push(filteredRow);
             }
           }
@@ -435,14 +602,16 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         // Get headers from first row and normalize
         const headers = jsonData[0].map((header) => normalizeHeader(header));
 
-        // Validate headers (normalized) - invoiceRefNo is optional
-        const missingHeaders = requiredColumns.filter(
+        // Log available headers for debugging
+        console.log('Available headers in Excel file:', headers);
+        console.log('Expected columns:', expectedColumns);
+
+        // Log missing headers but don't throw error - process whatever columns are available
+        const missingHeaders = expectedColumns.filter(
           (col) => !headers.includes(col)
         );
         if (missingHeaders.length > 0) {
-          throw new Error(
-            `Missing required columns: ${missingHeaders.join(", ")}`
-          );
+          console.warn(`Missing expected columns: ${missingHeaders.join(", ")}. Processing with available columns.`);
         }
 
         const data = [];
@@ -501,6 +670,11 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
                   companyInvoiceRefNo: rowData.companyInvoiceRefNo,
                   hasCompanyInvoiceRefNo: !!rowData.companyInvoiceRefNo,
                   internalInvoiceNo: rowData.internalInvoiceNo, // Still logged for reference
+                  productName: rowData.item_productName,
+                  productDescription: rowData.item_productDescription,
+                  hsCode: rowData.item_hsCode,
+                  quantity: rowData.item_quantity,
+                  unitPrice: rowData.item_unitPrice
                 });
               }
 
@@ -516,28 +690,28 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
                 .toLowerCase();
               const invoiceDate = String(filteredRow.invoiceDate || "").trim();
 
-              // Skip special rows
+              // Skip special rows - check for instruction patterns
               if (
                 invoiceType.includes("total") ||
                 invoiceType.includes("instruction") ||
                 invoiceType.includes("summary") ||
-                invoiceType.includes("note")
+                invoiceType.includes("note") ||
+                invoiceType.includes("auto-calculates") ||
+                invoiceType.includes("enter ") ||
+                invoiceType.includes("use the") ||
+                invoiceType.includes("dropdown") ||
+                invoiceType.includes("validated") ||
+                invoiceType.includes("hardcoded") ||
+                invoiceType.includes("fallback") ||
+                /^\d+\.\s/.test(invoiceType) || // Starts with number followed by period and space
+                /^[a-z]\.\s/i.test(invoiceType) // Starts with letter followed by period and space
               ) {
                 continue;
               }
 
-              // Must have valid invoice data
-              const hasValidInvoiceType =
-                invoiceType &&
-                invoiceType !== "" &&
-                (invoiceType.includes("sale") ||
-                  invoiceType.includes("purchase"));
-
-              // Validate date format (YYYY-MM-DD)
-              const hasValidDate =
-                invoiceDate && /^\d{4}-\d{2}-\d{2}$/.test(invoiceDate);
-
-              if (hasValidInvoiceType && hasValidDate) {
+              // Use utility function to check for meaningful data
+              // Also try with the raw row data in case the filtered row is empty
+              if (hasMeaningfulData(filteredRow, i - 1) || hasMeaningfulDataFlexible(rowData, headers, i - 1)) {
                 data.push(filteredRow);
               }
             }
@@ -608,17 +782,8 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
           return false;
         }
 
-        // Must have meaningful data in key invoice fields
-        const hasValidInvoiceType =
-          invoiceType &&
-          invoiceType !== "" &&
-          (invoiceType.includes("sale") || invoiceType.includes("purchase"));
-
-        // Validate date format (YYYY-MM-DD)
-        const hasValidDate =
-          invoiceDate && /^\d{4}-\d{2}-\d{2}$/.test(invoiceDate);
-
-        return hasValidInvoiceType && hasValidDate;
+        // Use utility function to check for meaningful data
+        return hasMeaningfulData(row, index);
       })
       .map((row, index) => {
         // Ensure all expected columns exist with default values if missing
@@ -646,6 +811,13 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       });
 
     console.log(`Valid data rows after filtering: ${validData.length}`);
+    
+    // Log details about filtered rows for debugging
+    const filteredOutCount = data.length - validData.length;
+    if (filteredOutCount > 0) {
+      console.log(`🚫 Filtered out ${filteredOutCount} empty/invalid rows`);
+      console.log(`✅ Kept ${validData.length} rows with meaningful data`);
+    }
 
     // Populate seller details from selected tenant
     if (selectedTenant) {
@@ -684,7 +856,7 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         continue;
       }
       try {
-        const resp = await fetch("http://localhost:5150/api/buyer-check", {
+        const resp = await fetch("https://united-tubes.inplsoftwares.online/api/buyer-check", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ registrationNo: ntn }),
@@ -810,18 +982,41 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       invoicesData.forEach((invoice) => {
         if (invoice.items && Array.isArray(invoice.items)) {
           invoice.items.forEach((item) => {
-            // Create a unique key for each product
-            const productKey = `${item.item_productName || item.item_name || item.name || ""}-${item.item_hsCode || item.hsCode || ""}`;
+            // Debug: Log what we're looking for
+            console.log("🔍 Product extraction debug:", {
+              item_productName: item.item_productName,
+              item_name: item.item_name,
+              name: item.name,
+              item_hsCode: item.item_hsCode,
+              hsCode: item.hsCode,
+              hasProductName: !!(item.item_productName || item.item_name || item.name),
+              hasHsCode: !!(item.item_hsCode || item.hsCode)
+            });
+
+            // Create a unique key for each product using cleaned HS code
+            const rawHsCode = item.item_hsCode || item.hsCode || "";
+            const cleanedHsCode = cleanHsCode(rawHsCode);
+            const productKey = `${item.item_productName || item.item_name || item.name || ""}-${cleanedHsCode}`;
+
+            console.log("🔍 HS Code cleaning:", {
+              rawHsCode: rawHsCode.substring(0, 100) + (rawHsCode.length > 100 ? "..." : ""),
+              cleanedHsCode: cleanedHsCode,
+              productKey: productKey
+            });
 
             if (productKey && productKey !== "-") {
               allProducts.add(productKey);
 
               // Store product details for creation
               if (!productDetails.has(productKey)) {
+                // Clean HS code to extract only the numeric part
+                const rawHsCode = item.item_hsCode || item.hsCode || "";
+                const cleanedHsCode = cleanHsCode(rawHsCode);
+                
                 productDetails.set(productKey, {
                   name:
                     item.item_productName || item.item_name || item.name || "",
-                  hsCode: item.item_hsCode || item.hsCode || "",
+                  hsCode: cleanedHsCode,
                   description:
                     item.item_productDescription || item.description || "",
                   uom: item.item_uoM || item.billOfLadingUoM || item.uom || "",
@@ -838,7 +1033,8 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         return;
       }
 
-      console.log(`Found ${allProducts.size} unique products in invoice data`);
+      console.log(`Found ${allProducts.size} unique products in invoice data:`, Array.from(allProducts));
+      console.log("Product details:", Array.from(productDetails.entries()));
 
       // Get existing products to check which ones need to be created
       const existingProductsResponse = await api.get(
@@ -892,6 +1088,8 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
             isActive: true,
             // You can add more fields as needed
           };
+
+          console.log("🔍 Creating product with data:", productData);
 
           const createResponse = await api.post(
             `/tenant/${selectedTenant.tenant_id}/products`,
@@ -950,12 +1148,30 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
 
     setUploading(true);
     try {
-      // Group rows by companyInvoiceRefNo to combine multiple items into single invoices
-      // (Changed from internalInvoiceNo - now uses Company Invoice Ref No for grouping)
-      const groupedInvoices = new Map();
-      const groupingErrors = [];
+      // Check if previewData contains already-grouped invoices (from worker) or individual rows
+      const isAlreadyGrouped = previewData.length > 0 && previewData[0].items && Array.isArray(previewData[0].items);
+      
+      let invoicesToUpload;
+      
+      if (isAlreadyGrouped) {
+        // Data is already grouped by worker, use it directly
+        console.log("🔍 Using already-grouped invoices from worker");
+        invoicesToUpload = previewData.map(invoice => ({
+          ...invoice,
+          // Ensure seller details are populated from selected tenant
+          sellerNTNCNIC: selectedTenant?.sellerNTNCNIC || "",
+          sellerFullNTN: selectedTenant?.sellerFullNTN || "",
+          sellerBusinessName: selectedTenant?.sellerBusinessName || "",
+          sellerProvince: selectedTenant?.sellerProvince || "",
+          sellerAddress: selectedTenant?.sellerAddress || "",
+        }));
+      } else {
+        // Data is individual rows, need to group them
+        console.log("🔍 Grouping individual rows");
+        const groupedInvoices = new Map();
+        const groupingErrors = [];
 
-      previewData.forEach((row, index) => {
+        previewData.forEach((row, index) => {
         // Clean the row data before processing
         const cleanedItem = { ...row };
 
@@ -1154,17 +1370,18 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         return;
       }
 
-      // Ensure all invoice groups have seller details from selected tenant
-      const invoicesToUpload = Array.from(groupedInvoices.values()).map(
-        (invoice) => ({
-          ...invoice,
-          sellerNTNCNIC: selectedTenant?.sellerNTNCNIC || "",
-          sellerFullNTN: selectedTenant?.sellerFullNTN || "",
-          sellerBusinessName: selectedTenant?.sellerBusinessName || "",
-          sellerProvince: selectedTenant?.sellerProvince || "",
-          sellerAddress: selectedTenant?.sellerAddress || "",
-        })
-      );
+        // Ensure all invoice groups have seller details from selected tenant
+        invoicesToUpload = Array.from(groupedInvoices.values()).map(
+          (invoice) => ({
+            ...invoice,
+            sellerNTNCNIC: selectedTenant?.sellerNTNCNIC || "",
+            sellerFullNTN: selectedTenant?.sellerFullNTN || "",
+            sellerBusinessName: selectedTenant?.sellerBusinessName || "",
+            sellerProvince: selectedTenant?.sellerProvince || "",
+            sellerAddress: selectedTenant?.sellerAddress || "",
+          })
+        );
+      }
 
       // Log seller details being populated
       console.log("🔍 Debug: Seller details populated from tenant:", {
@@ -1191,47 +1408,83 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         })),
       });
 
-      const result = await onUpload(invoicesToUpload);
+      // Use streaming upload for large files, regular upload for small files
+      if (invoicesToUpload.length > 100) {
+        // Estimate upload time
+        const estimate = estimateUploadTime(invoicesToUpload.length);
+        toast.info(`Starting upload of ${invoicesToUpload.length} invoices. Estimated time: ${estimate.estimatedTimeMinutes} minutes`);
 
-      // Check if there were any errors in the upload
-      if (
-        result &&
-        result.data &&
-        result.data.data &&
-        result.data.data.summary
-      ) {
-        const { summary, errors } = result.data.data;
+        // Use streaming upload
+        const result = await startUpload(invoicesToUpload, {
+          tenantId: selectedTenant.tenant_id,
+          chunkSize: 500,
+        });
 
-        if (summary.failed > 0) {
-          // Show detailed error information
-          let errorDetails = errors
-            .slice(0, 10)
-            .map((err) => `Row ${err.row}: ${err.error}`)
-            .join("\n");
+        if (result.success) {
+          const { successfulInvoices, failedInvoices, errors } = result;
 
-          if (errors.length > 10) {
-            errorDetails += `\n... and ${errors.length - 10} more errors`;
+          if (failedInvoices > 0) {
+            toast.warning(
+              `Upload completed with issues: ${successfulInvoices} invoices added successfully, ${failedInvoices} invoices failed.`,
+              {
+                autoClose: 8000,
+                closeOnClick: false,
+                pauseOnHover: true,
+              }
+            );
+            console.error("Upload errors:", errors);
+          } else {
+            toast.success(
+              `Successfully uploaded ${successfulInvoices} invoices as drafts!`
+            );
           }
-
-          // Show error details in a toast instead of alert
-          toast.warning(
-            `Upload completed with issues: ${summary.successful} invoices added successfully, ${summary.failed} invoices failed. Check console for error details.`,
-            {
-              autoClose: 8000,
-              closeOnClick: false,
-              pauseOnHover: true,
-            }
-          );
-          console.error("Upload errors:", errors);
         } else {
-          toast.success(
-            `Successfully uploaded ${summary.successful} invoices as drafts!`
-          );
+          throw new Error("Streaming upload failed");
         }
       } else {
-        toast.success(
-          `Successfully uploaded ${invoicesToUpload.length} invoices as drafts`
-        );
+        // Use regular upload for small files
+        const result = await onUpload(invoicesToUpload);
+
+        // Check if there were any errors in the upload
+        if (
+          result &&
+          result.data &&
+          result.data.data &&
+          result.data.data.summary
+        ) {
+          const { summary, errors } = result.data.data;
+
+          if (summary.failed > 0) {
+            // Show detailed error information
+            let errorDetails = errors
+              .slice(0, 10)
+              .map((err) => `Row ${err.row}: ${err.error}`)
+              .join("\n");
+
+            if (errors.length > 10) {
+              errorDetails += `\n... and ${errors.length - 10} more errors`;
+            }
+
+            // Show error details in a toast instead of alert
+            toast.warning(
+              `Upload completed with issues: ${summary.successful} invoices added successfully, ${summary.failed} invoices failed. Check console for error details.`,
+              {
+                autoClose: 8000,
+                closeOnClick: false,
+                pauseOnHover: true,
+              }
+            );
+            console.error("Upload errors:", errors);
+          } else {
+            toast.success(
+              `Successfully uploaded ${summary.successful} invoices as drafts!`
+            );
+          }
+        } else {
+          toast.success(
+            `Successfully uploaded ${invoicesToUpload.length} invoices as drafts`
+          );
+        }
       }
 
       // Close the modal immediately after a successful upload
@@ -1359,45 +1612,108 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
             </Alert>
           )}
 
-          {/* Download Template Button - Generate from backend route */}
+          {/* Download Template Button - Download from public folder */}
           <Box sx={{ mb: 2 }}>
             <Button
               variant="outlined"
               startIcon={<Download />}
               onClick={() => {
-                (async () => {
-                  if (!selectedTenant?.tenant_id) {
-                    toast.error("Please select a company first");
-                    return;
-                  }
-                  try {
-                    const res = await api.get(
-                      `/tenant/${selectedTenant.tenant_id}/invoices/template.xlsx`,
-                      { responseType: "blob" }
-                    );
-                    const blob = new Blob([res.data], {
-                      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    });
-                    const url = window.URL.createObjectURL(blob);
-                    const link = document.createElement("a");
-                    link.href = url;
-                    link.download = "invoice_template.xlsx";
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    window.URL.revokeObjectURL(url);
-                    toast.success("Excel template generated successfully!");
-                  } catch (error) {
-                    console.error("Error generating template:", error);
-                    toast.error("Could not generate Excel template.");
-                  }
-                })();
+                try {
+                  // Create a link element to download the template from public folder
+                  const link = document.createElement("a");
+                  link.href = "/invoiceTemplate/invoice_template.xlsx";
+                  link.download = "invoice_template.xlsx";
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  toast.success("Excel template downloaded successfully!");
+                } catch (error) {
+                  console.error("Error downloading template:", error);
+                  toast.error("Could not download Excel template.");
+                }
               }}
               size="small"
             >
               Download Excel Template
             </Button>
           </Box>
+
+          {/* File Processing Progress */}
+          {isProcessing && (
+            <Box sx={{ mb: 2 }}>
+              <Box display="flex" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+                <Typography variant="body2" color="text.secondary">
+                  {progressMessage}
+                </Typography>
+                <Button
+                  size="small"
+                  startIcon={<Cancel />}
+                  onClick={cancelProcessing}
+                  color="error"
+                >
+                  Cancel
+                </Button>
+              </Box>
+              <LinearProgress 
+                variant="determinate" 
+                value={progress} 
+                sx={{ height: 8, borderRadius: 4 }}
+              />
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                {Math.round(progress)}% complete
+              </Typography>
+            </Box>
+          )}
+
+          {/* Processing Error */}
+          {processingError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {processingError}
+            </Alert>
+          )}
+
+          {/* Upload Progress */}
+          {isUploading && (
+            <Box sx={{ mb: 2 }}>
+              <Box display="flex" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+                <Typography variant="body2" color="text.secondary">
+                  {uploadProgress.message}
+                </Typography>
+                <Button
+                  size="small"
+                  startIcon={<Cancel />}
+                  onClick={cancelUpload}
+                  color="error"
+                >
+                  Cancel Upload
+                </Button>
+              </Box>
+              <LinearProgress 
+                variant="determinate" 
+                value={uploadProgress.percentage} 
+                sx={{ height: 8, borderRadius: 4 }}
+              />
+              <Box display="flex" justifyContent="space-between" sx={{ mt: 1 }}>
+                <Typography variant="caption" color="text.secondary">
+                  {uploadProgress.completedInvoices} / {uploadProgress.totalInvoices} invoices
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Chunk {uploadProgress.currentChunk} / {uploadProgress.totalChunks}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {Math.round(uploadProgress.percentage)}% complete
+
+                </Typography>
+              </Box>
+            </Box>
+          )}
+
+          {/* Upload Error */}
+          {uploadError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              Upload failed: {uploadError.message}
+            </Alert>
+          )}
 
           {/* File Upload Area */}
           <Paper
@@ -1407,21 +1723,23 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
               textAlign: "center",
               border: "2px dashed #ccc",
               backgroundColor: "#fafafa",
-              cursor: "pointer",
+              cursor: isProcessing ? "not-allowed" : "pointer",
+              opacity: isProcessing ? 0.6 : 1,
               "&:hover": {
-                borderColor: "primary.main",
-                backgroundColor: "#f5f5f5",
+                borderColor: isProcessing ? "#ccc" : "primary.main",
+                backgroundColor: isProcessing ? "#fafafa" : "#f5f5f5",
               },
             }}
-            onClick={() => fileInputRef.current?.click()}
-            onDrop={handleDrop}
-            onDragOver={handleDragOver}
+            onClick={() => !isProcessing && fileInputRef.current?.click()}
+            onDrop={!isProcessing ? handleDrop : undefined}
+            onDragOver={!isProcessing ? handleDragOver : undefined}
           >
             <input
               ref={fileInputRef}
               type="file"
               accept=".csv,.xlsx,.xls"
               onChange={handleFileSelect}
+              disabled={isProcessing}
               style={{ display: "none" }}
             />
 
@@ -1787,3 +2105,4 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
 };
 
 export default InvoiceUploader;
+

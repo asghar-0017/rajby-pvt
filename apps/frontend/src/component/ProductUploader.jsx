@@ -47,7 +47,7 @@ import {
 import { toast } from "react-toastify";
 import { api } from "../API/Api";
 import hsCodeCache from "../utils/hsCodeCache";
-import * as XLSX from "xlsx";
+// Remove static XLSX import to fix compatibility issues
 
 const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
   const [file, setFile] = useState(null);
@@ -315,15 +315,24 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
 
     // Read and parse the file
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const content = e.target.result;
-        const data = parseFileContent(content, selectedFile.type, selectedFile);
+        const data = await parseFileContent(content, selectedFile.type, selectedFile);
         validateAndSetPreview(data);
-      } catch (error) {
-        console.error("Error parsing file:", error);
-        toast.error("Error parsing file. Please check the file format.");
-      }
+              } catch (error) {
+          console.error("Error parsing file:", error);
+          
+          // Provide helpful error message with CSV conversion suggestion
+          if (error.message.includes("Excel parsing error") || error.message.includes("oi is not a constructor")) {
+            toast.error(
+              "Excel file parsing failed. Please convert your file to CSV format or try a different Excel file.",
+              { autoClose: 8000 }
+            );
+          } else {
+            toast.error("Error parsing file. Please check the file format.");
+          }
+        }
     };
 
     // Use different reading methods based on file type
@@ -335,7 +344,7 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     }
   };
 
-  const parseFileContent = (content, fileType, file) => {
+  const parseFileContent = async (content, fileType, file) => {
     if (fileType === "text/csv") {
       // Improved CSV parsing with better handling of quoted fields
       const lines = content.split("\n").filter((line) => line.trim());
@@ -387,8 +396,11 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
 
       return data;
     } else {
-      // Excel file parsing using xlsx library
+      // Excel file parsing using dynamic xlsx import to avoid compatibility issues
       try {
+        // Dynamic import to avoid XLSX constructor issues
+        const XLSX = await import("xlsx");
+        
         const workbook = XLSX.read(content, { type: "array" });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
@@ -455,9 +467,21 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         return data;
       } catch (error) {
         console.error("Error parsing Excel file:", error);
-        throw new Error(
-          "Error parsing Excel file. Please check the file format."
-        );
+        
+        // Provide more specific error messages
+        if (error.message.includes("oi is not a constructor")) {
+          throw new Error(
+            "Excel parsing error: Please try converting your Excel file to CSV format, or contact support if the issue persists."
+          );
+        } else if (error.message.includes("Cannot read properties")) {
+          throw new Error(
+            "Excel file format not supported. Please ensure you're using a valid Excel file (.xlsx or .xls) or convert to CSV format."
+          );
+        } else {
+          throw new Error(
+            `Error parsing Excel file: ${error.message}. Please check the file format and try again.`
+          );
+        }
       }
     }
   };
@@ -601,6 +625,7 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       return;
     }
 
+    console.log("Starting checkExistingProducts with", productsData.length, "products");
     setCheckingExisting(true);
     try {
       const response = await api.post(
@@ -608,7 +633,12 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         { products: productsData }
       );
 
+      console.log("API response received:", response.data);
+
       const { existing, new: newProductsData } = response.data.data;
+      console.log("Setting existing products:", existing.length);
+      console.log("Setting new products:", newProductsData.length);
+      
       setExistingProducts(existing);
       setNewProducts(newProductsData);
 
@@ -769,6 +799,8 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
             <br />
             <strong>Note:</strong> Products with duplicate names or HS codes
             will be skipped during upload.
+            <br />
+            <strong>Tip:</strong> If you encounter issues with Excel files, try converting them to CSV format for better compatibility.
           </Typography>
 
           {/* Download Template Button */}

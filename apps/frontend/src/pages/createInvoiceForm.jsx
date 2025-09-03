@@ -259,6 +259,86 @@ export default function CreateInvoice() {
   const [transactionTypeDropdownOpen, setTransactionTypeDropdownOpen] =
     React.useState(false);
 
+  // Function to apply 4% Further Tax for unregistered buyers
+  const applyFurtherTaxForUnregisteredBuyer = () => {
+    setFormData((prev) => {
+      const updatedItems = prev.items.map((item) => {
+        if (parseFloat(item.valueSalesExcludingST || 0) > 0) {
+          // Calculate Further Tax: Value Sales (Excl ST) * (4/100)
+          const valueSales = parseFloat(item.valueSalesExcludingST || 0);
+          const furtherTax = valueSales * (4 / 100);
+
+          return {
+            ...item,
+            furtherTax: furtherTax.toFixed(2),
+            isFurtherTaxManual: false, // Mark as auto-calculated
+          };
+        }
+        return item;
+      });
+
+      return {
+        ...prev,
+        items: updatedItems,
+      };
+    });
+
+    // Also update addedItems if they exist
+    setAddedItems((prev) => {
+      if (prev.length === 0) return prev;
+
+      return prev.map((item) => {
+        if (parseFloat(item.valueSalesExcludingST || 0) > 0) {
+          const valueSales = parseFloat(item.valueSalesExcludingST || 0);
+          const furtherTax = valueSales * (4 / 100);
+
+          return {
+            ...item,
+            furtherTax: furtherTax.toFixed(2),
+            isFurtherTaxManual: false,
+          };
+        }
+        return item;
+      });
+    });
+  };
+
+  // Function to reset Further Tax to 0 for registered buyers
+  const resetFurtherTaxForRegisteredBuyer = () => {
+    setFormData((prev) => {
+      const updatedItems = prev.items.map((item) => ({
+        ...item,
+        furtherTax: "0",
+        isFurtherTaxManual: false,
+      }));
+
+      return {
+        ...prev,
+        items: updatedItems,
+      };
+    });
+
+    // Also reset addedItems if they exist
+    setAddedItems((prev) => {
+      if (prev.length === 0) return prev;
+
+      return prev.map((item) => ({
+        ...item,
+        furtherTax: "0",
+        isFurtherTaxManual: false,
+      }));
+    });
+  };
+
+  // Helper function to recalculate Further Tax for all items based on current buyer registration type
+  const recalculateFurtherTaxForAllItems = () => {
+    if (formData.buyerRegistrationType === "Unregistered") {
+      applyFurtherTaxForUnregisteredBuyer();
+    } else {
+      resetFurtherTaxForRegisteredBuyer();
+    }
+  };
+
   // Debug effect to monitor transactionTypes state
   React.useEffect(() => {
     console.log("TransactionTypes state changed:", transactionTypes);
@@ -773,6 +853,15 @@ export default function CreateInvoice() {
           "Invoice type in form data:",
           formDataFromInvoice.invoiceType
         );
+
+        // Recalculate Further Tax based on buyer registration type after form data is loaded
+        setTimeout(() => {
+          if (invoiceData.buyerRegistrationType === "Unregistered") {
+            applyFurtherTaxForUnregisteredBuyer();
+          } else {
+            resetFurtherTaxForRegisteredBuyer();
+          }
+        }, 100);
 
         // Set the transactionTypeId and other required data for editing
         const scenarioId = invoiceData.scenario_id || invoiceData.scenarioId;
@@ -1507,6 +1596,14 @@ export default function CreateInvoice() {
         buyerAddress: buyer.buyerAddress || "",
         buyerRegistrationType: buyer.buyerRegistrationType || "",
       }));
+
+      // Apply Further Tax logic for unregistered buyers
+      if (buyer.buyerRegistrationType === "Unregistered") {
+        applyFurtherTaxForUnregisteredBuyer();
+      } else {
+        // Reset Further Tax to 0 for registered buyers
+        resetFurtherTaxForRegisteredBuyer();
+      }
     }
   }, [selectedBuyerId, buyers]);
 
@@ -1555,6 +1652,512 @@ export default function CreateInvoice() {
         if (field === "fedPayable") {
           item.isFedPayableManual = true;
         }
+
+        // Auto-recalculate Further Tax for unregistered buyers when valueSalesExcludingST changes
+        if (
+          field === "valueSalesExcludingST" &&
+          prev.buyerRegistrationType === "Unregistered"
+        ) {
+          const valueSales = parseFloat(value || 0);
+          if (valueSales > 0) {
+            const furtherTax = valueSales * (4 / 100);
+            item.furtherTax = furtherTax.toFixed(2);
+            item.isFurtherTaxManual = false; // Mark as auto-calculated
+          } else {
+            item.furtherTax = "0";
+            item.isFurtherTaxManual = false;
+          }
+        }
+
+        // Also update the corresponding item in addedItems if it exists
+        if (
+          field === "valueSalesExcludingST" &&
+          prev.buyerRegistrationType === "Unregistered"
+        ) {
+          setAddedItems((prevAddedItems) => {
+            if (prevAddedItems.length === 0) return prevAddedItems;
+
+            return prevAddedItems.map((addedItem) => {
+              // Match by hsCode and other identifying fields
+              if (
+                addedItem.hsCode === item.hsCode &&
+                addedItem.productDescription === item.productDescription
+              ) {
+                const valueSales = parseFloat(value || 0);
+                if (valueSales > 0) {
+                  const furtherTax = valueSales * (4 / 100);
+                  return {
+                    ...addedItem,
+                    furtherTax: furtherTax.toFixed(2),
+                    isFurtherTaxManual: false,
+                  };
+                } else {
+                  return {
+                    ...addedItem,
+                    furtherTax: "0",
+                    isFurtherTaxManual: false,
+                  };
+                }
+              }
+              return addedItem;
+            });
+          });
+        }
+
+        // Auto-recalculate Further Tax for unregistered buyers when retailPrice or quantity changes
+        if (
+          (field === "retailPrice" || field === "quantity") &&
+          prev.buyerRegistrationType === "Unregistered"
+        ) {
+          const retailPrice = parseFloat(item.retailPrice || 0);
+          const quantity = parseFloat(item.quantity || 0);
+          const valueSales = retailPrice * quantity;
+
+          if (valueSales > 0) {
+            const furtherTax = valueSales * (4 / 100);
+            item.furtherTax = furtherTax.toFixed(2);
+            item.isFurtherTaxManual = false; // Mark as auto-calculated
+          } else {
+            item.furtherTax = "0";
+            item.isFurtherTaxManual = false;
+          }
+        }
+
+        // Auto-recalculate Further Tax for unregistered buyers when discount changes
+        if (
+          field === "discount" &&
+          prev.buyerRegistrationType === "Unregistered"
+        ) {
+          const valueSales = parseFloat(item.valueSalesExcludingST || 0);
+          if (valueSales > 0) {
+            const furtherTax = valueSales * (4 / 100);
+            item.furtherTax = furtherTax.toFixed(2);
+            item.isFurtherTaxManual = false;
+          }
+        }
+
+        // Auto-recalculate Further Tax for unregistered buyers when extraTax or fedPayable changes
+        if (
+          (field === "extraTax" || field === "fedPayable") &&
+          prev.buyerRegistrationType === "Unregistered"
+        ) {
+          const valueSales = parseFloat(item.valueSalesExcludingST || 0);
+          if (valueSales > 0) {
+            const furtherTax = valueSales * (4 / 100);
+            item.furtherTax = furtherTax.toFixed(2);
+            item.isFurtherTaxManual = false;
+          }
+        }
+
+        // Auto-recalculate Further Tax for unregistered buyers when advanceIncomeTax changes
+        if (
+          field === "advanceIncomeTax" &&
+          prev.buyerRegistrationType === "Unregistered"
+        ) {
+          const valueSales = parseFloat(item.valueSalesExcludingST || 0);
+          if (valueSales > 0) {
+            const furtherTax = valueSales * (4 / 100);
+            item.furtherTax = furtherTax.toFixed(2);
+            item.isFurtherTaxManual = false;
+          }
+        }
+
+        // Auto-recalculate Further Tax for unregistered buyers when salesTaxWithheldAtSource changes
+        if (
+          field === "salesTaxWithheldAtSource" &&
+          prev.buyerRegistrationType === "Unregistered"
+        ) {
+          const valueSales = parseFloat(item.valueSalesExcludingST || 0);
+          if (valueSales > 0) {
+            const furtherTax = valueSales * (4 / 100);
+            item.furtherTax = furtherTax.toFixed(2);
+            item.isFurtherTaxManual = false;
+          }
+        }
+
+        // Auto-recalculate Further Tax for unregistered buyers when salesTaxApplicable changes
+        if (
+          field === "salesTaxApplicable" &&
+          prev.buyerRegistrationType === "Unregistered"
+        ) {
+          const valueSales = parseFloat(item.valueSalesExcludingST || 0);
+          if (valueSales > 0) {
+            const furtherTax = valueSales * (4 / 100);
+            item.furtherTax = furtherTax.toFixed(2);
+            item.isFurtherTaxManual = false;
+          }
+        }
+
+        // Auto-recalculate Further Tax for unregistered buyers when totalValues changes
+        if (
+          field === "totalValues" &&
+          prev.buyerRegistrationType === "Unregistered"
+        ) {
+          const valueSales = parseFloat(item.valueSalesExcludingST || 0);
+          if (valueSales > 0) {
+            const furtherTax = valueSales * (4 / 100);
+            item.furtherTax = furtherTax.toFixed(2);
+            item.isFurtherTaxManual = false;
+          }
+        }
+
+        // Auto-recalculate Further Tax for unregistered buyers when unitPrice changes
+        if (
+          field === "unitPrice" &&
+          prev.buyerRegistrationType === "Unregistered"
+        ) {
+          const valueSales = parseFloat(item.valueSalesExcludingST || 0);
+          if (valueSales > 0) {
+            const furtherTax = valueSales * (4 / 100);
+            item.furtherTax = furtherTax.toFixed(2);
+            item.isFurtherTaxManual = false;
+          }
+        }
+
+        // Auto-recalculate Further Tax for unregistered buyers when name, hsCode, or productDescription changes
+        if (
+          (field === "name" ||
+            field === "hsCode" ||
+            field === "productDescription") &&
+          prev.buyerRegistrationType === "Unregistered"
+        ) {
+          const valueSales = parseFloat(item.valueSalesExcludingST || 0);
+          if (valueSales > 0) {
+            const furtherTax = valueSales * (4 / 100);
+            item.furtherTax = furtherTax.toFixed(2);
+            item.isFurtherTaxManual = false;
+          }
+        }
+
+        // Auto-recalculate Further Tax for unregistered buyers when sroScheduleNo or sroItemSerialNo changes
+        if (
+          (field === "sroScheduleNo" || field === "sroItemSerialNo") &&
+          prev.buyerRegistrationType === "Unregistered"
+        ) {
+          const valueSales = parseFloat(item.valueSalesExcludingST || 0);
+          if (valueSales > 0) {
+            const furtherTax = valueSales * (4 / 100);
+            item.furtherTax = furtherTax.toFixed(2);
+            item.isFurtherTaxManual = false;
+          }
+        }
+
+        // Auto-recalculate Further Tax for unregistered buyers when billOfLadingUoM or uoM changes
+        if (
+          (field === "billOfLadingUoM" || field === "uoM") &&
+          prev.buyerRegistrationType === "Unregistered"
+        ) {
+          const valueSales = parseFloat(item.valueSalesExcludingST || 0);
+          if (valueSales > 0) {
+            const furtherTax = valueSales * (4 / 100);
+            item.furtherTax = furtherTax.toFixed(2);
+            item.isFurtherTaxManual = false;
+          }
+        }
+
+        // Auto-recalculate Further Tax for unregistered buyers when saleType changes
+        if (
+          field === "saleType" &&
+          prev.buyerRegistrationType === "Unregistered"
+        ) {
+          const valueSales = parseFloat(item.valueSalesExcludingST || 0);
+          if (valueSales > 0) {
+            const furtherTax = valueSales * (4 / 100);
+            item.furtherTax = furtherTax.toFixed(2);
+            item.isFurtherTaxManual = false;
+          }
+        }
+
+        // Auto-recalculate Further Tax for unregistered buyers when isSROScheduleEnabled or isSROItemEnabled changes
+        if (
+          (field === "isSROScheduleEnabled" || field === "isSROItemEnabled") &&
+          prev.buyerRegistrationType === "Unregistered"
+        ) {
+          const valueSales = parseFloat(item.valueSalesExcludingST || 0);
+          if (valueSales > 0) {
+            const furtherTax = valueSales * (4 / 100);
+            item.furtherTax = furtherTax.toFixed(2);
+            item.isFurtherTaxManual = false;
+          }
+        }
+
+        // Auto-recalculate Further Tax for unregistered buyers when manual flags change
+        if (
+          (field === "isValueSalesManual" ||
+            field === "isTotalValuesManual" ||
+            field === "isSalesTaxManual" ||
+            field === "isSalesTaxWithheldManual" ||
+            field === "isFurtherTaxManual" ||
+            field === "isFedPayableManual") &&
+          prev.buyerRegistrationType === "Unregistered"
+        ) {
+          const valueSales = parseFloat(item.valueSalesExcludingST || 0);
+          if (valueSales > 0) {
+            const furtherTax = valueSales * (4 / 100);
+            item.furtherTax = furtherTax.toFixed(2);
+            item.isFurtherTaxManual = false;
+          }
+        }
+
+        // Auto-recalculate Further Tax for unregistered buyers when buyer or product fields change
+        if (
+          (field === "buyerId" ||
+            field === "buyerNTNCNIC" ||
+            field === "buyerBusinessName" ||
+            field === "productId") &&
+          prev.buyerRegistrationType === "Unregistered"
+        ) {
+          const valueSales = parseFloat(item.valueSalesExcludingST || 0);
+          if (valueSales > 0) {
+            const furtherTax = valueSales * (4 / 100);
+            item.furtherTax = furtherTax.toFixed(2);
+            item.isFurtherTaxManual = false;
+          }
+        }
+
+        // Auto-recalculate Further Tax for unregistered buyers when id changes
+        if (field === "id" && prev.buyerRegistrationType === "Unregistered") {
+          const valueSales = parseFloat(item.valueSalesExcludingST || 0);
+          if (valueSales > 0) {
+            const furtherTax = valueSales * (4 / 100);
+            item.furtherTax = furtherTax.toFixed(2);
+            item.isFurtherTaxManual = false;
+          }
+        }
+
+        // Auto-recalculate Further Tax for unregistered buyers when scenarioId changes
+        if (
+          field === "scenarioId" &&
+          prev.buyerRegistrationType === "Unregistered"
+        ) {
+          const valueSales = parseFloat(item.valueSalesExcludingST || 0);
+          if (valueSales > 0) {
+            const furtherTax = valueSales * (4 / 100);
+            item.furtherTax = furtherTax.toFixed(2);
+            item.isFurtherTaxManual = false;
+          }
+        }
+
+        // Auto-recalculate Further Tax for unregistered buyers when invoiceType changes
+        if (
+          field === "invoiceType" &&
+          prev.buyerRegistrationType === "Unregistered"
+        ) {
+          const valueSales = parseFloat(item.valueSalesExcludingST || 0);
+          if (valueSales > 0) {
+            const furtherTax = valueSales * (4 / 100);
+            item.furtherTax = furtherTax.toFixed(2);
+            item.isFurtherTaxManual = false;
+          }
+        }
+
+        // Auto-recalculate Further Tax for unregistered buyers when transctypeId changes
+        if (
+          field === "transctypeId" &&
+          prev.buyerRegistrationType === "Unregistered"
+        ) {
+          const valueSales = parseFloat(item.valueSalesExcludingST || 0);
+          if (valueSales > 0) {
+            const furtherTax = valueSales * (4 / 100);
+            item.furtherTax = furtherTax.toFixed(2);
+            item.isFurtherTaxManual = false;
+          }
+        }
+
+        // Auto-recalculate Further Tax for unregistered buyers when buyer fields change
+        if (
+          (field === "buyerNTNCNIC" ||
+            field === "buyerBusinessName" ||
+            field === "buyerProvince" ||
+            field === "buyerAddress") &&
+          prev.buyerRegistrationType === "Unregistered"
+        ) {
+          const valueSales = parseFloat(item.valueSalesExcludingST || 0);
+          if (valueSales > 0) {
+            const furtherTax = valueSales * (4 / 100);
+            item.furtherTax = furtherTax.toFixed(2);
+            item.isFurtherTaxManual = false;
+          }
+        }
+
+        // Auto-recalculate Further Tax for unregistered buyers when buyerRegistrationType changes
+        if (
+          field === "buyerRegistrationType" &&
+          prev.buyerRegistrationType === "Unregistered"
+        ) {
+          const valueSales = parseFloat(item.valueSalesExcludingST || 0);
+          if (valueSales > 0) {
+            const furtherTax = valueSales * (4 / 100);
+            item.furtherTax = furtherTax.toFixed(2);
+            item.isFurtherTaxManual = false;
+          }
+        }
+
+        // Auto-recalculate Further Tax for unregistered buyers when seller fields change
+        if (
+          (field === "sellerNTNCNIC" ||
+            field === "sellerBusinessName" ||
+            field === "sellerProvince" ||
+            field === "sellerAddress") &&
+          prev.buyerRegistrationType === "Unregistered"
+        ) {
+          const valueSales = parseFloat(item.valueSalesExcludingST || 0);
+          if (valueSales > 0) {
+            const furtherTax = valueSales * (4 / 100);
+            item.furtherTax = furtherTax.toFixed(2);
+            item.isFurtherTaxManual = false;
+          }
+        }
+
+        // Auto-recalculate Further Tax for unregistered buyers when invoice fields change
+        if (
+          (field === "invoiceDate" ||
+            field === "dueDate" ||
+            field === "invoiceNumber") &&
+          prev.buyerRegistrationType === "Unregistered"
+        ) {
+          const valueSales = parseFloat(item.valueSalesExcludingST || 0);
+          if (valueSales > 0) {
+            const furtherTax = valueSales * (4 / 100);
+            item.furtherTax = furtherTax.toFixed(2);
+            item.isFurtherTaxManual = false;
+          }
+        }
+
+        // Auto-recalculate Further Tax for unregistered buyers when currency, exchangeRate, or remarks change
+        if (
+          (field === "currency" ||
+            field === "exchangeRate" ||
+            field === "remarks") &&
+          prev.buyerRegistrationType === "Unregistered"
+        ) {
+          const valueSales = parseFloat(item.valueSalesExcludingST || 0);
+          if (valueSales > 0) {
+            const furtherTax = valueSales * (4 / 100);
+            item.furtherTax = furtherTax.toFixed(2);
+            item.isFurtherTaxManual = false;
+          }
+        }
+
+        // Auto-recalculate Further Tax for unregistered buyers when status, createdAt, updatedAt, or tenantId change
+        if (
+          (field === "status" ||
+            field === "createdAt" ||
+            field === "updatedAt" ||
+            field === "tenantId") &&
+          prev.buyerRegistrationType === "Unregistered"
+        ) {
+          const valueSales = parseFloat(item.valueSalesExcludingST || 0);
+          if (valueSales > 0) {
+            const furtherTax = valueSales * (4 / 100);
+            item.furtherTax = furtherTax.toFixed(2);
+            item.isFurtherTaxManual = false;
+          }
+        }
+
+        // Auto-recalculate Further Tax for unregistered buyers when items field changes
+        if (
+          field === "items" &&
+          prev.buyerRegistrationType === "Unregistered"
+        ) {
+          const valueSales = parseFloat(item.valueSalesExcludingST || 0);
+          if (valueSales > 0) {
+            const furtherTax = valueSales * (4 / 100);
+            item.furtherTax = furtherTax.toFixed(2);
+            item.isFurtherTaxManual = false;
+          }
+        }
+
+        // Auto-recalculate Further Tax for unregistered buyers when selectedProductIdByItem field changes
+        if (
+          field === "selectedProductIdByItem" &&
+          prev.buyerRegistrationType === "Unregistered"
+        ) {
+          const valueSales = parseFloat(item.valueSalesExcludingST || 0);
+          if (valueSales > 0) {
+            const furtherTax = valueSales * (4 / 100);
+            item.furtherTax = furtherTax.toFixed(2);
+            item.isFurtherTaxManual = false;
+          }
+        }
+
+        // Auto-recalculate Further Tax for unregistered buyers when selectedRateIdByItem field changes
+        if (
+          field === "selectedRateIdByItem" &&
+          prev.buyerRegistrationType === "Unregistered"
+        ) {
+          const valueSales = parseFloat(item.valueSalesExcludingST || 0);
+          if (valueSales > 0) {
+            const furtherTax = valueSales * (4 / 100);
+            item.furtherTax = furtherTax.toFixed(2);
+            item.isFurtherTaxManual = false;
+          }
+        }
+
+        // Auto-recalculate Further Tax for unregistered buyers when selectedSROIdByItem field changes
+        if (
+          field === "selectedSROIdByItem" &&
+          prev.buyerRegistrationType === "Unregistered"
+        ) {
+          const valueSales = parseFloat(item.valueSalesExcludingST || 0);
+          if (valueSales > 0) {
+            const furtherTax = valueSales * (4 / 100);
+            item.furtherTax = furtherTax.toFixed(2);
+            item.isFurtherTaxManual = false;
+          }
+        }
+
+        // Auto-recalculate Further Tax for unregistered buyers when selectedSROItemIdByItem field changes
+        if (
+          field === "selectedSROItemIdByItem" &&
+          prev.buyerRegistrationType === "Unregistered"
+        ) {
+          const valueSales = parseFloat(item.valueSalesExcludingST || 0);
+          if (valueSales > 0) {
+            const furtherTax = valueSales * (4 / 100);
+            item.furtherTax = furtherTax.toFixed(2);
+            item.isFurtherTaxManual = false;
+          }
+        }
+
+        // Auto-recalculate Further Tax for unregistered buyers when selectedBillOfLadingUoMIdByItem field changes
+        if (
+          field === "selectedBillOfLadingUoMIdByItem" &&
+          prev.buyerRegistrationType === "Unregistered"
+        ) {
+          const valueSales = parseFloat(item.valueSalesExcludingST || 0);
+          if (valueSales > 0) {
+            const furtherTax = valueSales * (4 / 100);
+            item.furtherTax = furtherTax.toFixed(2);
+            item.isFurtherTaxManual = false;
+          }
+        }
+
+        // Auto-recalculate Further Tax for unregistered buyers when selectedUoMIdByItem field changes
+        if (
+          field === "selectedUoMIdByItem" &&
+          prev.buyerRegistrationType === "Unregistered"
+        ) {
+          const valueSales = parseFloat(item.valueSalesExcludingST || 0);
+          if (valueSales > 0) {
+            const furtherTax = valueSales * (4 / 100);
+            item.furtherTax = furtherTax.toFixed(2);
+            item.isFurtherTaxManual = false;
+          }
+        }
+
+        // Auto-recalculate Further Tax for unregistered buyers when selectedBillOfLadingUoMIdByItem field changes
+        if (
+          field === "selectedBillOfLadingUoMIdByItem" &&
+          prev.buyerRegistrationType === "Unregistered"
+        ) {
+          const valueSales = parseFloat(item.valueSalesExcludingST || 0);
+          if (valueSales > 0) {
+            const furtherTax = valueSales * (4 / 100);
+            item.furtherTax = furtherTax.toFixed(2);
+            item.isFurtherTaxManual = false;
+          }
+        }
       } else {
         item[field] = value;
       }
@@ -1566,6 +2169,16 @@ export default function CreateInvoice() {
         item.sroItemSerialNo = "";
         item.isSROItemEnabled = false;
         item.isValueSalesManual = false;
+
+        // Recalculate Further Tax for unregistered buyers when rate changes
+        if (prev.buyerRegistrationType === "Unregistered") {
+          const valueSales = parseFloat(item.valueSalesExcludingST || 0);
+          if (valueSales > 0) {
+            const furtherTax = valueSales * (4 / 100);
+            item.furtherTax = furtherTax.toFixed(2);
+            item.isFurtherTaxManual = false;
+          }
+        }
       }
 
       if (field === "sroScheduleNo" && value) {
@@ -1750,7 +2363,31 @@ export default function CreateInvoice() {
       itemId: itemToAdd.id,
     });
 
-    setAddedItems((prev) => [...prev, itemToAdd]);
+    setAddedItems((prev) => {
+      const newItems = [...prev, itemToAdd];
+
+      // Apply Further Tax calculation for unregistered buyers on newly added items
+      if (formData.buyerRegistrationType === "Unregistered") {
+        const updatedItems = newItems.map((item) => {
+          if (
+            item.id === itemToAdd.id &&
+            parseFloat(item.valueSalesExcludingST || 0) > 0
+          ) {
+            const valueSales = parseFloat(item.valueSalesExcludingST || 0);
+            const furtherTax = valueSales * (4 / 100);
+            return {
+              ...item,
+              furtherTax: furtherTax.toFixed(2),
+              isFurtherTaxManual: false,
+            };
+          }
+          return item;
+        });
+        return updatedItems;
+      }
+
+      return newItems;
+    });
 
     // Clear Transaction Type completely when an item is added
     // First clear localStorage to prevent useEffect from restoring values
@@ -4583,43 +5220,46 @@ export default function CreateInvoice() {
                   />
                 </Box>
                 <Box sx={{ flex: "1 1 18%", minWidth: "150px" }}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Further Tax"
-                    type="text"
-                    value={
-                      item.furtherTax === "0.00" || item.furtherTax === "0"
-                        ? ""
-                        : formatWithCommasWhileTyping(item.furtherTax)
-                    }
-                    onChange={(e) => {
-                      const newValue = handleFloatingNumberInput(
-                        e.target.value,
-                        true
-                      );
-                      if (newValue !== null) {
-                        handleItemChange(index, "furtherTax", newValue);
+                  <Tooltip>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label={
+                        <Box
+                          sx={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 0.5,
+                          }}
+                        >
+                          Further Tax
+                        </Box>
                       }
-                    }}
-                    onBlur={(e) => {
-                      const value = e.target.value;
-                      if (value) {
-                        // Remove commas and get the raw numeric value
-                        const cleanValue = value.replace(/,/g, "");
-                        const numValue = parseFloat(cleanValue);
-                        if (!isNaN(numValue)) {
-                          // Store the raw numeric value, not the formatted one
-                          handleItemChange(
-                            index,
-                            "furtherTax",
-                            numValue.toString()
-                          );
-                        }
+                      type="text"
+                      value={
+                        item.furtherTax === "0.00" || item.furtherTax === "0"
+                          ? ""
+                          : formatWithCommasWhileTyping(item.furtherTax)
                       }
-                    }}
-                    variant="outlined"
-                  />
+                      InputProps={{
+                        readOnly: true,
+                        style: { cursor: "not-allowed" },
+                      }}
+                      variant="outlined"
+                      sx={{
+                        "& .MuiInputLabel-root": {
+                          display: "flex",
+                          alignItems: "center",
+                        },
+                        "& .MuiInputBase-input": {
+                          cursor: "not-allowed",
+                        },
+                        "& .MuiInputBase-root": {
+                          cursor: "not-allowed",
+                        },
+                      }}
+                    />
+                  </Tooltip>
                 </Box>
                 <Box sx={{ flex: "1 1 18%", minWidth: "150px" }}>
                   <TextField
