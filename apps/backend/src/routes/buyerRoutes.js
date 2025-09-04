@@ -14,6 +14,7 @@ router.use(identifyTenant);
 router.post("/buyers", buyerController.createBuyer);
 router.post("/buyers/bulk", buyerController.bulkCreateBuyers);
 router.post("/buyers/check-existing", buyerController.checkExistingBuyers);
+router.post("/buyers/bulk-fbr-check", buyerController.bulkCheckFBRRegistration);
 router.get("/buyers/all", buyerController.getAllBuyersWithoutPagination);
 router.get("/buyers", buyerController.getAllBuyers);
 router.get("/buyers/:id", buyerController.getBuyerById);

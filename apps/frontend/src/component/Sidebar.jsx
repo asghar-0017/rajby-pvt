@@ -43,6 +43,7 @@ import {
 import { useAuth } from "../Context/AuthProvider";
 import { useTenantSelection } from "../Context/TenantSelectionProvider";
 import { FaBusinessTime } from "react-icons/fa6";
+import { FaUsers } from "react-icons/fa";
 import Footer from "./Footer";
 import ProfileMenuMount from "./ProfileMenuMount";
 // import productionForm  from "../pages/productionForm"
@@ -124,7 +125,24 @@ export default function Sidebar({ onLogout }) {
     { name: "logout" },
   ];
 
+  // Add "Select Company" for admins or users with multiple company assignments
   if (user?.role === "admin") {
+    navItems.unshift({
+      name: "Select Company",
+      href: "/tenant-management",
+      icon: <FaBusinessTime />,
+    });
+    navItems.splice(1, 0, {
+      name: "User Management",
+      href: "/user-management",
+      icon: <FaUsers />,
+    });
+  } else if (
+    user?.role === "user" &&
+    user?.assignedTenants &&
+    user.assignedTenants.length > 1
+  ) {
+    // Regular user with multiple company assignments
     navItems.unshift({
       name: "Select Company",
       href: "/tenant-management",

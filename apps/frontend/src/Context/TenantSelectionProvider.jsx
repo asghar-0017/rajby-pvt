@@ -112,16 +112,34 @@ export const TenantSelectionProvider = ({ children }) => {
   };
 
   const fetchTenantTokens = async (tenant) => {
-    if (!tenant?.tenant_id) {
-      console.warn("No tenant ID available for token fetch");
-      setTokensLoaded(false);
-      return false;
-    }
+    setLoading(true);
+    setTokensLoaded(false);
 
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
         console.log(`Fetching tokens (attempt ${attempt}/3)`);
-        const response = await api.get(`/admin/tenants/${tenant.tenant_id}`);
+
+        // Determine the appropriate endpoint based on user type
+        // Check if user is admin by looking at the stored user data
+        const storedUser = localStorage.getItem("user");
+        let isAdmin = false;
+
+        if (storedUser) {
+          try {
+            const userData = JSON.parse(storedUser);
+            isAdmin = userData.role === "admin";
+          } catch (error) {
+            console.error("Error parsing user data:", error);
+          }
+        }
+
+        // Use appropriate endpoint based on user type
+        const endpoint = isAdmin
+          ? `/admin/tenants/${tenant.tenant_id}`
+          : `/user/tenants/${tenant.tenant_id}`;
+
+        const response = await api.get(endpoint);
+
         if (
           response.data.success &&
           response.data.data.sandboxProductionToken

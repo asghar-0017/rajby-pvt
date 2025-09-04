@@ -32,6 +32,14 @@ export const authenticateToken = async (req, res, next) => {
       return;
     }
 
+    // Check if it's a user token
+    if (decoded.type === "user") {
+      req.user = decoded;
+      req.userType = "user";
+      next();
+      return;
+    }
+
     // For admin tokens, verify session exists
     try {
       const session = await AdminSession.findOne({

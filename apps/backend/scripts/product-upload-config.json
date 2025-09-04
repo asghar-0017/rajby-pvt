@@ -1,0 +1,158 @@
+{
+  "productUpload": {
+    "chunkSize": 1000,
+    "maxConcurrency": 10,
+    "timeout": 600000,
+    "retryAttempts": 5,
+    "retryDelay": 500,
+    "validateBeforeInsert": false,
+    "useTransactions": false,
+    "batchMode": true,
+    "parallelProcessing": true
+  },
+  "database": {
+    "pool": {
+      "max": 100,
+      "min": 50,
+      "acquire": 300000,
+      "idle": 120000,
+      "evict": 60000,
+      "handleDisconnects": true
+    },
+    "bulkInsert": {
+      "validate": false,
+      "ignoreDuplicates": true,
+      "benchmark": true,
+      "chunkSize": 1000,
+      "parallelChunks": true
+    },
+    "indexes": {
+      "autoCreate": true,
+      "optimizeForBulk": true,
+      "compositeIndexes": true
+    }
+  },
+  "performance": {
+    "monitoring": {
+      "enabled": true,
+      "logLevel": "info",
+      "metrics": true,
+      "benchmarks": true
+    },
+    "optimization": {
+      "memoryEfficient": true,
+      "parallelValidation": true,
+      "batchDuplicateCheck": true,
+      "ultraFastBulkInsert": true
+    },
+    "limits": {
+      "maxProductsPerUpload": 100000,
+      "maxConcurrentChunks": 10,
+      "maxMemoryUsage": "4GB",
+      "timeout": 600000
+    }
+  },
+  "validation": {
+    "requiredFields": ["name", "hsCode", "uom"],
+    "fieldValidation": {
+      "name": {
+        "minLength": 1,
+        "maxLength": 255,
+        "required": true
+      },
+      "hsCode": {
+        "minLength": 2,
+        "maxLength": 20,
+        "pattern": "^[A-Za-z0-9.\\-\\s]+$",
+        "required": true
+      },
+      "uom": {
+        "minLength": 1,
+        "maxLength": 50,
+        "required": true,
+        "allowedValues": [
+          "MT",
+          "Bill of lading",
+          "SET",
+          "KWH",
+          "40KG",
+          "Liter",
+          "SqY",
+          "Bag",
+          "KG",
+          "MMBTU",
+          "Meter",
+          "Pcs",
+          "Carat",
+          "Cubic Metre",
+          "Dozen",
+          "Gram",
+          "Gallon",
+          "Kilogram",
+          "Pound",
+          "Timber Logs",
+          "Numbers, pieces, units",
+          "Packs",
+          "Pair",
+          "Square Foot",
+          "Square Metre",
+          "Thousand Unit",
+          "Mega Watt",
+          "Foot",
+          "Barrels",
+          "NO",
+          "Others",
+          "1000 kWh"
+        ]
+      },
+      "description": {
+        "minLength": 0,
+        "maxLength": 1000,
+        "required": false
+      }
+    },
+    "businessRules": {
+      "checkDuplicates": true,
+      "duplicateFields": ["name", "hsCode"],
+      "allowPartialMatches": true,
+      "strictValidation": false
+    }
+  },
+  "errorHandling": {
+    "continueOnError": true,
+    "maxErrors": 1000,
+    "errorReporting": {
+      "detailed": true,
+      "rowNumbers": true,
+      "errorCategories": true
+    },
+    "retryLogic": {
+      "enabled": true,
+      "maxRetries": 3,
+      "retryDelay": 1000,
+      "exponentialBackoff": true
+    }
+  },
+  "logging": {
+    "level": "info",
+    "performance": true,
+    "benchmarks": true,
+    "errors": true,
+    "success": true,
+    "format": "detailed"
+  },
+  "monitoring": {
+    "realTime": true,
+    "metrics": {
+      "uploadSpeed": true,
+      "memoryUsage": true,
+      "databasePerformance": true,
+      "errorRates": true
+    },
+    "alerts": {
+      "performanceThreshold": 1000,
+      "errorThreshold": 100,
+      "memoryThreshold": "80%"
+    }
+  }
+}

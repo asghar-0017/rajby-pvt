@@ -122,9 +122,26 @@ const TenantDashboard = () => {
       setLoading(true);
       setError(null);
 
-      const response = await api.get(
-        `/admin/tenants/${selectedTenant.tenant_id}/stats`
-      );
+      // Determine the appropriate endpoint based on user type
+      // Check if user is admin by looking at the stored user data
+      const storedUser = localStorage.getItem("user");
+      let isAdmin = false;
+
+      if (storedUser) {
+        try {
+          const userData = JSON.parse(storedUser);
+          isAdmin = userData.role === "admin";
+        } catch (error) {
+          console.error("Error parsing user data:", error);
+        }
+      }
+
+      // Use appropriate endpoint based on user type
+      const endpoint = isAdmin
+        ? `/admin/tenants/${selectedTenant.tenant_id}/stats`
+        : `/user/tenants/${selectedTenant.tenant_id}/stats`;
+
+      const response = await api.get(endpoint);
 
       if (response.data.success) {
         setStats(response.data.data);

@@ -45,7 +45,23 @@ export const AuthProvider = ({ children }) => {
         if (userData.role === "admin") {
           navigate("/tenant-management");
         } else {
-          navigate("/");
+          // For regular users, check if they have company assignments
+          if (
+            userData.assignedTenants &&
+            userData.assignedTenants.length === 1
+          ) {
+            // Single company - redirect to dashboard
+            navigate("/");
+          } else if (
+            userData.assignedTenants &&
+            userData.assignedTenants.length > 1
+          ) {
+            // Multiple companies - redirect to company selection
+            navigate("/tenant-management");
+          } else {
+            // No companies assigned - redirect to dashboard (will show error)
+            navigate("/");
+          }
         }
 
         // Reload the screen after successful login
@@ -327,17 +343,23 @@ export const AuthProvider = ({ children }) => {
       console.error("Forgot password error:", err);
 
       let errorMessage = "Failed to send reset code";
-      
+
       if (err.response) {
         const { data, status } = err.response;
-        
+
         if (data && data.message) {
           errorMessage = data.message;
         } else if (status === 500) {
           if (data && data.message && data.message.includes("configuration")) {
-            errorMessage = "Email service is not configured. Please contact support.";
-          } else if (data && data.message && data.message.includes("unavailable")) {
-            errorMessage = "Email service is temporarily unavailable. Please try again later.";
+            errorMessage =
+              "Email service is not configured. Please contact support.";
+          } else if (
+            data &&
+            data.message &&
+            data.message.includes("unavailable")
+          ) {
+            errorMessage =
+              "Email service is temporarily unavailable. Please try again later.";
           } else {
             errorMessage = "Server error occurred. Please try again later.";
           }
@@ -348,7 +370,8 @@ export const AuthProvider = ({ children }) => {
         }
       } else if (err.request) {
         // Network error
-        errorMessage = "Network error. Please check your connection and try again.";
+        errorMessage =
+          "Network error. Please check your connection and try again.";
       } else if (err.message) {
         errorMessage = err.message;
       }

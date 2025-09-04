@@ -321,13 +321,16 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
       setCheckingBuyerRegistration(true);
       setBuyerRegistrationHint("");
 
-      const response = await fetch("http://localhost:5150/api/buyer-check", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ registrationNo }),
-      });
+      const response = await fetch(
+        "https://united-tubes.inplsoftwares.online/api/buyer-check",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ registrationNo }),
+        }
+      );
 
       console.log(
         "FBR buyer check response status:",

@@ -1,8 +1,8 @@
 import adminService from "../../service/AdminAuthService/index.js";
 import jwt from "jsonwebtoken";
 import AdminMdel from "../../model/adminAuthModel/index.js";
-import userModel from "../../model/registerUser/index.js"
-
+import userModel from "../../model/registerUser/index.js";
+import UserManagementService from "../../service/UserManagementService.js";
 
 const secretKey = process.env.JWT_SECRET;
 
@@ -35,18 +35,33 @@ const combinedAuthenticate = async (req, res, next) => {
     try {
       console.log("Attempting to validate User token...");
       decoded = jwt.verify(token, secretKey);
-      user = await userModel.findOne({ email: decoded.email });
-      if (user) {
-        req.user = user;
-        console.log(
-          "User token validated successfully, proceeding to next middleware"
-        );
-        return next();
+
+      // Check if it's a new user token (from UserManagementService)
+      if (decoded.type === "user") {
+        user = await UserManagementService.getUserByEmail(decoded.email);
+        if (user) {
+          req.user = user;
+          req.userType = "user";
+          console.log(
+            "User token validated successfully, proceeding to next middleware"
+          );
+          return next();
+        }
+      } else {
+        // Legacy user token validation
+        user = await userModel.findOne({ email: decoded.email });
+        if (user) {
+          req.user = user;
+          req.userType = "legacy_user";
+          console.log(
+            "Legacy user token validated successfully, proceeding to next middleware"
+          );
+          return next();
+        }
       }
     } catch (error) {
       console.log("User token validation failed:", error.message);
     }
-
   } catch (error) {
     console.log("Internal Server Error:", error.message);
     return res

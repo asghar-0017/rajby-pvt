@@ -13,6 +13,9 @@ import mysqlConnector from "./dbConnector/mysqlConnector.js";
 // Import new MySQL routes
 import authRoutes from "./routes/authRoutes.js";
 import tenantAuthRoutes from "./routes/tenantAuthRoutes.js";
+import userAuthRoutes from "./routes/userAuthRoutes.js";
+import userManagementRoutes from "./routes/userManagementRoutes.js";
+import userCompanyRoutes from "./routes/userCompanyRoutes.js";
 
 import tenantRoutes from "./routes/tenantRoutes.js";
 import buyerRoutes from "./routes/buyerRoutes.js";
@@ -45,7 +48,7 @@ app.use(
         connectSrc: [
           "'self'",
           "https://gw.fbr.gov.pk",
-          "http://localhost:5150",
+          "https://united-tubes.inplsoftwares.online",
         ],
         scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
@@ -59,8 +62,8 @@ app.use(
   cors({
     origin: [
       "http://localhost:5174",
-      "http://localhost:5150",
-      "http://localhost:5150",
+      "https://united-tubes.inplsoftwares.online",
+      "https://united-tubes.inplsoftwares.online",
       "https://fbrtestcase.inplsoftwares.online",
       "*",
     ],
@@ -79,6 +82,9 @@ app.use(
 // MySQL Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/tenant-auth", tenantAuthRoutes);
+app.use("/api/user-auth", userAuthRoutes);
+app.use("/api/user-management", userManagementRoutes);
+app.use("/api/user", userCompanyRoutes);
 app.use("/api/admin", tenantRoutes);
 app.use("/api/tenant/:tenantId", buyerRoutes);
 app.use("/api/tenant/:tenantId", invoiceRoutes);

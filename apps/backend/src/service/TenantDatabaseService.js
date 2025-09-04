@@ -318,7 +318,7 @@ class TenantDatabaseService {
         sellerBusinessName: tenant.seller_business_name,
         sellerProvince: tenant.seller_province,
         sellerAddress: tenant.seller_address,
-        is_active: tenant.is_active,
+        is_active: Boolean(tenant.is_active), // Convert MySQL boolean to JavaScript boolean
         database_name: tenant.database_name,
         created_at: tenant.created_at,
         sandboxTestToken: tenant.sandbox_test_token,

@@ -529,46 +529,67 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     }
   };
 
-  // Call external API to check buyer registration type for each NTN/CNIC
+  // Call external API to check buyer registration type for each NTN/CNIC - OPTIMIZED VERSION
   const checkRegistrationTypes = async (newBuyersData) => {
     setCheckingRegistration(true);
     try {
-      const updated = [];
+      console.log(
+        `🚀 Starting optimized FBR registration check for ${newBuyersData.length} buyers...`
+      );
 
-      // Check FBR registration status for each buyer
-      for (const item of newBuyersData) {
-        const registrationType = await checkFBRRegistration(
-          item.buyerData.buyerNTNCNIC
-        );
-        updated.push({
-          ...item,
-          buyerData: {
-            ...item.buyerData,
-            buyerRegistrationType: registrationType,
-          },
+      // Use the new optimized backend endpoint for bulk FBR checking
+      const response = await api.post(
+        `/tenant/${selectedTenant.tenant_id}/buyers/bulk-fbr-check`,
+        { buyers: newBuyersData.map((item) => item.buyerData) }
+      );
+
+      if (response.data.success) {
+        const { results, summary } = response.data.data;
+
+        // Map the results back to the expected format
+        const updated = newBuyersData.map((item, index) => {
+          const result = results.find(
+            (r) => r.buyerNTNCNIC === item.buyerData.buyerNTNCNIC
+          );
+          return {
+            ...item,
+            buyerData: {
+              ...item.buyerData,
+              buyerRegistrationType: result
+                ? result.buyerRegistrationType
+                : "Unregistered",
+            },
+          };
         });
+
+        setNewBuyers(updated);
+
+        // Also reflect registration type in preview table rows
+        setPreviewData((prev) => {
+          const byKey = new Map(
+            updated.map((u) => [u.buyerData.buyerNTNCNIC, u.buyerData])
+          );
+          return prev.map((row) => {
+            const match = byKey.get(row.buyerNTNCNIC);
+            if (match) {
+              return {
+                ...row,
+                buyerRegistrationType: match.buyerRegistrationType,
+              };
+            }
+            return row;
+          });
+        });
+
+        console.log(
+          `🎉 FBR registration check completed: ${summary.registered} registered, ${summary.unregistered} unregistered`
+        );
+        toast.success(
+          `Registration status checked for ${summary.total} buyers (${summary.registered} registered, ${summary.unregistered} unregistered)`
+        );
+      } else {
+        throw new Error("Backend FBR check failed");
       }
-
-      setNewBuyers(updated);
-
-      // Also reflect registration type in preview table rows
-      setPreviewData((prev) => {
-        const byKey = new Map(
-          updated.map((u) => [u.buyerData.buyerNTNCNIC, u.buyerData])
-        );
-        return prev.map((row) => {
-          const match = byKey.get(row.buyerNTNCNIC);
-          if (match) {
-            return {
-              ...row,
-              buyerRegistrationType: match.buyerRegistrationType,
-            };
-          }
-          return row;
-        });
-      });
-
-      toast.success(`Registration status checked for ${updated.length} buyers`);
     } catch (error) {
       console.error("Error checking registration types:", error);
       toast.error("Error checking registration types. Using default values.");
@@ -587,59 +608,77 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     }
   };
 
-  // Check buyer registration status with FBR API - same implementation as BuyerModal
+  // Check buyer registration status with FBR API - OPTIMIZED VERSION
   const checkFBRRegistration = async (registrationNo) => {
     if (!registrationNo || !registrationNo.trim()) {
       return "Unregistered";
     }
 
-    try {
-      const response = await fetch(FBR_API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ registrationNo: registrationNo.trim() }),
-      });
+    const maxRetries = 2;
+    const timeout = 5000; // 5 seconds timeout
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        // Create AbortController for timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-      const data = await response.json().catch(() => ({}));
+        const response = await fetch(FBR_API_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ registrationNo: registrationNo.trim() }),
+          signal: controller.signal,
+        });
 
-      console.log(`FBR buyer check response for ${registrationNo}:`, data);
+        clearTimeout(timeoutId);
 
-      let derivedRegistrationType = "";
-      if (data && typeof data.REGISTRATION_TYPE === "string") {
-        derivedRegistrationType =
-          data.REGISTRATION_TYPE.toLowerCase() === "registered"
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json().catch(() => ({}));
+
+        let derivedRegistrationType = "";
+        if (data && typeof data.REGISTRATION_TYPE === "string") {
+          derivedRegistrationType =
+            data.REGISTRATION_TYPE.toLowerCase() === "registered"
+              ? "Registered"
+              : "Unregistered";
+        } else {
+          let isRegistered = false;
+          if (typeof data === "boolean") {
+            isRegistered = data;
+          } else if (data) {
+            isRegistered =
+              data.isRegistered === true ||
+              data.registered === true ||
+              (typeof data.status === "string" &&
+                data.status.toLowerCase() === "registered") ||
+              (typeof data.registrationType === "string" &&
+                data.registrationType.toLowerCase() === "registered");
+          }
+          derivedRegistrationType = isRegistered
             ? "Registered"
             : "Unregistered";
-      } else {
-        let isRegistered = false;
-        if (typeof data === "boolean") {
-          isRegistered = data;
-        } else if (data) {
-          isRegistered =
-            data.isRegistered === true ||
-            data.registered === true ||
-            (typeof data.status === "string" &&
-              data.status.toLowerCase() === "registered") ||
-            (typeof data.registrationType === "string" &&
-              data.registrationType.toLowerCase() === "registered");
         }
-        derivedRegistrationType = isRegistered ? "Registered" : "Unregistered";
-      }
 
-      return derivedRegistrationType;
-    } catch (error) {
-      console.error(
-        `Error checking FBR registration for ${registrationNo}:`,
-        error
-      );
-      // Return "Unregistered" as default if API call fails
-      return "Unregistered";
+        return derivedRegistrationType;
+      } catch (error) {
+        console.error(
+          `Error checking FBR registration for ${registrationNo} (attempt ${attempt}/${maxRetries}):`,
+          error
+        );
+
+        if (attempt === maxRetries) {
+          // Return "Unregistered" as default if all retries fail
+          return "Unregistered";
+        }
+
+        // Wait before retry (exponential backoff)
+        await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
+      }
     }
   };
 

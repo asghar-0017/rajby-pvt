@@ -22,7 +22,10 @@
     "test-database": "node scripts/test-database-state.js",
     "monitor-performance": "node scripts/performance-monitor.js",
     "test-id-generation": "node test-id-generation.js",
-    "add-product-name": "node add-product-name-column.js"
+    "add-product-name": "node add-product-name-column.js",
+    "setup-user-management": "node scripts/setup-user-management.js",
+    "create-test-user": "node scripts/create-test-user.js",
+    "assign-multiple-companies": "node scripts/assign-user-to-multiple-companies.js"
   },
   "keywords": [],
   "author": "",

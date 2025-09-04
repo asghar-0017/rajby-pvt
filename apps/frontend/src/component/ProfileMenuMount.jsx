@@ -14,15 +14,18 @@ export default function ProfileMenuMount({ open, setOpen }) {
       setSaving(true);
       // Update tenant details only
       if (selectedTenant?.tenant_id) {
-        const resp = await api.put(
-          `/admin/tenants/${selectedTenant.tenant_id}`,
-          {
-            sellerBusinessName: data.sellerBusinessName,
-            sellerFullNTN: data.sellerFullNTN,
-            sellerProvince: data.sellerProvince,
-            sellerAddress: data.sellerAddress,
-          }
-        );
+        // Determine the appropriate endpoint based on user type
+        const endpoint =
+          user?.role === "admin"
+            ? `/admin/tenants/${selectedTenant.tenant_id}`
+            : `/user/tenants/${selectedTenant.tenant_id}`;
+
+        const resp = await api.put(endpoint, {
+          sellerBusinessName: data.sellerBusinessName,
+          sellerFullNTN: data.sellerFullNTN,
+          sellerProvince: data.sellerProvince,
+          sellerAddress: data.sellerAddress,
+        });
         if (resp.data?.success && resp.data?.data) {
           // refresh selected tenant in context
           await selectTenant({ ...selectedTenant, ...resp.data.data });

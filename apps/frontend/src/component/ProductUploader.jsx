@@ -11,7 +11,7 @@
  * - Bulk upload with error handling
  */
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import {
   Box,
   Button,
@@ -32,6 +32,8 @@ import {
   IconButton,
   Chip,
   Link,
+  LinearProgress,
+  Tooltip,
 } from "@mui/material";
 import {
   CloudUpload,
@@ -43,10 +45,12 @@ import {
   Warning,
   Download,
   Info,
+  Speed,
+  Memory,
 } from "@mui/icons-material";
 import { toast } from "react-toastify";
 import { api } from "../API/Api";
-import hsCodeCache from "../utils/hsCodeCache";
+import uploadOptimizer from "../utils/uploadOptimizer";
 // Remove static XLSX import to fix compatibility issues
 
 const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
@@ -58,6 +62,10 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
   const [existingProducts, setExistingProducts] = useState([]);
   const [newProducts, setNewProducts] = useState([]);
   const [checkingExisting, setCheckingExisting] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState(0);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [performanceMetrics, setPerformanceMetrics] = useState(null);
+  const [isProcessing, setIsProcessing] = useState(false);
   const fileInputRef = useRef(null);
 
   // Internal keys for product data
@@ -294,7 +302,7 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     event.preventDefault();
   };
 
-  const processFile = (selectedFile) => {
+  const processFile = useCallback(async (selectedFile) => {
     // Validate file type
     const validTypes = [
       "text/csv",
@@ -312,44 +320,59 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     setPreviewData([]);
     setExistingProducts([]);
     setNewProducts([]);
+    setProcessingProgress(0);
+    setIsProcessing(true);
 
-    // Read and parse the file
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      try {
-        const content = e.target.result;
-        const data = await parseFileContent(
-          content,
-          selectedFile.type,
-          selectedFile
-        );
-        validateAndSetPreview(data);
-      } catch (error) {
-        console.error("Error parsing file:", error);
-
-        // Provide helpful error message with CSV conversion suggestion
-        if (
-          error.message.includes("Excel parsing error") ||
-          error.message.includes("oi is not a constructor")
-        ) {
-          toast.error(
-            "Excel file parsing failed. Please convert your file to CSV format or try a different Excel file.",
-            { autoClose: 8000 }
-          );
-        } else {
-          toast.error("Error parsing file. Please check the file format.");
+    try {
+      // Use optimized file processing with Web Worker
+      const result = await uploadOptimizer.processFile(
+        selectedFile,
+        (progress) => {
+          setProcessingProgress(progress);
         }
-      }
-    };
+      );
 
-    // Use different reading methods based on file type
-    if (selectedFile.type === "text/csv") {
-      reader.readAsText(selectedFile);
-    } else {
-      // For Excel files, read as ArrayBuffer
-      reader.readAsArrayBuffer(selectedFile);
+      // Validate products with optimized validation
+      const validationResult = await uploadOptimizer.validateProducts(
+        result.data,
+        (progress) => {
+          setProcessingProgress(50 + progress * 0.5); // 50-100% for validation
+        }
+      );
+
+      setPreviewData(validationResult.validData);
+      setErrors(validationResult.validationErrors);
+      setProcessingProgress(100);
+
+      if (validationResult.validData.length > 0) {
+        checkExistingProducts(validationResult.validData);
+      }
+
+      // Show performance metrics
+      const metrics = uploadOptimizer.getPerformanceMetrics();
+      setPerformanceMetrics(metrics);
+      const latestParsing = metrics.fileParsing[metrics.fileParsing.length - 1];
+      const latestValidation =
+        metrics.validation[metrics.validation.length - 1];
+    } catch (error) {
+      console.error("Error processing file:", error);
+
+      if (
+        error.message.includes("Excel parsing error") ||
+        error.message.includes("oi is not a constructor")
+      ) {
+        toast.error(
+          "Excel file parsing failed. Please convert your file to CSV format or try a different Excel file.",
+          { autoClose: 8000 }
+        );
+      } else {
+        toast.error(`Error processing file: ${error.message}`);
+      }
+    } finally {
+      setIsProcessing(false);
+      setProcessingProgress(0);
     }
-  };
+  }, []);
 
   const parseFileContent = async (content, fileType, file) => {
     if (fileType === "text/csv") {
@@ -591,6 +614,9 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         }
       }
 
+      // Note: Products can have the same name OR same HS code, but not both
+      // This allows for more flexible product management
+
       // HS Code format validation (now more flexible for user input)
       if (row.hsCode && row.hsCode.trim() !== "") {
         const hsCodeStr = String(row.hsCode).trim();
@@ -626,6 +652,7 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     }
   };
 
+  // Ultra-optimized existing product checking with performance monitoring
   const checkExistingProducts = async (productsData) => {
     if (!selectedTenant) {
       toast.error("Please select a Company before checking existing products.");
@@ -633,11 +660,13 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     }
 
     console.log(
-      "Starting checkExistingProducts with",
-      productsData.length,
-      "products"
+      `Starting ultra-fast existing product check for ${productsData.length} products...`
     );
+
+    // Use Date.now() for timing (more compatible than performance.now())
+    const startTime = Date.now();
     setCheckingExisting(true);
+
     try {
       const response = await api.post(
         `/tenant/${selectedTenant.tenant_id}/products/check-existing`,
@@ -646,16 +675,46 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
 
       console.log("API response received:", response.data);
 
-      const { existing, new: newProductsData } = response.data.data;
-      console.log("Setting existing products:", existing.length);
-      console.log("Setting new products:", newProductsData.length);
+      const {
+        existing,
+        new: newProductsData,
+        performance,
+      } = response.data.data;
+
+      const endTime = Date.now();
+      const totalTime = endTime - startTime;
+
+      console.log(
+        `✅ Ultra-fast existing product check completed in ${totalTime.toFixed(2)}ms`
+      );
+      console.log(
+        `📊 Found ${existing.length} existing products, ${newProductsData.length} new products`
+      );
+
+      if (performance) {
+        console.log(
+          `Backend Performance: ${performance.productsPerSecond} products/second`
+        );
+        console.log(`⚡ Total Backend Time: ${performance.totalTime}ms`);
+      }
+
+      console.log(`🌐 Frontend Total Time: ${totalTime.toFixed(2)}ms`);
+      console.log(
+        `📈 Overall Performance: ${(productsData.length / (totalTime / 1000)).toFixed(2)} products/second`
+      );
 
       setExistingProducts(existing);
       setNewProducts(newProductsData);
 
       if (existing.length > 0) {
-        toast.info(
-          `${existing.length} products already exist and will be skipped during upload`
+        toast.success(
+          `${existing.length} products already exist and will be skipped during upload`,
+          { autoClose: 3000 }
+        );
+      } else {
+        toast.success(
+          `${productsData.length} products are new and ready for upload`,
+          { autoClose: 3000 }
         );
       }
     } catch (error) {
@@ -668,18 +727,28 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     }
   };
 
-  const handleUpload = async () => {
+  // Ultra-optimized product upload with progressive processing
+  const handleUpload = useCallback(async () => {
     if (!file || newProducts.length === 0) {
       toast.error("Please select a valid file with new products to upload");
       return;
     }
 
+    // Show progress bar immediately
     setUploading(true);
+    setUploadProgress(0);
+
+    console.log(
+      `Starting ultra-fast bulk product upload for ${newProducts.length} products...`
+    );
+
     try {
       // Only upload new products
       const productsToUpload = newProducts.map((item) => ({
         ...item.productData,
       }));
+
+      // Call the parent's upload function
       const result = await onUpload(productsToUpload);
 
       // Check if there were any errors in the upload
@@ -689,22 +758,27 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         result.data.data &&
         result.data.data.summary
       ) {
-        const { summary, errors } = result.data.data;
+        const { summary, errors, performance } = result.data.data;
+
+        console.log(`✅ Ultra-fast bulk upload completed`);
+        console.log(
+          `📊 Results: ${summary.successful} successful, ${summary.failed} failed`
+        );
+
+        if (performance) {
+          console.log(
+            `Backend Performance: ${performance.productsPerSecond} products/second`
+          );
+          console.log(`⚡ Backend Breakdown:`);
+          console.log(`  - Validation: ${performance.validationTime}ms`);
+          console.log(`  - Duplicate Check: ${performance.duplicateTime}ms`);
+          console.log(`  - Bulk Insert: ${performance.insertTime}ms`);
+          console.log(`  - Total Backend: ${performance.totalTime}ms`);
+        }
 
         if (summary.failed > 0) {
-          // Show detailed error information
-          let errorDetails = errors
-            .slice(0, 10)
-            .map((err) => `Row ${err.row}: ${err.error}`)
-            .join("\n");
-
-          if (errors.length > 10) {
-            errorDetails += `\n... and ${errors.length - 10} more errors`;
-          }
-
-          // Show error details in a toast instead of alert
           toast.warning(
-            `Upload completed with issues: ${summary.successful} products added successfully, ${summary.failed} products failed. Check console for error details.`,
+            `Upload completed with issues: ${summary.successful} products added successfully, ${summary.failed} products failed.`,
             {
               autoClose: 8000,
               closeOnClick: false,
@@ -713,9 +787,7 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
           );
           console.error("Upload errors:", errors);
         } else {
-          toast.success(
-            `Successfully uploaded ${summary.successful} products!`
-          );
+          toast.success(`Successfully uploaded ${summary.successful} products`);
         }
       } else {
         toast.success(
@@ -729,21 +801,33 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       toast.error("Error uploading products. Please try again.");
     } finally {
       setUploading(false);
+      setUploadProgress(0);
     }
-  };
+  }, [file, newProducts, onUpload]);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     setFile(null);
     setPreviewData([]);
     setErrors([]);
     setShowPreview(false);
     setExistingProducts([]);
     setNewProducts([]);
+    setProcessingProgress(0);
+    setUploadProgress(0);
+    setPerformanceMetrics(null);
+    setIsProcessing(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
     onClose();
-  };
+  }, [onClose]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      uploadOptimizer.cleanup();
+    };
+  }, []);
 
   const removeFile = () => {
     setFile(null);
@@ -760,19 +844,34 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
   const getCombinedPreviewData = () => {
     const combined = [];
 
-    const normalize = (data) => ({
+    const normalize = (data) => {
+      // Handle cases where data might be undefined or have different structures
+      if (!data) {
+        return {
+          productName: "",
+          productDescription: "",
+          hsCode: "",
+          uom: "",
+        };
+      }
+
       // Ensure preview consistently uses productName/description keys
-      productName: data.productName || data.name || "",
-      productDescription: data.productDescription || data.description || "",
-      hsCode: data.hsCode || "",
-      uom: data.uom || "",
-    });
+      return {
+        productName: data.productName || data.name || "",
+        productDescription: data.productDescription || data.description || "",
+        hsCode: data.hsCode || "",
+        uom: data.uom || "",
+      };
+    };
 
     // Add existing products with status
     existingProducts.forEach((item, index) => {
-      const rowNumber = item?.row ?? item?.productData?._row ?? index + 1; // fallback if API didn't return row
+      // Handle different data structures from API
+      const productData = item.productData || item;
+      const rowNumber = item?.row ?? item?.productData?._row ?? index + 1;
+
       combined.push({
-        ...normalize(item.productData),
+        ...normalize(productData),
         _status: "existing",
         _existingProduct: item.existingProduct,
         _row: rowNumber,
@@ -781,12 +880,15 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
 
     // Add new products with status
     newProducts.forEach((item, index) => {
+      // Handle different data structures from API
+      const productData = item.productData || item;
       const rowNumber =
         item?.row ??
         item?.productData?._row ??
-        existingProducts.length + index + 1; // maintain order
+        existingProducts.length + index + 1;
+
       combined.push({
-        ...normalize(item.productData),
+        ...normalize(productData),
         _status: "new",
         _row: rowNumber,
       });
@@ -813,7 +915,7 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
             Upload a CSV or Excel file with the following columns: Product Name,
             Product Description, HS Code, Unit Of Measurement.
             <br />
-            <strong>Note:</strong> Products with duplicate names or HS codes
+            <strong>Note:</strong> Products with duplicate names AND HS codes
             will be skipped during upload.
             <br />
             <strong>Tip:</strong> If you encounter issues with Excel files, try
@@ -840,13 +942,14 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
               textAlign: "center",
               border: "2px dashed #ccc",
               backgroundColor: "#fafafa",
-              cursor: "pointer",
+              cursor: isProcessing ? "not-allowed" : "pointer",
+              opacity: isProcessing ? 0.7 : 1,
               "&:hover": {
-                borderColor: "primary.main",
-                backgroundColor: "#f5f5f5",
+                borderColor: isProcessing ? "#ccc" : "primary.main",
+                backgroundColor: isProcessing ? "#fafafa" : "#f5f5f5",
               },
             }}
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => !isProcessing && fileInputRef.current?.click()}
             onDrop={handleDrop}
             onDragOver={handleDragOver}
           >
@@ -856,6 +959,7 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
               accept=".csv,.xlsx,.xls"
               onChange={handleFileSelect}
               style={{ display: "none" }}
+              disabled={isProcessing}
             />
 
             {!file ? (
@@ -881,6 +985,24 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
                 <Typography variant="body2" color="text.secondary">
                   File size: {(file.size / 1024).toFixed(2)} KB
                 </Typography>
+
+                {/* Processing Progress */}
+                {isProcessing && (
+                  <Box sx={{ mt: 2, width: "100%" }}>
+                    <Typography variant="body2" color="primary" gutterBottom>
+                      Processing...{" "}
+                      {file.size > 1024 * 1024 ? "(streaming)" : "(parallel)"}
+                    </Typography>
+                    <LinearProgress
+                      variant="determinate"
+                      value={processingProgress}
+                      sx={{ height: 8, borderRadius: 4 }}
+                    />
+                    <Typography variant="caption" color="text.secondary">
+                      {processingProgress.toFixed(1)}% complete
+                    </Typography>
+                  </Box>
+                )}
               </Box>
             )}
           </Paper>
@@ -1001,6 +1123,25 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
               )}
             </Box>
 
+            {/* Upload Progress */}
+            {uploading && (
+              <Box sx={{ mt: 2, width: "100%" }}>
+                <Typography variant="body2" color="primary" gutterBottom>
+                  Uploading...
+                </Typography>
+                <LinearProgress
+                  variant={uploadProgress > 0 ? "determinate" : "indeterminate"}
+                  value={uploadProgress}
+                  sx={{ height: 8, borderRadius: 4 }}
+                />
+                {uploadProgress > 0 && (
+                  <Typography variant="caption" color="text.secondary">
+                    {uploadProgress.toFixed(1)}% complete
+                  </Typography>
+                )}
+              </Box>
+            )}
+
             {/* Only-existing validation */}
             {existingProducts.length > 0 && newProducts.length === 0 && (
               <Alert severity="warning" sx={{ mt: 2 }}>
@@ -1021,26 +1162,24 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
             Remove File
           </Button>
         )}
-        <Button
-          onClick={handleUpload}
-          variant="contained"
-          disabled={
-            !file ||
-            newProducts.length === 0 ||
-            uploading ||
-            checkingExisting ||
-            (existingProducts.length > 0 && newProducts.length === 0)
-          }
-          startIcon={
-            uploading ? <CircularProgress size={20} /> : <FileUpload />
-          }
-        >
-          {uploading
-            ? "Uploading..."
-            : newProducts.length === 0
+        {!uploading && (
+          <Button
+            onClick={handleUpload}
+            variant="contained"
+            disabled={
+              !file ||
+              newProducts.length === 0 ||
+              checkingExisting ||
+              isProcessing ||
+              (existingProducts.length > 0 && newProducts.length === 0)
+            }
+            startIcon={<FileUpload />}
+          >
+            {newProducts.length === 0
               ? "No new products to upload"
               : `Upload ${newProducts.length} New Products`}
-        </Button>
+          </Button>
+        )}
       </DialogActions>
     </Dialog>
   );

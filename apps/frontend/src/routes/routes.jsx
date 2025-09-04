@@ -22,6 +22,7 @@ import { RegisteredUsers } from "../pages/RegisteredUsers";
 import Buyers from "../pages/Buyers";
 import Products from "../pages/Products";
 import TenantManagement from "../pages/TenantManagement";
+import UserManagement from "../pages/UserManagement";
 
 // import ProductionForm from "../pages/productionForm"
 
@@ -65,6 +66,7 @@ const AppRouter = () => {
                   path="tenant-management"
                   element={<TenantManagement />}
                 />
+                <Route path="user-management" element={<UserManagement />} />
               </Route>
             </Routes>
           </TenantSelectionProvider>

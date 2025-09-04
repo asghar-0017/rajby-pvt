@@ -1,0 +1,72 @@
+{
+  "bulkUpload": {
+    "chunkSize": 1000,
+    "maxConcurrency": 10,
+    "timeout": 600000,
+    "retryAttempts": 5,
+    "retryDelay": 500,
+    "validateBeforeInsert": false,
+    "useTransactions": false,
+    "batchMode": true
+  },
+  "fbrApi": {
+    "batchSize": 100,
+    "timeout": 3000,
+    "maxRetries": 3,
+    "retryDelay": 500,
+    "delayBetweenBatches": 50,
+    "maxConcurrentBatches": 5,
+    "useConnectionPooling": true,
+    "keepAlive": true
+  },
+  "database": {
+    "pool": {
+      "max": 100,
+      "min": 50,
+      "acquire": 300000,
+      "idle": 120000,
+      "evict": 60000,
+      "handleDisconnects": true
+    },
+    "bulkInsert": {
+      "validate": false,
+      "ignoreDuplicates": true,
+      "benchmark": false,
+      "logging": false,
+      "raw": true,
+      "returning": false,
+      "updateOnDuplicate": false
+    },
+    "optimization": {
+      "useIndexes": true,
+      "forceIndex": true,
+      "queryCache": true,
+      "connectionPooling": true,
+      "bulkMode": true
+    }
+  },
+  "memory": {
+    "maxHeapSize": "4GB",
+    "gcInterval": 500,
+    "chunkProcessing": true,
+    "streamProcessing": true,
+    "useWorkers": true,
+    "workerCount": 8
+  },
+  "performance": {
+    "monitoring": true,
+    "metrics": true,
+    "profiling": false,
+    "caching": true,
+    "compression": false,
+    "parallelProcessing": true
+  },
+  "advanced": {
+    "useStreams": true,
+    "useWorkers": true,
+    "useCluster": false,
+    "useRedis": false,
+    "useElasticsearch": false,
+    "optimizationLevel": "maximum"
+  }
+}

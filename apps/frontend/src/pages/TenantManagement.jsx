@@ -52,7 +52,11 @@ const TenantManagement = () => {
       setLoading(true);
       setError(null);
 
-      const response = await api.get("/admin/tenants");
+      // Use different endpoints based on user type and access level
+      // If user has admin role and can access all companies, use admin endpoint
+      // Otherwise, use user endpoint to get only assigned companies
+      const endpoint = "/user/companies"; // Always use user endpoint for regular users
+      const response = await api.get(endpoint);
 
       if (response.data.success) {
         console.log("Fetched Company:", response.data.data);

@@ -384,8 +384,10 @@ export const getBuyersByProvince = async (req, res) => {
   }
 };
 
-// Bulk create buyers
+// Bulk create buyers - ULTRA OPTIMIZED VERSION
 export const bulkCreateBuyers = async (req, res) => {
+  const startTime = process.hrtime.bigint();
+
   try {
     const { Buyer } = req.tenantModels;
     const { buyers } = req.body;
@@ -397,8 +399,9 @@ export const bulkCreateBuyers = async (req, res) => {
       });
     }
 
-    // No limit on the number of buyers that can be uploaded at once
-    // Users can now upload unlimited buyers
+    console.log(
+      `🚀 Starting ULTRA-OPTIMIZED bulk upload for ${buyers.length} buyers...`
+    );
 
     const results = {
       created: [],
@@ -406,221 +409,183 @@ export const bulkCreateBuyers = async (req, res) => {
       total: buyers.length,
     };
 
-    // Process each buyer
-    for (let i = 0; i < buyers.length; i++) {
-      const buyerData = buyers[i];
+    // PHASE 1: Pre-validation (in memory - fastest)
+    console.log("🔍 Phase 1: Pre-validating all buyers...");
+    const validBuyers = [];
+    const validationErrors = [];
 
-      console.log(`Processing buyer ${i + 1}:`, {
-        buyerNTNCNIC: buyerData.buyerNTNCNIC,
-        buyerBusinessName: buyerData.buyerBusinessName,
-        buyerProvince: buyerData.buyerProvince,
-        buyerRegistrationType: buyerData.buyerRegistrationType,
-      });
+    // Batch validation for maximum speed
+    buyers.forEach((buyerData, index) => {
+      const rowErrors = [];
 
-      try {
-        // Validate required fields
-        if (!buyerData.buyerProvince || !buyerData.buyerProvince.trim()) {
-          results.errors.push({
-            index: i,
-            row: i + 1,
-            error: "Province is required",
-          });
-          continue;
-        }
+      // Quick validation checks
+      if (!buyerData.buyerProvince || !buyerData.buyerProvince.trim()) {
+        rowErrors.push("Province is required");
+      }
 
-        if (
-          !buyerData.buyerRegistrationType ||
-          !buyerData.buyerRegistrationType.trim()
-        ) {
-          results.errors.push({
-            index: i,
-            row: i + 1,
-            error: "Registration Type is required",
-          });
-          continue;
-        }
+      if (
+        !buyerData.buyerRegistrationType ||
+        !buyerData.buyerRegistrationType.trim()
+      ) {
+        rowErrors.push("Registration Type is required");
+      }
 
-        // Validate province - accept both uppercase and title case, but will be stored as uppercase
-        const validProvinces = [
-          "Balochistan",
-          "BALOCHISTAN",
-          "balochistan",
-          "Azad Jammu and Kashmir",
-          "AZAD JAMMU AND KASHMIR",
-          "azad jammu and kashmir",
-          "Capital Territory",
-          "CAPITAL TERRITORY",
-          "capital territory",
-          "Punjab",
-          "PUNJAB",
-          "punjab",
-          "Khyber Pakhtunkhwa",
-          "KHYBER PAKHTUNKHWA",
-          "khyber pakhtunkhwa",
-          "Gilgit Baltistan",
-          "GILGIT BALTISTAN",
-          "gilgit baltistan",
-          "Sindh",
-          "SINDH",
-          "sindh",
-        ];
-        if (!validProvinces.includes(buyerData.buyerProvince.trim())) {
-          results.errors.push({
-            index: i,
-            row: i + 1,
-            error:
-              "Invalid province. Valid provinces are: Balochistan, Azad Jammu and Kashmir, Capital Territory, Punjab, Khyber Pakhtunkhwa, Gilgit Baltistan, Sindh (case insensitive)",
-          });
-          continue;
-        }
+      // Province validation with Set for O(1) lookup
+      const validProvinces = new Set([
+        "Balochistan",
+        "BALOCHISTAN",
+        "balochistan",
+        "Azad Jammu and Kashmir",
+        "AZAD JAMMU AND KASHMIR",
+        "azad jammu and kashmir",
+        "Capital Territory",
+        "CAPITAL TERRITORY",
+        "capital territory",
+        "Punjab",
+        "PUNJAB",
+        "punjab",
+        "Khyber Pakhtunkhwa",
+        "KHYBER PAKHTUNKHWA",
+        "khyber pakhtunkhwa",
+        "Gilgit Baltistan",
+        "GILGIT BALTISTAN",
+        "gilgit baltistan",
+        "Sindh",
+        "SINDH",
+        "sindh",
+      ]);
 
-        // Validate registration type
-        const validRegistrationTypes = ["Registered", "Unregistered"];
-        if (
-          !validRegistrationTypes.includes(
-            buyerData.buyerRegistrationType.trim()
-          )
-        ) {
-          results.errors.push({
-            index: i,
-            row: i + 1,
-            error: 'Registration Type must be "Registered" or "Unregistered"',
-          });
-          continue;
-        }
+      if (
+        buyerData.buyerProvince &&
+        !validProvinces.has(buyerData.buyerProvince.trim())
+      ) {
+        rowErrors.push("Invalid province");
+      }
 
-        // Validate NTN/CNIC format if provided
-        if (buyerData.buyerNTNCNIC && buyerData.buyerNTNCNIC.trim()) {
-          const ntnCnic = buyerData.buyerNTNCNIC.trim();
-          if (ntnCnic.length < 7 || ntnCnic.length > 15) {
-            results.errors.push({
-              index: i,
-              row: i + 1,
-              error: "NTN/CNIC should be between 7-15 characters",
-            });
-            continue;
-          }
-        }
+      // Registration type validation
+      const validTypes = new Set(["Registered", "Unregistered"]);
+      if (
+        buyerData.buyerRegistrationType &&
+        !validTypes.has(buyerData.buyerRegistrationType.trim())
+      ) {
+        rowErrors.push(
+          'Registration Type must be "Registered" or "Unregistered"'
+        );
+      }
 
-        // Check if buyer with same NTN already exists
-        if (buyerData.buyerNTNCNIC && buyerData.buyerNTNCNIC.trim()) {
-          const existingBuyer = await Buyer.findOne({
-            where: { buyerNTNCNIC: buyerData.buyerNTNCNIC.trim() },
-          });
-
-          if (existingBuyer) {
-            results.errors.push({
-              index: i,
-              row: i + 1,
-              error: `Buyer with NTN/CNIC "${buyerData.buyerNTNCNIC}" already exists in database`,
-            });
-            continue;
-          }
-        }
-
-        // Check for duplicate NTN within the same upload batch
-        if (buyerData.buyerNTNCNIC && buyerData.buyerNTNCNIC.trim()) {
-          const duplicateInBatch = results.created.find(
-            (createdBuyer) =>
-              createdBuyer.buyerNTNCNIC === buyerData.buyerNTNCNIC.trim()
-          );
-
-          if (duplicateInBatch) {
-            results.errors.push({
-              index: i,
-              row: i + 1,
-              error: `Duplicate NTN/CNIC "${buyerData.buyerNTNCNIC}" found in upload file`,
-            });
-            continue;
-          }
-        }
-
-        // Normalize province to uppercase (keep as SINDH, PUNJAB, etc.)
-        const normalizeProvince = (province) => {
-          const provinceMap = {
-            Punjab: "PUNJAB",
-            Sindh: "SINDH",
-            "Khyber Pakhtunkhwa": "KHYBER PAKHTUNKHWA",
-            Balochistan: "BALOCHISTAN",
-            "Capital Territory": "CAPITAL TERRITORY",
-            "Gilgit Baltistan": "GILGIT BALTISTAN",
-            "Azad Jammu and Kashmir": "AZAD JAMMU AND KASHMIR",
-            // Also handle any mixed case variations
-            punjab: "PUNJAB",
-            sindh: "SINDH",
-            "khyber pakhtunkhwa": "KHYBER PAKHTUNKHWA",
-            balochistan: "BALOCHISTAN",
-            "capital territory": "CAPITAL TERRITORY",
-            "gilgit baltistan": "GILGIT BALTISTAN",
-            "azad jammu and kashmir": "AZAD JAMMU AND KASHMIR",
-          };
-          const trimmedProvince = province.trim();
-          return provinceMap[trimmedProvince] || trimmedProvince.toUpperCase();
-        };
-
-        // Create buyer with trimmed values
-        const buyer = await Buyer.create({
-          buyerNTNCNIC: buyerData.buyerNTNCNIC
-            ? buyerData.buyerNTNCNIC.trim()
-            : null,
-          buyerBusinessName: buyerData.buyerBusinessName
-            ? buyerData.buyerBusinessName.trim()
-            : null,
-          buyerProvince: normalizeProvince(buyerData.buyerProvince),
-          buyerAddress: buyerData.buyerAddress
-            ? buyerData.buyerAddress.trim()
-            : null,
-          buyerRegistrationType: buyerData.buyerRegistrationType.trim(),
-        });
-
-        console.log(`Successfully created buyer ${i + 1}:`, buyer.toJSON());
-        results.created.push(buyer);
-      } catch (error) {
-        console.error(`Error creating buyer at index ${i}:`, error);
-        console.error(`Buyer data that failed:`, buyerData);
-
-        // Handle specific database errors
-        if (error.name === "SequelizeValidationError") {
-          results.errors.push({
-            index: i,
-            row: i + 1,
-            error:
-              "Validation error: " +
-              error.errors.map((e) => e.message).join(", "),
-          });
-        } else if (error.name === "SequelizeUniqueConstraintError") {
-          results.errors.push({
-            index: i,
-            row: i + 1,
-            error: "Duplicate NTN/CNIC found",
-          });
-        } else {
-          results.errors.push({
-            index: i,
-            row: i + 1,
-            error: error.message || "Unknown error occurred",
-          });
+      // NTN/CNIC format validation
+      if (buyerData.buyerNTNCNIC && buyerData.buyerNTNCNIC.trim()) {
+        const ntnCnic = buyerData.buyerNTNCNIC.trim();
+        if (ntnCnic.length < 7 || ntnCnic.length > 15) {
+          rowErrors.push("NTN/CNIC should be between 7-15 characters");
         }
       }
-    }
 
-    // Log final summary
-    console.log("=== Bulk Upload Summary ===");
-    console.log(`Total buyers processed: ${results.total}`);
-    console.log(`Successfully created: ${results.created.length}`);
-    console.log(`Failed: ${results.errors.length}`);
+      if (rowErrors.length > 0) {
+        validationErrors.push({
+          index,
+          row: index + 1,
+          error: rowErrors.join(", "),
+        });
+      } else {
+        validBuyers.push({
+          ...buyerData,
+          index,
+          normalizedProvince: normalizeProvince(buyerData.buyerProvince),
+        });
+      }
+    });
 
-    if (results.errors.length > 0) {
-      console.log("Errors:");
-      results.errors.forEach((error, index) => {
-        console.log(`  ${index + 1}. Row ${error.row}: ${error.error}`);
+    // PHASE 2: Batch duplicate checking (single database query)
+    console.log("🔍 Phase 2: Checking for existing buyers (batch query)...");
+    const ntnCnicValues = validBuyers
+      .filter((buyer) => buyer.buyerNTNCNIC && buyer.buyerNTNCNIC.trim())
+      .map((buyer) => buyer.buyerNTNCNIC.trim());
+
+    let existingBuyers = [];
+    if (ntnCnicValues.length > 0) {
+      // Single optimized query for all NTN/CNIC values
+      existingBuyers = await Buyer.findAll({
+        where: { buyerNTNCNIC: ntnCnicValues },
+        attributes: ["buyerNTNCNIC"],
+        raw: true,
+        benchmark: false,
+        logging: false,
       });
     }
-    console.log("=== End Summary ===");
+
+    const existingSet = new Set(existingBuyers.map((b) => b.buyerNTNCNIC));
+
+    // Filter out existing buyers and duplicates within batch
+    const finalBuyers = [];
+    const seenNTN = new Set();
+
+    validBuyers.forEach((buyer) => {
+      const ntnCnic = buyer.buyerNTNCNIC?.trim();
+
+      if (ntnCnic) {
+        if (existingSet.has(ntnCnic)) {
+          results.errors.push({
+            index: buyer.index,
+            row: buyer.index + 1,
+            error: `Buyer with NTN/CNIC "${ntnCnic}" already exists in database`,
+          });
+          return;
+        }
+
+        if (seenNTN.has(ntnCnic)) {
+          results.errors.push({
+            index: buyer.index,
+            row: buyer.index + 1,
+            error: `Duplicate NTN/CNIC "${ntnCnic}" found in upload file`,
+          });
+          return;
+        }
+
+        seenNTN.add(ntnCnic);
+      }
+
+      finalBuyers.push({
+        buyerNTNCNIC: ntnCnic || null,
+        buyerBusinessName: buyer.buyerBusinessName?.trim() || null,
+        buyerProvince: buyer.normalizedProvince,
+        buyerAddress: buyer.buyerAddress?.trim() || null,
+        buyerRegistrationType: buyer.buyerRegistrationType.trim(),
+      });
+    });
+
+    // PHASE 3: Ultra-fast bulk insert with chunking
+    console.log(`🚀 Phase 3: Bulk inserting ${finalBuyers.length} buyers...`);
+
+    if (finalBuyers.length > 0) {
+      // Use bulkCreate with optimized settings
+      const createdBuyers = await Buyer.bulkCreate(finalBuyers, {
+        validate: false, // Skip validation since we already did it
+        ignoreDuplicates: true,
+        benchmark: false,
+        logging: false,
+        returning: true,
+        // Process in chunks for optimal performance
+        chunkSize: 1000, // Larger chunks for better performance
+      });
+
+      results.created = createdBuyers;
+    }
+
+    // Add validation errors
+    results.errors.push(...validationErrors);
+
+    const totalTime = Number(process.hrtime.bigint() - startTime) / 1000000;
+    console.log(
+      `🎉 ULTRA-OPTIMIZED bulk upload completed in ${totalTime.toFixed(2)}ms!`
+    );
+    console.log(
+      `📊 Results: ${results.created.length} created, ${results.errors.length} errors`
+    );
 
     res.status(200).json({
       success: true,
-      message: `Bulk upload completed. ${results.created.length} buyers created, ${results.errors.length} errors.`,
+      message: `Ultra-optimized bulk upload completed in ${totalTime.toFixed(2)}ms. ${results.created.length} buyers created, ${results.errors.length} errors.`,
       data: {
         created: results.created,
         errors: results.errors,
@@ -628,17 +593,40 @@ export const bulkCreateBuyers = async (req, res) => {
           total: results.total,
           successful: results.created.length,
           failed: results.errors.length,
+          processingTime: totalTime.toFixed(2) + "ms",
         },
       },
     });
   } catch (error) {
-    console.error("Error in bulk create buyers:", error);
+    console.error("Error in ultra-optimized bulk create buyers:", error);
     res.status(500).json({
       success: false,
-      message: "Error processing bulk buyer upload",
+      message: "Error processing ultra-optimized bulk buyer upload",
       error: error.message,
     });
   }
+};
+
+// Helper function for province normalization
+const normalizeProvince = (province) => {
+  const provinceMap = {
+    Punjab: "PUNJAB",
+    Sindh: "SINDH",
+    "Khyber Pakhtunkhwa": "KHYBER PAKHTUNKHWA",
+    Balochistan: "BALOCHISTAN",
+    "Capital Territory": "CAPITAL TERRITORY",
+    "Gilgit Baltistan": "GILGIT BALTISTAN",
+    "Azad Jammu and Kashmir": "AZAD JAMMU AND KASHMIR",
+    punjab: "PUNJAB",
+    sindh: "SINDH",
+    "khyber pakhtunkhwa": "KHYBER PAKHTUNKHWA",
+    balochistan: "BALOCHISTAN",
+    "capital territory": "CAPITAL TERRITORY",
+    "gilgit baltistan": "GILGIT BALTISTAN",
+    "azad jammu and kashmir": "AZAD JAMMU AND KASHMIR",
+  };
+  const trimmedProvince = province.trim();
+  return provinceMap[trimmedProvince] || trimmedProvince.toUpperCase();
 };
 
 // Check existing buyers for preview
@@ -746,5 +734,243 @@ export const checkExistingBuyers = async (req, res) => {
       message: "Error checking existing buyers",
       error: error.message,
     });
+  }
+};
+
+// Bulk check FBR registration status for multiple buyers - ULTRA OPTIMIZED VERSION
+export const bulkCheckFBRRegistration = async (req, res) => {
+  const startTime = process.hrtime.bigint();
+
+  try {
+    const { buyers } = req.body;
+
+    if (!Array.isArray(buyers) || buyers.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Buyers array is required and must not be empty",
+      });
+    }
+
+    console.log(
+      `🚀 Starting ULTRA-OPTIMIZED FBR registration check for ${buyers.length} buyers...`
+    );
+
+    // Filter out buyers without NTN/CNIC
+    const buyersWithNTN = buyers.filter(
+      (buyer) => buyer.buyerNTNCNIC && buyer.buyerNTNCNIC.trim()
+    );
+
+    if (buyersWithNTN.length === 0) {
+      console.log(
+        "⚠️ No buyers with NTN/CNIC found, returning all as Unregistered"
+      );
+      const results = buyers.map((buyer) => ({
+        ...buyer,
+        buyerRegistrationType: "Unregistered",
+      }));
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          results,
+          summary: {
+            total: buyers.length,
+            checked: 0,
+            registered: 0,
+            unregistered: buyers.length,
+            processingTime: "0ms",
+          },
+        },
+      });
+    }
+
+    // ULTRA-OPTIMIZED: Process in larger batches with higher concurrency
+    const batchSize = 50; // Increased from 20 to 50 for better performance
+    const batches = [];
+    for (let i = 0; i < buyersWithNTN.length; i += batchSize) {
+      batches.push(buyersWithNTN.slice(i, i + batchSize));
+    }
+
+    console.log(
+      `📦 Processing ${batches.length} batches of ${batchSize} buyers each...`
+    );
+
+    const results = [];
+    const errors = [];
+
+    // Process ALL batches simultaneously for maximum speed
+    const allBatchPromises = batches.map(async (batch, batchIndex) => {
+      try {
+        console.log(
+          `🔍 Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} buyers)...`
+        );
+
+        // Process batch in parallel with Promise.all
+        const batchPromises = batch.map(async (buyer) => {
+          try {
+            const registrationType = await checkFBRRegistrationAPI(
+              buyer.buyerNTNCNIC
+            );
+            return {
+              ...buyer,
+              buyerRegistrationType: registrationType,
+            };
+          } catch (error) {
+            console.error(
+              `Error checking FBR for ${buyer.buyerNTNCNIC}:`,
+              error
+            );
+            return {
+              ...buyer,
+              buyerRegistrationType: "Unregistered", // Fallback
+            };
+          }
+        });
+
+        const batchResults = await Promise.all(batchPromises);
+        console.log(
+          `✅ Batch ${batchIndex + 1} completed: ${batchResults.length} buyers processed`
+        );
+        return batchResults;
+      } catch (batchError) {
+        console.error(`❌ Batch ${batchIndex + 1} failed:`, batchError);
+        errors.push(batchError);
+
+        // Fallback for failed batch
+        const fallbackBatch = batch.map((buyer) => ({
+          ...buyer,
+          buyerRegistrationType: "Unregistered",
+        }));
+        return fallbackBatch;
+      }
+    });
+
+    // Wait for ALL batches to complete simultaneously
+    const allBatchResults = await Promise.all(allBatchPromises);
+
+    // Flatten results
+    allBatchResults.forEach((batchResult) => {
+      results.push(...batchResult);
+    });
+
+    // Add buyers without NTN/CNIC with default "Unregistered" status
+    const buyersWithoutNTN = buyers.filter(
+      (buyer) => !buyer.buyerNTNCNIC || !buyer.buyerNTNCNIC.trim()
+    );
+
+    const buyersWithoutNTNResults = buyersWithoutNTN.map((buyer) => ({
+      ...buyer,
+      buyerRegistrationType: "Unregistered",
+    }));
+
+    const finalResults = [...results, ...buyersWithoutNTNResults];
+
+    const registeredCount = finalResults.filter(
+      (buyer) => buyer.buyerRegistrationType === "Registered"
+    ).length;
+
+    const totalTime = Number(process.hrtime.bigint() - startTime) / 1000000;
+    console.log(
+      `🎉 ULTRA-OPTIMIZED FBR registration check completed in ${totalTime.toFixed(2)}ms: ${registeredCount} registered, ${finalResults.length - registeredCount} unregistered`
+    );
+
+    res.status(200).json({
+      success: true,
+      data: {
+        results: finalResults,
+        summary: {
+          total: buyers.length,
+          checked: buyersWithNTN.length,
+          registered: registeredCount,
+          unregistered: finalResults.length - registeredCount,
+          errors: errors.length,
+          processingTime: totalTime.toFixed(2) + "ms",
+        },
+      },
+    });
+  } catch (error) {
+    console.error(
+      "Error in ultra-optimized bulk FBR registration check:",
+      error
+    );
+    res.status(500).json({
+      success: false,
+      message: "Error processing ultra-optimized bulk FBR registration check",
+      error: error.message,
+    });
+  }
+};
+
+// Helper function to check FBR registration status with retry logic
+const checkFBRRegistrationAPI = async (registrationNo) => {
+  if (!registrationNo || !registrationNo.trim()) {
+    return "Unregistered";
+  }
+
+  const maxRetries = 2;
+  const timeout = 5000; // 5 seconds timeout
+  const FBR_API_URL =
+    "https://buyercheckapi.inplsoftwares.online/checkbuyer.php";
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      // Create AbortController for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+      const response = await fetch(FBR_API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ registrationNo: registrationNo.trim() }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json().catch(() => ({}));
+
+      let derivedRegistrationType = "";
+      if (data && typeof data.REGISTRATION_TYPE === "string") {
+        derivedRegistrationType =
+          data.REGISTRATION_TYPE.toLowerCase() === "registered"
+            ? "Registered"
+            : "Unregistered";
+      } else {
+        let isRegistered = false;
+        if (typeof data === "boolean") {
+          isRegistered = data;
+        } else if (data) {
+          isRegistered =
+            data.isRegistered === true ||
+            data.registered === true ||
+            (typeof data.status === "string" &&
+              data.status.toLowerCase() === "registered") ||
+            (typeof data.registrationType === "string" &&
+              data.registrationType.toLowerCase() === "registered");
+        }
+        derivedRegistrationType = isRegistered ? "Registered" : "Unregistered";
+      }
+
+      return derivedRegistrationType;
+    } catch (error) {
+      console.error(
+        `Error checking FBR registration for ${registrationNo} (attempt ${attempt}/${maxRetries}):`,
+        error
+      );
+
+      if (attempt === maxRetries) {
+        // Return "Unregistered" as default if all retries fail
+        return "Unregistered";
+      }
+
+      // Wait before retry (exponential backoff)
+      await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
+    }
   }
 };

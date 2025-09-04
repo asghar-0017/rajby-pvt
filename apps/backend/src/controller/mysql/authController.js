@@ -4,6 +4,7 @@ import { Op } from "sequelize";
 import AdminUser from "../../model/mysql/AdminUser.js";
 import AdminSession from "../../model/mysql/AdminSession.js";
 import ResetCode from "../../model/mysql/ResetCode.js";
+import UserManagementService from "../../service/UserManagementService.js";
 import generateResetCode from "../../utils/generateResetCode.js";
 import sendResetEmail from "../../utils/sendResetEmail.js";
 
@@ -108,85 +109,169 @@ export const login = async (req, res) => {
         );
     }
 
-    // Find admin user
+    // Try to find admin user first
     const admin = await AdminUser.findOne({
       where: {
         email: email,
       },
     });
 
-    if (!admin) {
-      return res
-        .status(401)
-        .json(formatResponse(false, "Invalid email or password", null, 401));
-    }
+    if (admin) {
+      // Admin login flow
+      const isPasswordValid = await bcrypt.compare(password, admin.password);
+      if (!isPasswordValid) {
+        return res
+          .status(401)
+          .json(formatResponse(false, "Invalid email or password", null, 401));
+      }
 
-    // Verify password
-    const isPasswordValid = await bcrypt.compare(password, admin.password);
-    if (!isPasswordValid) {
-      return res
-        .status(401)
-        .json(formatResponse(false, "Invalid email or password", null, 401));
-    }
+      // Check if account is verified
+      if (!admin.is_verify) {
+        return res
+          .status(401)
+          .json(
+            formatResponse(
+              false,
+              "Account not verified. Please verify your email first.",
+              null,
+              401
+            )
+          );
+      }
 
-    // Check if account is verified
-    if (!admin.is_verify) {
-      return res
-        .status(401)
-        .json(
-          formatResponse(
-            false,
-            "Account not verified. Please verify your email first.",
-            null,
-            401
-          )
-        );
-    }
+      // Check for existing sessions and limit them
+      await AdminSession.findAll({
+        where: { admin_id: admin.id },
+      });
 
-    // Check for existing sessions and limit them
-    await AdminSession.findAll({
-      where: { admin_id: admin.id },
-    });
+      // Generate JWT token
+      const token = jwt.sign(
+        {
+          id: admin.id,
+          email: admin.email,
+          role: admin.role,
+          type: "admin",
+          iat: Math.floor(Date.now() / 1000),
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: "24h" }
+      );
 
-    // Generate JWT token
-    const token = jwt.sign(
-      {
+      // Create new session
+      await AdminSession.create({
+        admin_id: admin.id,
+        token,
+      });
+
+      // Reset rate limit on successful login
+      resetRateLimit(email);
+
+      // Remove sensitive data from response
+      const userData = {
         id: admin.id,
         email: admin.email,
         role: admin.role,
-        iat: Math.floor(Date.now() / 1000),
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: "24h" }
-    );
+        is_verify: admin.is_verify,
+        photo_profile: admin.photo_profile,
+        created_at: admin.created_at,
+        updated_at: admin.updated_at,
+      };
 
-    // Create new session
-    await AdminSession.create({
-      admin_id: admin.id,
-      token,
-    });
+      return res.status(200).json(
+        formatResponse(true, "Login successful", {
+          token,
+          user: userData,
+          expiresIn: "24h",
+        })
+      );
+    }
 
-    // Reset rate limit on successful login
-    resetRateLimit(email);
+    // Try to find regular user
+    const user = await UserManagementService.getUserByEmail(email);
 
-    // Remove sensitive data from response
-    const userData = {
-      id: admin.id,
-      email: admin.email,
-      role: admin.role,
-      is_verify: admin.is_verify,
-      photo_profile: admin.photo_profile,
-      created_at: admin.created_at,
-      updated_at: admin.updated_at,
-    };
+    if (user) {
+      // User login flow
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+      if (!isPasswordValid) {
+        return res
+          .status(401)
+          .json(formatResponse(false, "Invalid email or password", null, 401));
+      }
 
-    return res.status(200).json(
-      formatResponse(true, "Login successful", {
-        token,
-        user: userData,
-        expiresIn: "24h",
-      })
-    );
+      // Check if user is active
+      if (!user.isActive) {
+        return res
+          .status(401)
+          .json(formatResponse(false, "Account is deactivated", null, 401));
+      }
+
+      // Check if user has any tenant assignments
+      if (
+        !user.UserTenantAssignments ||
+        user.UserTenantAssignments.length === 0
+      ) {
+        return res
+          .status(403)
+          .json(
+            formatResponse(
+              false,
+              "No company assigned to this user. Please contact administrator.",
+              null,
+              403
+            )
+          );
+      }
+
+      // Generate JWT token
+      const token = jwt.sign(
+        {
+          userId: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: user.role,
+          type: "user",
+          assignedTenants: user.UserTenantAssignments.map((assignment) => ({
+            tenantId: assignment.Tenant.tenant_id,
+            tenantName: assignment.Tenant.seller_business_name,
+            databaseName: assignment.Tenant.database_name,
+          })),
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: "24h" }
+      );
+
+      // Reset rate limit on successful login
+      resetRateLimit(email);
+
+      // Prepare user data for response (without password)
+      const userData = {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        phone: user.phone,
+        role: user.role,
+        assignedTenants: user.UserTenantAssignments.map((assignment) => ({
+          tenantId: assignment.Tenant.tenant_id,
+          tenantName: assignment.Tenant.seller_business_name,
+          databaseName: assignment.Tenant.database_name,
+        })),
+      };
+
+      return res.status(200).json(
+        formatResponse(true, "Login successful", {
+          token,
+          user: userData,
+          expiresIn: "24h",
+        })
+      );
+    }
+
+    // If neither admin nor user found
+    return res
+      .status(401)
+      .json(formatResponse(false, "Invalid email or password", null, 401));
   } catch (error) {
     console.error("Login error:", error);
     return res
@@ -245,42 +330,71 @@ export const verifyToken = async (req, res) => {
         .json(formatResponse(false, "No token provided", null, 401));
     }
 
-    // Check if session exists
-    const session = await AdminSession.findOne({
-      where: { token },
-    });
-
-    if (!session) {
-      return res
-        .status(401)
-        .json(formatResponse(false, "Invalid or expired token", null, 401));
-    }
-
     // Verify JWT token
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-      // Get user data
-      const admin = await AdminUser.findByPk(decoded.id);
-      if (!admin) {
-        return res
-          .status(401)
-          .json(formatResponse(false, "User not found", null, 401));
-      }
+      // Check if it's a user token
+      if (decoded.type === "user") {
+        // For user tokens, get user data
+        const user = await UserManagementService.getUserByEmail(decoded.email);
+        if (!user) {
+          return res
+            .status(401)
+            .json(formatResponse(false, "User not found", null, 401));
+        }
 
-      return res.status(200).json(
-        formatResponse(true, "Token is valid", {
-          isValid: true,
-          user: {
-            id: admin.id,
-            email: admin.email,
-            role: admin.role,
-            is_verify: admin.is_verify,
-          },
-        })
-      );
+        return res.status(200).json(
+          formatResponse(true, "Token is valid", {
+            isValid: true,
+            user: {
+              id: user.id,
+              email: user.email,
+              firstName: user.firstName,
+              lastName: user.lastName,
+              role: user.role,
+              assignedTenants:
+                user.UserTenantAssignments?.map((assignment) => ({
+                  tenantId: assignment.Tenant.tenant_id,
+                  tenantName: assignment.Tenant.seller_business_name,
+                  databaseName: assignment.Tenant.database_name,
+                })) || [],
+            },
+          })
+        );
+      } else {
+        // For admin tokens, check session and get admin data
+        const session = await AdminSession.findOne({
+          where: { token },
+        });
+
+        if (!session) {
+          return res
+            .status(401)
+            .json(formatResponse(false, "Invalid or expired token", null, 401));
+        }
+
+        const admin = await AdminUser.findByPk(decoded.id);
+        if (!admin) {
+          return res
+            .status(401)
+            .json(formatResponse(false, "User not found", null, 401));
+        }
+
+        return res.status(200).json(
+          formatResponse(true, "Token is valid", {
+            isValid: true,
+            user: {
+              id: admin.id,
+              email: admin.email,
+              role: admin.role,
+              is_verify: admin.is_verify,
+            },
+          })
+        );
+      }
     } catch (jwtError) {
-      // Remove invalid session
+      // Remove invalid session if it exists
       await AdminSession.destroy({ where: { token } });
 
       return res
@@ -384,13 +498,11 @@ export const updateProfile = async (req, res) => {
       attributes: { exclude: ["password", "verify_token", "verify_code"] },
     });
 
-    return res
-      .status(200)
-      .json(
-        formatResponse(true, "Profile updated successfully", {
-          user: updatedAdmin,
-        })
-      );
+    return res.status(200).json(
+      formatResponse(true, "Profile updated successfully", {
+        user: updatedAdmin,
+      })
+    );
   } catch (error) {
     console.error("Update profile error:", error);
     return res
@@ -543,9 +655,9 @@ export const forgotPassword = async (req, res) => {
       console.log(`Reset code sent successfully to: ${email}`);
     } catch (emailError) {
       console.error("Email sending failed:", emailError);
-      
+
       // Check if it's an authentication error
-      if (emailError.code === 'EAUTH') {
+      if (emailError.code === "EAUTH") {
         return res
           .status(500)
           .json(
@@ -557,9 +669,12 @@ export const forgotPassword = async (req, res) => {
             )
           );
       }
-      
+
       // Check if it's a network/connection error
-      if (emailError.code === 'ECONNECTION' || emailError.code === 'ETIMEDOUT') {
+      if (
+        emailError.code === "ECONNECTION" ||
+        emailError.code === "ETIMEDOUT"
+      ) {
         return res
           .status(500)
           .json(
@@ -571,7 +686,7 @@ export const forgotPassword = async (req, res) => {
             )
           );
       }
-      
+
       return res
         .status(500)
         .json(
