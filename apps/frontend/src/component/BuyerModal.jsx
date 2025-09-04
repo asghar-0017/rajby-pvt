@@ -322,7 +322,7 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
       setBuyerRegistrationHint("");
 
       const response = await fetch(
-        "https://premierpipe.inplsoftwares.online/api/buyer-check",
+        "https://anwer-tex.inplsoftwares.online/api/buyer-check",
         {
           method: "POST",
           headers: {
