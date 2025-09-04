@@ -322,7 +322,7 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
       setBuyerRegistrationHint("");
 
       const response = await fetch(
-        "https://china-youncheng.inplsoftwares.online/api/buyer-check",
+        "https://signs-now.inplsoftwares.online/api/buyer-check",
         {
           method: "POST",
           headers: {
