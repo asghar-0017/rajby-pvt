@@ -322,7 +322,7 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
       setBuyerRegistrationHint("");
 
       const response = await fetch(
-        "https://hubpoly-packages.inplsoftwares.online/api/buyer-check",
+        "https://mayanipoly.inplsoftwares.online/api/buyer-check",
         {
           method: "POST",
           headers: {
