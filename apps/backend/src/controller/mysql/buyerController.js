@@ -21,6 +21,33 @@ export const createBuyer = async (req, res) => {
       });
     }
 
+    // Validate NTN/CNIC length
+    if (buyerNTNCNIC) {
+      const trimmedNTNCNIC = buyerNTNCNIC.trim();
+      if (trimmedNTNCNIC.length === 13) {
+        // CNIC: exactly 13 digits
+        if (!/^\d{13}$/.test(trimmedNTNCNIC)) {
+          return res.status(400).json({
+            success: false,
+            message: "CNIC must contain exactly 13 digits.",
+          });
+        }
+      } else if (trimmedNTNCNIC.length === 7) {
+        // NTN: exactly 7 alphanumeric characters
+        if (!/^[a-zA-Z0-9]{7}$/.test(trimmedNTNCNIC)) {
+          return res.status(400).json({
+            success: false,
+            message: "NTN must contain exactly 7 alphanumeric characters.",
+          });
+        }
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: "NTN must be 7 characters or CNIC must be 13 characters long.",
+        });
+      }
+    }
+
     // Normalize province to uppercase for consistency
     const normalizeProvince = (province) => {
       const provinceMap = {
@@ -244,6 +271,33 @@ export const updateBuyer = async (req, res) => {
         success: false,
         message: "Buyer not found",
       });
+    }
+
+    // Validate NTN/CNIC length
+    if (buyerNTNCNIC) {
+      const trimmedNTNCNIC = buyerNTNCNIC.trim();
+      if (trimmedNTNCNIC.length === 13) {
+        // CNIC: exactly 13 digits
+        if (!/^\d{13}$/.test(trimmedNTNCNIC)) {
+          return res.status(400).json({
+            success: false,
+            message: "CNIC must contain exactly 13 digits.",
+          });
+        }
+      } else if (trimmedNTNCNIC.length === 7) {
+        // NTN: exactly 7 alphanumeric characters
+        if (!/^[a-zA-Z0-9]{7}$/.test(trimmedNTNCNIC)) {
+          return res.status(400).json({
+            success: false,
+            message: "NTN must contain exactly 7 alphanumeric characters.",
+          });
+        }
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: "NTN must be 7 characters or CNIC must be 13 characters long.",
+        });
+      }
     }
 
     // Check if the new NTN already exists with another buyer

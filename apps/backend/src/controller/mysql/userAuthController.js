@@ -159,3 +159,86 @@ export const getUserProfile = async (req, res) => {
       );
   }
 };
+
+// Change user password
+export const changeUserPassword = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { currentPassword, newPassword } = req.body;
+
+    // Input validation
+    if (!currentPassword || !newPassword) {
+      return res
+        .status(400)
+        .json(
+          formatResponse(
+            false,
+            "Current password and new password are required",
+            null,
+            400
+          )
+        );
+    }
+
+    // Password validation - same as admin
+    const validatePassword = (password) => {
+      // At least 8 characters, 1 uppercase, 1 lowercase, 1 number
+      const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d@$!%*?&]{8,}$/;
+      return passwordRegex.test(password);
+    };
+
+    if (!validatePassword(newPassword)) {
+      return res
+        .status(400)
+        .json(
+          formatResponse(
+            false,
+            "New password must be at least 8 characters long and contain uppercase, lowercase, and number",
+            null,
+            400
+          )
+        );
+    }
+
+    // Get user
+    const user = await UserManagementService.getUserById(userId);
+    if (!user) {
+      return res
+        .status(404)
+        .json(formatResponse(false, "User not found", null, 404));
+    }
+
+    // Verify current password
+    const isCurrentPasswordValid = await bcrypt.compare(
+      currentPassword,
+      user.password
+    );
+    if (!isCurrentPasswordValid) {
+      return res
+        .status(401)
+        .json(
+          formatResponse(false, "Current password is incorrect", null, 401)
+        );
+    }
+
+    // Hash new password
+    const hashedNewPassword = await bcrypt.hash(newPassword, 12);
+
+    // Update password
+    await UserManagementService.updateUser(userId, { password: hashedNewPassword });
+
+    return res
+      .status(200)
+      .json(
+        formatResponse(
+          true,
+          "Password changed successfully. Please login again."
+        )
+      );
+  } catch (error) {
+    console.error("Change user password error:", error);
+    return res
+      .status(500)
+      .json(formatResponse(false, "Internal server error", null, 500));
+  }
+};

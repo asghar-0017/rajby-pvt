@@ -45,6 +45,7 @@ import { useTenantSelection } from "../Context/TenantSelectionProvider";
 import { FaBusinessTime } from "react-icons/fa6";
 import { FaUsers } from "react-icons/fa";
 import Footer from "./Footer";
+import PasswordUpdateMenuMount from "./PasswordUpdateMenuMount";
 import ProfileMenuMount from "./ProfileMenuMount";
 // import productionForm  from "../pages/productionForm"
 
@@ -157,7 +158,8 @@ export default function Sidebar({ onLogout }) {
   };
 
   const [anchorEl, setAnchorEl] = React.useState(null);
-  const [profileOpen, setProfileOpen] = React.useState(false);
+  const [passwordModalOpen, setPasswordModalOpen] = React.useState(false);
+  const [profileModalOpen, setProfileModalOpen] = React.useState(false);
 
   const handleMenuOpen = (event) => {
     setAnchorEl(event.currentTarget);
@@ -165,8 +167,13 @@ export default function Sidebar({ onLogout }) {
 
   const handleMenuClose = () => setAnchorEl(null);
 
-  const handleOpenProfile = () => {
-    setProfileOpen(true);
+  const handleOpenPasswordModal = () => {
+    setPasswordModalOpen(true);
+    handleMenuClose();
+  };
+
+  const handleOpenProfileModal = () => {
+    setProfileModalOpen(true);
     handleMenuClose();
   };
 
@@ -207,7 +214,10 @@ export default function Sidebar({ onLogout }) {
               <Typography variant="body2">{user?.email}</Typography>
             </MenuItem>
             <Divider />
-            <MenuItem onClick={handleOpenProfile}>Update Profile</MenuItem>
+            {user?.role === "admin" && (
+              <MenuItem onClick={handleOpenProfileModal}>Update Profile</MenuItem>
+            )}
+            <MenuItem onClick={handleOpenPasswordModal}>Change Password</MenuItem>
             <MenuItem onClick={handleLogoutClick}>Logout</MenuItem>
           </Menu>
         </Toolbar>
@@ -353,9 +363,13 @@ export default function Sidebar({ onLogout }) {
       <Main open={open}>
         <DrawerHeader />
         <Outlet />
-        {/* Profile Modal */}
-        <ProfileMenuMount open={profileOpen} setOpen={setProfileOpen} />
         <Footer />
+        {/* Password Update Modal */}
+        <PasswordUpdateMenuMount open={passwordModalOpen} setOpen={setPasswordModalOpen} />
+        {/* Profile Update Modal - Only for Admin */}
+        {user?.role === "admin" && (
+          <ProfileMenuMount open={profileModalOpen} setOpen={setProfileModalOpen} />
+        )}
       </Main>
     </Box>
   );

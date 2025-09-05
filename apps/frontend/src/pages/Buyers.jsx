@@ -189,23 +189,18 @@ const Buyers = () => {
       }
 
       try {
-        let allBuyers = [];
-        let currentPage = 1;
-        let totalPages = 1;
-
-        // Fetch all pages of buyers
-        while (currentPage <= totalPages) {
-          const response = await api.get(
-            `/tenant/${selectedTenant.tenant_id}/buyers?page=${currentPage}`
-          );
-          const { buyers, pagination } = response.data.data;
-          allBuyers = [...allBuyers, ...buyers];
-          totalPages = pagination.total_pages; // Update total pages
-          currentPage += 1; // Move to the next page
+        // Use the optimized endpoint that returns all buyers without pagination
+        const response = await api.get(
+          `/tenant/${selectedTenant.tenant_id}/buyers/all`
+        );
+        
+        if (response.data.success) {
+          setBuyers(response.data.data.buyers || []);
+          console.log("BUYERS loaded:", response.data.data.buyers?.length || 0, "records");
+        } else {
+          console.error("Failed to fetch buyers:", response.data.message);
+          setBuyers([]);
         }
-
-        setBuyers(allBuyers);
-        console.log("BUYERSSSSSSSSSSSS", allBuyers);
         setLoading(false);
       } catch (error) {
         console.error("Error fetching buyers:", error);

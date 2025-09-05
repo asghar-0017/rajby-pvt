@@ -123,6 +123,9 @@ class UserManagementService {
   async getAllUsers() {
     try {
       const users = await User.findAll({
+        where: {
+          isActive: true, // Only get active users
+        },
         include: [
           {
             model: UserTenantAssignment,
@@ -160,7 +163,8 @@ class UserManagementService {
   // Get user by ID with tenant assignments
   async getUserById(userId) {
     try {
-      const user = await User.findByPk(userId, {
+      const user = await User.findOne({
+        where: { id: userId, isActive: true },
         include: [
           {
             model: UserTenantAssignment,
@@ -200,7 +204,7 @@ class UserManagementService {
   async getUserByEmail(email) {
     try {
       const user = await User.findOne({
-        where: { email },
+        where: { email, isActive: true },
         include: [
           {
             model: UserTenantAssignment,
@@ -396,6 +400,7 @@ class UserManagementService {
         include: [
           {
             model: User,
+            where: { isActive: true }, // Only get active users
             attributes: [
               "id",
               "email",

@@ -115,6 +115,22 @@ const RegisterUser = () => {
         );
       }
 
+      // Validate NTN/CNIC length
+      const ntnCnicValue = form.buyerNTNCNIC.trim();
+      if (ntnCnicValue.length === 13) {
+        // CNIC: exactly 13 digits
+        if (!/^\d{13}$/.test(ntnCnicValue)) {
+          throw new Error("CNIC must contain exactly 13 digits.");
+        }
+      } else if (ntnCnicValue.length === 7) {
+        // NTN: exactly 7 alphanumeric characters
+        if (!/^[a-zA-Z0-9]{7}$/.test(ntnCnicValue)) {
+          throw new Error("NTN must contain exactly 7 alphanumeric characters.");
+        }
+      } else {
+        throw new Error("NTN must be 7 characters or CNIC must be 13 characters long.");
+      }
+
       // Call FBR API to check registration status
       const apiResponse = await checkRegistrationStatus(form.buyerNTNCNIC);
 

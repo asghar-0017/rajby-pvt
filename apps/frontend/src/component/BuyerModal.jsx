@@ -286,6 +286,7 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
         buyerProvince,
         buyerAddress,
         buyerRegistrationType,
+        documentType,
       } = formData;
       if (
         !buyerNTNCNIC ||
@@ -295,6 +296,14 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
         !buyerRegistrationType
       ) {
         throw new Error("Please fill in all required fields.");
+      }
+
+      // Validate NTN/CNIC length based on document type
+      if (documentType === "NTN" && buyerNTNCNIC.length !== 7) {
+        throw new Error("NTN must be exactly 7 characters long.");
+      }
+      if (documentType === "CNIC" && buyerNTNCNIC.length !== 13) {
+        throw new Error("CNIC must be exactly 13 characters long.");
       }
 
       // Proceed with saving
@@ -322,7 +331,7 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
       setBuyerRegistrationHint("");
 
       const response = await fetch(
-        "https://central-timber.inplsoftwares.online/api/buyer-check",
+        "https://aferoz.inplsoftwares.online/api/buyer-check",
         {
           method: "POST",
           headers: {
@@ -402,9 +411,6 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
     const value = (formData.buyerNTNCNIC || "").trim();
     if (ntnDebounceTimer) clearTimeout(ntnDebounceTimer);
     if (!value) return;
-
-    // Don't check registration if we're editing an existing buyer (to avoid interference)
-    if (buyer) return;
 
     const id = setTimeout(() => {
       console.log("Debounce fire -> checking buyer with:", value);
