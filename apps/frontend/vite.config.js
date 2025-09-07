@@ -17,7 +17,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "https://bktextile.inplsoftwares.online",
+        target: "https://superstar.inplsoftwares.online",
         changeOrigin: true,
         secure: false,
       },
