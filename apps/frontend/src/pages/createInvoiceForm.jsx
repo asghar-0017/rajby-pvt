@@ -1462,6 +1462,7 @@ export default function CreateInvoice() {
           name: productData.name,
           description: productData.description,
           hsCode: productData.hsCode,
+          uom: productData.uoM || productData.uom,
         }
       );
       const saved = response.data.data;
