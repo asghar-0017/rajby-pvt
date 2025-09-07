@@ -17,7 +17,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "https://rajbytextileind.inplsoftwares.online",
+        target: "getzpharma.inplsoftwares.online",
         changeOrigin: true,
         secure: false,
       },
