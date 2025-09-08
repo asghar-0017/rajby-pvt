@@ -54,6 +54,7 @@ router.get("/companies", async (req, res) => {
           id: assignment.Tenant.id,
           tenant_id: assignment.Tenant.tenant_id,
           sellerNTNCNIC: assignment.Tenant.seller_ntn_cnic,
+          sellerFullNTN: assignment.Tenant.seller_full_ntn,
           sellerBusinessName: assignment.Tenant.seller_business_name,
           sellerProvince: assignment.Tenant.seller_province,
           sellerAddress: assignment.Tenant.seller_address,

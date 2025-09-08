@@ -20,8 +20,8 @@ class UserManagementService {
         role = "user",
       } = userData;
 
-      // Check if user already exists
-      const existingUser = await User.findOne({ where: { email } });
+      // Check if user already exists (only active users)
+      const existingUser = await User.findOne({ where: { email, isActive: true } });
       if (existingUser) {
         throw new Error("User with this email already exists");
       }
@@ -271,16 +271,17 @@ class UserManagementService {
         throw new Error("User not found");
       }
 
-      // Deactivate user
-      await user.update({ isActive: false });
+      // First, remove all tenant assignments
+      await UserTenantAssignment.destroy({
+        where: { userId }
+      });
 
-      // Deactivate all tenant assignments
-      await UserTenantAssignment.update(
-        { isActive: false },
-        { where: { userId } }
-      );
+      // Then, physically delete the user from the database
+      await User.destroy({
+        where: { id: userId }
+      });
 
-      return user;
+      return { message: "User deleted successfully" };
     } catch (error) {
       console.error("Error deleting user:", error);
       throw error;
