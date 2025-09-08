@@ -17,7 +17,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "https://pakburma.inplsoftwares.online",
+        target: "https://habibsugar.inplsoftwares.online",
         changeOrigin: true,
         secure: false,
       },
