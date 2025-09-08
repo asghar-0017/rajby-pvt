@@ -41,25 +41,34 @@ export const AuthProvider = ({ children }) => {
         //   showConfirmButton: false
         // });
 
-        // Redirect based on user role and reload the screen
+        // Redirect based on user role and preload tenant tokens for single-assignment users
         if (userData.role === "admin") {
           navigate("/tenant-management");
         } else {
-          // For regular users, check if they have company assignments
-          if (
-            userData.assignedTenants &&
-            userData.assignedTenants.length === 1
-          ) {
-            // Single company - redirect to dashboard
+          // For regular users, check assignments
+          if (userData.assignedTenants && userData.assignedTenants.length === 1) {
+            const onlyTenant = userData.assignedTenants[0];
+            try {
+              // Fetch complete tenant details including tokens
+              const tenantResp = await api.get(`/user/tenants/${onlyTenant.tenantId}`);
+              if (tenantResp?.data?.success && tenantResp.data.data) {
+                const tenantWithTokens = tenantResp.data.data;
+                // Store for immediate availability; TenantSelectionProvider will pick this up
+                localStorage.setItem("selectedTenant", JSON.stringify(tenantWithTokens));
+                if (tenantWithTokens.sandboxProductionToken) {
+                  localStorage.setItem("sandboxProductionToken", tenantWithTokens.sandboxProductionToken);
+                }
+              }
+            } catch (e) {
+              // Non-fatal: proceed without preloading tokens
+              console.warn("Preload tenant tokens on login failed:", e?.message || e);
+            }
             navigate("/");
-          } else if (
-            userData.assignedTenants &&
-            userData.assignedTenants.length > 1
-          ) {
-            // Multiple companies - redirect to company selection
+          } else if (userData.assignedTenants && userData.assignedTenants.length > 1) {
+            // Multiple companies - go to selection
             navigate("/tenant-management");
           } else {
-            // No companies assigned - redirect to dashboard (will show error)
+            // No companies assigned - still allow dashboard which will show message
             navigate("/");
           }
         }

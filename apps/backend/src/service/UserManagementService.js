@@ -184,8 +184,9 @@ class UserManagementService {
                   "database_name",
                   "is_active",
                   "created_at",
-                  "sandbox_test_token",
-                  "sandbox_production_token",
+                  // Use attribute names (camelCase) so Sequelize maps correctly on instances
+                  "sandboxTestToken",
+                  "sandboxProductionToken",
                 ],
               },
             ],
@@ -224,8 +225,9 @@ class UserManagementService {
                   "database_name",
                   "is_active",
                   "created_at",
-                  "sandbox_test_token",
-                  "sandbox_production_token",
+                  // Use attribute names (camelCase)
+                  "sandboxTestToken",
+                  "sandboxProductionToken",
                 ],
               },
             ],

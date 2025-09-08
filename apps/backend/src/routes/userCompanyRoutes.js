@@ -60,10 +60,11 @@ router.get("/companies", async (req, res) => {
           is_active: Boolean(assignment.Tenant.is_active), // Convert MySQL boolean to JavaScript boolean
           database_name: assignment.Tenant.database_name,
           created_at: assignment.Tenant.created_at,
-          sandboxTestToken: assignment.Tenant.sandbox_test_token,
-          sandboxProductionToken: assignment.Tenant.sandbox_production_token,
+          sandboxTestToken: assignment.Tenant.sandboxTestToken,
+          sandboxProductionToken: assignment.Tenant.sandboxProductionToken,
         })
       );
+      console.log("assignedCompanies", assignedCompanies);
 
       return res
         .status(200)
@@ -141,8 +142,8 @@ router.get("/tenants/:tenantId", async (req, res) => {
         is_active: Boolean(assignedTenant.Tenant.is_active), // Convert MySQL boolean to JavaScript boolean
         database_name: assignedTenant.Tenant.database_name,
         created_at: assignedTenant.Tenant.created_at,
-        sandboxTestToken: assignedTenant.Tenant.sandbox_test_token,
-        sandboxProductionToken: assignedTenant.Tenant.sandbox_production_token,
+        sandboxTestToken: assignedTenant.Tenant.sandboxTestToken,
+        sandboxProductionToken: assignedTenant.Tenant.sandboxProductionToken,
       };
 
       return res

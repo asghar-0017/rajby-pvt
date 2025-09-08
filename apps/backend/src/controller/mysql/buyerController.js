@@ -837,9 +837,9 @@ export const bulkCheckFBRRegistration = async (req, res) => {
         },
       });
     }
-
-    // ULTRA-OPTIMIZED: Process in larger batches with higher concurrency
-    const batchSize = 50; // Increased from 20 to 50 for better performance
+  
+    // Process in moderate batches with controlled concurrency to avoid upstream throttling
+    const batchSize = 50;
     const batches = [];
     for (let i = 0; i < buyersWithNTN.length; i += batchSize) {
       batches.push(buyersWithNTN.slice(i, i + batchSize));
@@ -852,60 +852,54 @@ export const bulkCheckFBRRegistration = async (req, res) => {
     const results = [];
     const errors = [];
 
-    // Process ALL batches simultaneously for maximum speed
-    const allBatchPromises = batches.map(async (batch, batchIndex) => {
+    // Concurrency-limited mapper
+    const mapWithConcurrency = async (items, limit, iterator) => {
+      const resultsLocal = new Array(items.length);
+      let index = 0;
+      const run = async () => {
+        while (true) {
+          const current = index++;
+          if (current >= items.length) break;
+          resultsLocal[current] = await iterator(items[current], current);
+        }
+      };
+      const workers = Array.from({ length: Math.min(limit, items.length) }, run);
+      await Promise.all(workers);
+      return resultsLocal;
+    };
+
+    // Process batches sequentially to be gentle on the upstream service
+    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+      const batch = batches[batchIndex];
       try {
         console.log(
-          `🔍 Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} buyers)...`
+          `🔍 Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} buyers) with limited concurrency...`
         );
 
-        // Process batch in parallel with Promise.all
-        const batchPromises = batch.map(async (buyer) => {
+        const batchResults = await mapWithConcurrency(batch, 10, async (buyer) => {
           try {
             const registrationType = await checkFBRRegistrationAPI(
               buyer.buyerNTNCNIC
             );
-            return {
-              ...buyer,
-              buyerRegistrationType: registrationType,
-            };
+            return { ...buyer, buyerRegistrationType: registrationType };
           } catch (error) {
-            console.error(
-              `Error checking FBR for ${buyer.buyerNTNCNIC}:`,
-              error
-            );
-            return {
-              ...buyer,
-              buyerRegistrationType: "Unregistered", // Fallback
-            };
+            console.error(`Error checking FBR for ${buyer.buyerNTNCNIC}:`, error);
+            return { ...buyer, buyerRegistrationType: "Unregistered" };
           }
         });
 
-        const batchResults = await Promise.all(batchPromises);
+        results.push(...batchResults);
         console.log(
           `✅ Batch ${batchIndex + 1} completed: ${batchResults.length} buyers processed`
         );
-        return batchResults;
       } catch (batchError) {
         console.error(`❌ Batch ${batchIndex + 1} failed:`, batchError);
         errors.push(batchError);
-
-        // Fallback for failed batch
-        const fallbackBatch = batch.map((buyer) => ({
-          ...buyer,
-          buyerRegistrationType: "Unregistered",
-        }));
-        return fallbackBatch;
+        results.push(
+          ...batch.map((buyer) => ({ ...buyer, buyerRegistrationType: "Unregistered" }))
+        );
       }
-    });
-
-    // Wait for ALL batches to complete simultaneously
-    const allBatchResults = await Promise.all(allBatchPromises);
-
-    // Flatten results
-    allBatchResults.forEach((batchResult) => {
-      results.push(...batchResult);
-    });
+    }
 
     // Add buyers without NTN/CNIC with default "Unregistered" status
     const buyersWithoutNTN = buyers.filter(
@@ -962,32 +956,22 @@ const checkFBRRegistrationAPI = async (registrationNo) => {
   }
 
   const maxRetries = 2;
-  const timeout = 5000; // 5 seconds timeout
+  const timeout = 12000; // 12 seconds timeout to reduce upstream timeouts
   const FBR_API_URL =
     "https://buyercheckapi.inplsoftwares.online/checkbuyer.php";
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      // Create AbortController for timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-      const response = await fetch(FBR_API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      // Use axios with token (same as public proxy) and timeout
+      const axios = (await import("axios")).default;
+      const { data } = await axios.post(
+        FBR_API_URL,
+        {
+          token: "89983e4a-c009-3f9b-bcd6-a605c3086709",
+          registrationNo: registrationNo.trim(),
         },
-        body: JSON.stringify({ registrationNo: registrationNo.trim() }),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json().catch(() => ({}));
+        { headers: { "Content-Type": "application/json" }, timeout }
+      );
 
       let derivedRegistrationType = "";
       if (data && typeof data.REGISTRATION_TYPE === "string") {
@@ -1017,6 +1001,11 @@ const checkFBRRegistrationAPI = async (registrationNo) => {
         `Error checking FBR registration for ${registrationNo} (attempt ${attempt}/${maxRetries}):`,
         error
       );
+
+      // If upstream returns 400 (invalid NTN/CNIC), don't retry further
+      if (error?.response?.status === 400) {
+        return "Unregistered";
+      }
 
       if (attempt === maxRetries) {
         // Return "Unregistered" as default if all retries fail

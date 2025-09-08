@@ -166,7 +166,8 @@ export const login = async (req, res) => {
       // Reset rate limit on successful login
       resetRateLimit(email);
 
-      // Remove sensitive data from response
+      // Remove sensitive data from response and include tenants for admin convenience
+      const allTenants = await UserManagementService.getAllTenants();
       const userData = {
         id: admin.id,
         email: admin.email,
@@ -175,6 +176,7 @@ export const login = async (req, res) => {
         photo_profile: admin.photo_profile,
         created_at: admin.created_at,
         updated_at: admin.updated_at,
+        tenants: allTenants,
       };
 
       return res.status(200).json(
@@ -235,6 +237,16 @@ export const login = async (req, res) => {
             tenantId: assignment.Tenant.tenant_id,
             tenantName: assignment.Tenant.seller_business_name,
             databaseName: assignment.Tenant.database_name,
+            sellerNTNCNIC: assignment.Tenant.seller_ntn_cnic,
+            sellerFullNTN: assignment.Tenant.seller_full_ntn,
+            sellerProvince: assignment.Tenant.seller_province,
+            sellerAddress: assignment.Tenant.seller_address,
+            is_active: Boolean(assignment.Tenant.is_active),
+            created_at: assignment.Tenant.created_at,
+            sandboxTestToken:
+              assignment.Tenant.sandboxTestToken || assignment.Tenant.sandbox_test_token,
+            sandboxProductionToken:
+              assignment.Tenant.sandboxProductionToken || assignment.Tenant.sandbox_production_token,
           })),
         },
         process.env.JWT_SECRET,
@@ -256,6 +268,16 @@ export const login = async (req, res) => {
           tenantId: assignment.Tenant.tenant_id,
           tenantName: assignment.Tenant.seller_business_name,
           databaseName: assignment.Tenant.database_name,
+          sellerNTNCNIC: assignment.Tenant.seller_ntn_cnic,
+          sellerFullNTN: assignment.Tenant.seller_full_ntn,
+          sellerProvince: assignment.Tenant.seller_province,
+          sellerAddress: assignment.Tenant.seller_address,
+          is_active: Boolean(assignment.Tenant.is_active),
+          created_at: assignment.Tenant.created_at,
+          sandboxTestToken:
+            assignment.Tenant.sandboxTestToken || assignment.Tenant.sandbox_test_token,
+          sandboxProductionToken:
+            assignment.Tenant.sandboxProductionToken || assignment.Tenant.sandbox_production_token,
         })),
       };
 

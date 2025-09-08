@@ -537,6 +537,17 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         `🚀 Starting optimized FBR registration check for ${newBuyersData.length} buyers...`
       );
 
+      // Inform the user that FBR registration check is in progress
+      const checkingToastId = "fbr-bulk-check";
+      try {
+        toast.info("Checking registration type from FBR...", {
+          toastId: checkingToastId,
+          autoClose: false,
+          closeOnClick: false,
+          pauseOnHover: true,
+        });
+      } catch (_) {}
+
       // Use the new optimized backend endpoint for bulk FBR checking
       const response = await api.post(
         `/tenant/${selectedTenant.tenant_id}/buyers/bulk-fbr-check`,
@@ -584,15 +595,32 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         console.log(
           `🎉 FBR registration check completed: ${summary.registered} registered, ${summary.unregistered} unregistered`
         );
-        toast.success(
-          `Registration status checked for ${summary.total} buyers (${summary.registered} registered, ${summary.unregistered} unregistered)`
-        );
+        try {
+          toast.update("fbr-bulk-check", {
+            render: `FBR check complete: ${summary.registered} Registered, ${summary.unregistered} Unregistered`,
+            type: "success",
+            autoClose: 4000,
+            closeOnClick: true,
+          });
+        } catch (_) {
+          toast.success(
+            `Registration status checked for ${summary.total} buyers (${summary.registered} registered, ${summary.unregistered} unregistered)`
+          );
+        }
       } else {
         throw new Error("Backend FBR check failed");
       }
     } catch (error) {
       console.error("Error checking registration types:", error);
-      toast.error("Error checking registration types. Using default values.");
+      try {
+        toast.update("fbr-bulk-check", {
+          render: "Error checking registration types. Using default values.",
+          type: "error",
+          autoClose: 5000,
+        });
+      } catch (_) {
+        toast.error("Error checking registration types. Using default values.");
+      }
 
       // Fallback to default values
       const updated = newBuyersData.map((item) => ({
