@@ -331,7 +331,7 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
       setBuyerRegistrationHint("");
 
       const response = await fetch(
-        "https://tulip-towel.inplsoftwares.online/api/buyer-check",
+        "https://pakleather.inplsoftwares.online/api/buyer-check",
         {
           method: "POST",
           headers: {
