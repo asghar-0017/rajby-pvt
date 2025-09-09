@@ -922,7 +922,7 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       }
       try {
         const resp = await fetch(
-          "https://hkplastik.inplsoftwares.online/api/buyer-check",
+          "https://enl.inplsoftwares.online/api/buyer-check",
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },

@@ -17,7 +17,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "https://hkplastik.inplsoftwares.online",
+        target: "https://enl.inplsoftwares.online",
         changeOrigin: true,
         secure: false,
       },
