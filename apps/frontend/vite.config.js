@@ -17,7 +17,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "https://unitedtrimming.inplsoftwares.online",
+        target: "https://ksagencies.inplsoftwares.online",
         changeOrigin: true,
         secure: false,
       },

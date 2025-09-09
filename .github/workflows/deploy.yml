@@ -25,4 +25,4 @@ jobs:
       - name: Start or restart backend with PM2
         run: |
           cd ${{ github.workspace }}/apps/backend/
-          /usr/bin/pm2 start index.js --name unitedtrimming || /usr/bin/pm2 restart unitedtrimming
+          /usr/bin/pm2 start index.js --name ksagencies || /usr/bin/pm2 restart ksagencies
