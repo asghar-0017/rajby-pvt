@@ -8,7 +8,7 @@ import { dirname } from "path";
 import ejs from "ejs";
 
 // Import MySQL connector instead of MongoDB
-import mysqlConnector from "./dbConnector/mysqlConnector.js"
+import mysqlConnector from "./dbConnector/mysqlConnector.js";
 
 // Import new MySQL routes
 import authRoutes from "./routes/authRoutes.js";
