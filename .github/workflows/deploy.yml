@@ -25,4 +25,4 @@ jobs:
       - name: Start or restart backend with PM2
         run: |
           cd ${{ github.workspace }}/apps/backend/
-          /usr/bin/pm2 start index.js --name jbzippers || /usr/bin/pm2 restart jbzippers
+          /usr/bin/pm2 start index.js --name tsbuttons || /usr/bin/pm2 restart tsbuttons
