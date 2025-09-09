@@ -17,7 +17,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "https://pakthreads.inplsoftwares.online",
+        target: "https://mapakedible1.inplsoftwares.online",
         changeOrigin: true,
         secure: false,
       },
