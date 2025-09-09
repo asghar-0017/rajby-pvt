@@ -331,7 +331,7 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
       setBuyerRegistrationHint("");
 
       const response = await fetch(
-        "https://getzpharma.inplsoftwares.online/api/buyer-check",
+        "https://superstar.inplsoftwares.online/api/buyer-check",
         {
           method: "POST",
           headers: {
