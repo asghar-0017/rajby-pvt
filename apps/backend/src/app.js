@@ -48,7 +48,7 @@ app.use(
         connectSrc: [
           "'self'",
           "https://gw.fbr.gov.pk",
-          "https://hubpoly-packages.inplsoftwares.online",
+          "https://mayanipoly.inplsoftwares.online",
         ],
         scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
@@ -62,8 +62,8 @@ app.use(
   cors({
     origin: [
       "http://localhost:5174",
-      "https://hubpoly-packages.inplsoftwares.online",
-      "https://hubpoly-packages.inplsoftwares.online",
+      "https://mayanipoly.inplsoftwares.online",
+      "https://mayanipoly.inplsoftwares.online",
       "https://fbrtestcase.inplsoftwares.online",
       "*",
     ],
