@@ -39,7 +39,12 @@ const ProductModal = ({ isOpen, onClose, onSave, initialProduct }) => {
               name: initialProduct.name || "",
               description: initialProduct.description || "",
               hsCode: initialProduct.hsCode || "",
-              uoM: initialProduct.uoM || "",
+              uoM:
+                initialProduct.uoM ||
+                initialProduct.uom ||
+                initialProduct.unitOfMeasure ||
+                initialProduct.billOfLadingUoM ||
+                "",
             }
           : { name: "", description: "", hsCode: "", uoM: "" }
       );
@@ -63,7 +68,15 @@ const ProductModal = ({ isOpen, onClose, onSave, initialProduct }) => {
         const response = await hsCodeCache.getUOM(extractedHsCode);
         if (Array.isArray(response)) {
           setUomOptions(response);
-          if (response.length === 1 && !formData.uoM) {
+          // If editing and stored UoM matches one of the options, keep it; otherwise prefill first
+          const current = (formData.uoM || "").toString().trim();
+          const match = response.find(
+            (o) => o.description?.toString().trim() === current
+          );
+          if (!current && response.length > 0) {
+            setFormData((prev) => ({ ...prev, uoM: response[0].description }));
+          } else if (current && !match && response.length > 0) {
+            // fallback to first available when existing value isn't in list
             setFormData((prev) => ({ ...prev, uoM: response[0].description }));
           }
         } else {
@@ -76,7 +89,8 @@ const ProductModal = ({ isOpen, onClose, onSave, initialProduct }) => {
       }
     };
     loadUom();
-  }, [extractedHsCode]);
+    // Re-run when modal opens or hsCode/formData.uoM changes
+  }, [isOpen, extractedHsCode]);
 
   const handleHSChange = (_index, field, value) => {
     if (field === "hsCode") {
@@ -332,8 +346,9 @@ const ProductModal = ({ isOpen, onClose, onSave, initialProduct }) => {
                 required
                 variant="outlined"
                 placeholder="Enter unit of measurement"
-                disabled={loadingUom || !extractedHsCode}
+                disabled={true}
                 InputProps={{
+                  readOnly: true,
                   endAdornment: loadingUom ? (
                     <CircularProgress size={16} />
                   ) : null,
@@ -343,9 +358,7 @@ const ProductModal = ({ isOpen, onClose, onSave, initialProduct }) => {
                     ? "Loading..."
                     : !extractedHsCode
                       ? "Please select an HS Code first"
-                      : uomOptions.length === 0
-                        ? "No UoM available for this HS Code"
-                        : ""
+                      : "UoM is auto-selected from HS Code"
                 }
                 sx={{
                   "& .MuiOutlinedInput-root": {

@@ -47,7 +47,7 @@ export const getUserById = async (req, res) => {
 // Create new user
 export const createUser = async (req, res) => {
   try {
-    const { email, password, firstName, lastName, phone, role, tenantIds } =
+    const { email, password, firstName, lastName, phone, role, isActive, tenantIds } =
       req.body;
     const createdByAdminId = req.user.id; // Admin who is creating the user
 
@@ -74,6 +74,7 @@ export const createUser = async (req, res) => {
         lastName,
         phone,
         role,
+        isActive,
       },
       createdByAdminId
     );
@@ -106,11 +107,23 @@ export const createUser = async (req, res) => {
       );
   } catch (error) {
     console.error("Error in createUser:", error);
-    return res
-      .status(500)
-      .json(
-        formatResponse(false, "Failed to create user", null, 500, error.message)
-      );
+    let status = 500;
+    let message = "Failed to create user";
+
+    if (error.name === "SequelizeUniqueConstraintError") {
+      status = 409;
+      message = "User with this email already exists";
+    } else if (error.name === "SequelizeValidationError") {
+      status = 400;
+      const details = (error.errors || []).map((e) => e.message).join(", ");
+      message = details || "Validation failed";
+    } else if (error.message?.includes("exists")) {
+      status = 409;
+      message = "User with this email already exists";
+    }
+
+    const detail = error.original?.sqlMessage || error.message;
+    return res.status(status).json(formatResponse(false, message, null, status, detail));
   }
 };
 

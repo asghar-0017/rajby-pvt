@@ -18,6 +18,7 @@ class UserManagementService {
         lastName,
         phone,
         role = "user",
+        isActive = true,
       } = userData;
 
       // Check if user already exists (only active users)
@@ -38,7 +39,7 @@ class UserManagementService {
         phone,
         role,
         createdBy: createdByAdminId,
-        isActive: true,
+        isActive,
         isVerified: true, // Auto-verify users created by admin
       });
 
@@ -123,9 +124,6 @@ class UserManagementService {
   async getAllUsers() {
     try {
       const users = await User.findAll({
-        where: {
-          isActive: true, // Only get active users
-        },
         include: [
           {
             model: UserTenantAssignment,

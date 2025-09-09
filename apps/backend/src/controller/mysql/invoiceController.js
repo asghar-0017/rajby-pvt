@@ -1691,21 +1691,23 @@ export const printInvoice = async (req, res) => {
 
     plainInvoice.items = plainInvoice.InvoiceItems || []; // 👈 normalize for EJS
 
-    // Format date to dd-mm-yyyy
-
+    // Format date to dd-mm-yyyy (timezone-safe)
     const formatDate = (dateString) => {
       if (!dateString) return "N/A";
-
       try {
-        const date = new Date(dateString);
+        // Pure date saved as YYYY-MM-DD? Avoid timezone shift
+        const pure = /^\d{4}-\d{2}-\d{2}$/.exec(dateString);
+        if (pure) {
+          const [y, m, d] = dateString.split("-");
+          return `${d}-${m}-${y}`;
+        }
 
+        const date = new Date(dateString);
         if (isNaN(date.getTime())) return "N/A";
 
-        const day = String(date.getDate()).padStart(2, "0");
-
-        const month = String(date.getMonth() + 1).padStart(2, "0");
-
-        const year = date.getFullYear();
+        const day = String(date.getUTCDate()).padStart(2, "0");
+        const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+        const year = date.getUTCFullYear();
 
         return `${day}-${month}-${year}`;
       } catch (error) {

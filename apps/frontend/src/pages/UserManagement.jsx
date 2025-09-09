@@ -159,6 +159,7 @@ const UserManagement = () => {
           lastName: userData.lastName,
           phone: userData.phoneNumber,
           role: userData.role,
+          isActive: userData.status === "active",
           tenantIds: userData.assignedCompanies,
         };
 
@@ -196,6 +197,7 @@ const UserManagement = () => {
           lastName: userData.lastName,
           phone: userData.phoneNumber,
           role: userData.role,
+          isActive: userData.status === "active",
           tenantIds: userData.assignedCompanies,
         };
 
@@ -219,12 +221,27 @@ const UserManagement = () => {
       }
     } catch (error) {
       console.error("Error saving user:", error);
+      const backendMessage = error.response?.data?.message;
+      const backendDetail = error.response?.data?.error;
+      const text = backendMessage || backendDetail || "Failed to save user";
+      // Show toast (top-end) for quick context
       Swal.fire({
+        toast: true,
+        position: "top-end",
+        target: document.body,
         icon: "error",
-        title: "Error",
-        text: error.response?.data?.message || "Failed to save user",
+        title: "Failed to save user",
+        text,
+        showConfirmButton: false,
+        timer: 4000,
+        timerProgressBar: true,
+        didOpen: (toastEl) => {
+          if (toastEl && toastEl.parentElement) {
+            toastEl.parentElement.style.zIndex = "20000";
+          }
+        },
       });
-      throw error; // Re-throw to let the modal handle the error state
+      // Do not rethrow; keep modal open and avoid triggering other handlers
     }
   };
 
@@ -323,6 +340,7 @@ const UserManagement = () => {
               <TableCell>User</TableCell>
               <TableCell>Contact</TableCell>
               <TableCell>Role</TableCell>
+              <TableCell>Status</TableCell>
               <TableCell>Companies</TableCell>
               <TableCell>Actions</TableCell>
             </TableRow>
@@ -362,6 +380,14 @@ const UserManagement = () => {
                     label={user.role}
                     color={user.role === "admin" ? "error" : "primary"}
                     size="small"
+                  />
+                </TableCell>
+                <TableCell>
+                  <Chip
+                    label={user.isActive ? "Active" : "Blocked"}
+                    color={user.isActive ? "success" : "error"}
+                    size="small"
+                    variant="filled"
                   />
                 </TableCell>
                 <TableCell>

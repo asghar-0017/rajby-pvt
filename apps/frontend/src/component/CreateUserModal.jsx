@@ -95,7 +95,7 @@ const CreateUserModal = ({
             editingUser.UserTenantAssignments?.map(
               (assignment) => assignment.tenantId || assignment.Tenant?.id
             ).filter(Boolean) || [],
-          status: "active", // Always set to active for editing
+          status: editingUser.isActive ? "active" : "blocked",
         });
       } else {
         // Reset form for new user
@@ -391,6 +391,7 @@ const CreateUserModal = ({
                     label="Status"
                   >
                     <MenuItem value="active">Active</MenuItem>
+                    <MenuItem value="blocked">Blocked</MenuItem>
                   </Select>
                 </FormControl>
               </Stack>

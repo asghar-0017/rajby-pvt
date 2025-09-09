@@ -27,16 +27,24 @@ const formatNumberWithCommas = (number) => {
   });
 };
 
-// Helper function to format date to dd-mm-yyyy
+// Helper function to format date to dd-mm-yyyy, preserving original calendar day
 const formatDate = (dateString) => {
   if (!dateString) return "N/A";
   try {
+    // If a pure date (YYYY-MM-DD), format without timezone shifts
+    const m = /^\d{4}-\d{2}-\d{2}$/.exec(dateString);
+    if (m) {
+      const [y, mo, d] = dateString.split("-");
+      return `${d}-${mo}-${y}`;
+    }
+
+    // Otherwise parse and use UTC parts to avoid off-by-one due to timezone
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return "N/A";
 
-    const day = String(date.getDate()).padStart(2, "0");
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const year = date.getFullYear();
+    const day = String(date.getUTCDate()).padStart(2, "0");
+    const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+    const year = date.getUTCFullYear();
 
     return `${day}-${month}-${year}`;
   } catch (error) {
