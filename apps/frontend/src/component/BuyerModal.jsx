@@ -331,7 +331,7 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
       setBuyerRegistrationHint("");
 
       const response = await fetch(
-        "https://mapakedible1.inplsoftwares.online/api/buyer-check",
+        "https://habibsugar.inplsoftwares.online/api/buyer-check",
         {
           method: "POST",
           headers: {
