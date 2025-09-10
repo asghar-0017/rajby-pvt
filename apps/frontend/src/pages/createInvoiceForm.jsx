@@ -57,6 +57,7 @@ import SROItem from "../component/SROItem";
 import BillOfLadingUoM from "../component/BillOfLadingUoM";
 import OptimizedHSCodeSelector from "../component/OptimizedHSCodeSelector";
 import ProductModal from "../component/ProductModal";
+import hsCodeCache from "../utils/hsCodeCache";
 import Swal from "sweetalert2";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
@@ -248,6 +249,8 @@ export default function CreateInvoice() {
   const [isBuyerModalOpen, setIsBuyerModalOpen] = useState(false);
   const [selectedProductIdByItem, setSelectedProductIdByItem] = useState({});
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+  const [uomOptions, setUomOptions] = useState({});
+  const [loadingUom, setLoadingUom] = useState({});
 
   const [transactionTypes, setTransactionTypes] = React.useState([]);
   const [transactionTypesError, setTransactionTypesError] =
@@ -258,7 +261,6 @@ export default function CreateInvoice() {
   // State for transaction type dropdown
   const [transactionTypeDropdownOpen, setTransactionTypeDropdownOpen] =
     React.useState(false);
-
 
   // Debug effect to monitor transactionTypes state
   React.useEffect(() => {
@@ -285,6 +287,47 @@ export default function CreateInvoice() {
       );
       console.log("Selected product details:", selectedProduct);
     }
+  }, [selectedProductIdByItem, products]);
+
+  // Load UoM options when product is selected
+  React.useEffect(() => {
+    const loadUomOptions = async (index) => {
+      const productId = selectedProductIdByItem[index];
+      if (!productId || !products.length) {
+        setUomOptions((prev) => ({ ...prev, [index]: [] }));
+        return;
+      }
+
+      const selectedProduct = products.find((p) => p.id === productId);
+      if (!selectedProduct || !selectedProduct.hsCode) {
+        setUomOptions((prev) => ({ ...prev, [index]: [] }));
+        return;
+      }
+
+      // Extract HS code (remove description if present)
+      const hsCode = selectedProduct.hsCode.includes(" - ")
+        ? selectedProduct.hsCode.split(" - ")[0].trim()
+        : selectedProduct.hsCode;
+
+      setLoadingUom((prev) => ({ ...prev, [index]: true }));
+
+      try {
+        const uomData = await hsCodeCache.getUOM(hsCode, "sandbox");
+        setUomOptions((prev) => ({ ...prev, [index]: uomData || [] }));
+      } catch (error) {
+        console.error("Error loading UoM options:", error);
+        setUomOptions((prev) => ({ ...prev, [index]: [] }));
+      } finally {
+        setLoadingUom((prev) => ({ ...prev, [index]: false }));
+      }
+    };
+
+    // Load UoM for all selected products
+    Object.keys(selectedProductIdByItem).forEach((index) => {
+      if (selectedProductIdByItem[index]) {
+        loadUomOptions(parseInt(index));
+      }
+    });
   }, [selectedProductIdByItem, products]);
 
   // Effect to sync buyer selection with form data when editing
@@ -774,7 +817,6 @@ export default function CreateInvoice() {
           "Invoice type in form data:",
           formDataFromInvoice.invoiceType
         );
-
 
         // Set the transactionTypeId and other required data for editing
         const scenarioId = invoiceData.scenario_id || invoiceData.scenarioId;
@@ -1558,9 +1600,6 @@ export default function CreateInvoice() {
         if (field === "fedPayable") {
           item.isFedPayableManual = true;
         }
-
-
-
       } else {
         item[field] = value;
       }
@@ -1572,7 +1611,6 @@ export default function CreateInvoice() {
         item.sroItemSerialNo = "";
         item.isSROItemEnabled = false;
         item.isValueSalesManual = false;
-
       }
 
       if (field === "sroScheduleNo" && value) {
@@ -1759,7 +1797,6 @@ export default function CreateInvoice() {
 
     setAddedItems((prev) => {
       const newItems = [...prev, itemToAdd];
-
 
       return newItems;
     });
@@ -4255,6 +4292,11 @@ export default function CreateInvoice() {
                           ...prev,
                           [index]: newVal?.id || undefined,
                         }));
+
+                        // Clear UoM fields when product changes
+                        handleItemChange(index, "uoM", "");
+                        handleItemChange(index, "billOfLadingUoM", "");
+
                         if (newVal) {
                           handleItemChange(index, "name", newVal.name || "");
                           handleItemChange(
@@ -4266,22 +4308,6 @@ export default function CreateInvoice() {
                             index,
                             "productDescription",
                             newVal.description || ""
-                          );
-                          handleItemChange(
-                            index,
-                            "billOfLadingUoM",
-                            newVal.uom ||
-                              newVal.unitOfMeasure ||
-                              newVal.billOfLadingUoM ||
-                              ""
-                          );
-                          handleItemChange(
-                            index,
-                            "uoM",
-                            newVal.uom ||
-                              newVal.unitOfMeasure ||
-                              newVal.billOfLadingUoM ||
-                              ""
                           );
                         }
                       }}
@@ -4309,6 +4335,50 @@ export default function CreateInvoice() {
                       }}
                       isOptionEqualToValue={(opt, val) => opt.id === val.id}
                     />
+
+                    {/* UoM Dropdown */}
+                    <FormControl fullWidth size="small">
+                      <InputLabel>UoM</InputLabel>
+                      <Select
+                        value={formData.items[index]?.uoM || ""}
+                        onChange={(e) => {
+                          // Only allow selection if it's not the placeholder
+                          if (e.target.value !== "select_product_first") {
+                            handleItemChange(index, "uoM", e.target.value);
+                            handleItemChange(
+                              index,
+                              "billOfLadingUoM",
+                              e.target.value
+                            );
+                          }
+                        }}
+                        label="UoM"
+                        endAdornment={
+                          loadingUom[index] ? (
+                            <CircularProgress size={16} sx={{ mr: 1 }} />
+                          ) : null
+                        }
+                      >
+                        {!selectedProductIdByItem[index] ? (
+                          <MenuItem value="select_product_first" disabled>
+                            Select Product first
+                          </MenuItem>
+                        ) : uomOptions[index]?.length > 0 ? (
+                          uomOptions[index].map((uom, uomIndex) => (
+                            <MenuItem
+                              key={uomIndex}
+                              value={uom.description || uom.uoM_ID}
+                            >
+                              {uom.description || uom.uoM_ID}
+                            </MenuItem>
+                          ))
+                        ) : (
+                          <MenuItem value="no_uom_available" disabled>
+                            No UoM available
+                          </MenuItem>
+                        )}
+                      </Select>
+                    </FormControl>
                   </Box>
                 </Box>
               </Box>

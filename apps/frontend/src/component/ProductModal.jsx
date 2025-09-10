@@ -6,97 +6,38 @@ import {
   Button,
   Typography,
   IconButton,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   CircularProgress,
   Stack,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import OptimizedHSCodeSelector from "./OptimizedHSCodeSelector";
-import hsCodeCache from "../utils/hsCodeCache";
 
 const ProductModal = ({ isOpen, onClose, onSave, initialProduct }) => {
   const [formData, setFormData] = useState({
     name: "",
     description: "",
     hsCode: "",
-    uoM: "",
   });
-  const [uomOptions, setUomOptions] = useState([]);
-  const [loadingUom, setLoadingUom] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       setIsSubmitting(false);
-      setUomOptions([]);
-      setLoadingUom(false);
       setFormData(
         initialProduct
           ? {
               name: initialProduct.name || "",
               description: initialProduct.description || "",
               hsCode: initialProduct.hsCode || "",
-              uoM:
-                initialProduct.uoM ||
-                initialProduct.uom ||
-                initialProduct.unitOfMeasure ||
-                initialProduct.billOfLadingUoM ||
-                "",
             }
-          : { name: "", description: "", hsCode: "", uoM: "" }
+          : { name: "", description: "", hsCode: "" }
       );
     }
   }, [isOpen, initialProduct]);
 
-  const extractedHsCode = useMemo(() => {
-    const code = formData.hsCode || "";
-    if (code.includes(" - ")) return code.split(" - ")[0].trim();
-    return code;
-  }, [formData.hsCode]);
-
-  useEffect(() => {
-    const loadUom = async () => {
-      if (!extractedHsCode) {
-        setUomOptions([]);
-        return;
-      }
-      setLoadingUom(true);
-      try {
-        const response = await hsCodeCache.getUOM(extractedHsCode);
-        if (Array.isArray(response)) {
-          setUomOptions(response);
-          // If editing and stored UoM matches one of the options, keep it; otherwise prefill first
-          const current = (formData.uoM || "").toString().trim();
-          const match = response.find(
-            (o) => o.description?.toString().trim() === current
-          );
-          if (!current && response.length > 0) {
-            setFormData((prev) => ({ ...prev, uoM: response[0].description }));
-          } else if (current && !match && response.length > 0) {
-            // fallback to first available when existing value isn't in list
-            setFormData((prev) => ({ ...prev, uoM: response[0].description }));
-          }
-        } else {
-          setUomOptions([]);
-        }
-      } catch (e) {
-        setUomOptions([]);
-      } finally {
-        setLoadingUom(false);
-      }
-    };
-    loadUom();
-    // Re-run when modal opens or hsCode/formData.uoM changes
-  }, [isOpen, extractedHsCode]);
-
   const handleHSChange = (_index, field, value) => {
     if (field === "hsCode") {
-      // Clear previous UoM and options when HS Code changes so UoM refreshes correctly
-      setFormData((p) => ({ ...p, hsCode: value, uoM: "" }));
-      setUomOptions([]);
+      setFormData((p) => ({ ...p, hsCode: value }));
     }
   };
 
@@ -105,7 +46,7 @@ const ProductModal = ({ isOpen, onClose, onSave, initialProduct }) => {
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
-      if (!formData.name || !formData.hsCode || !formData.uoM) {
+      if (!formData.name || !formData.hsCode) {
         setIsSubmitting(false);
         return;
       }
@@ -334,72 +275,6 @@ const ProductModal = ({ isOpen, onClose, onSave, initialProduct }) => {
                   placeholder="Search HS Code..."
                 />
               </Box>
-
-              <TextField
-                fullWidth
-                size="small"
-                label="Unit of Measurement"
-                value={formData.uoM || ""}
-                onChange={(e) =>
-                  setFormData((p) => ({ ...p, uoM: e.target.value }))
-                }
-                required
-                variant="outlined"
-                placeholder="Enter unit of measurement"
-                disabled={true}
-                InputProps={{
-                  readOnly: true,
-                  endAdornment: loadingUom ? (
-                    <CircularProgress size={16} />
-                  ) : null,
-                }}
-                helperText={
-                  loadingUom
-                    ? "Loading..."
-                    : !extractedHsCode
-                      ? "Please select an HS Code first"
-                      : "UoM is auto-selected from HS Code"
-                }
-                sx={{
-                  "& .MuiOutlinedInput-root": {
-                    backgroundColor: "rgba(255, 255, 255, 0.6)",
-                    backdropFilter: "blur(10px)",
-                    borderRadius: 2,
-                    "& fieldset": {
-                      borderColor: "rgba(0, 0, 0, 0.12)",
-                      borderWidth: 1,
-                    },
-                    "&:hover fieldset": {
-                      borderColor: "rgba(0, 0, 0, 0.2)",
-                    },
-                    "&.Mui-focused fieldset": {
-                      borderColor: "#007AFF",
-                      borderWidth: 2,
-                    },
-                    "&.Mui-disabled": {
-                      backgroundColor: "rgba(255, 255, 255, 0.3)",
-                    },
-                  },
-                  "& .MuiInputLabel-root": {
-                    color: "#1a1a1a",
-                    fontWeight: 500,
-                    "&.Mui-disabled": {
-                      color: "rgba(0, 0, 0, 0.5)",
-                    },
-                  },
-                  "& .MuiOutlinedInput-input": {
-                    color: "#1a1a1a",
-                    "&.Mui-disabled": {
-                      color: "rgba(0, 0, 0, 0.5)",
-                    },
-                  },
-                  "& .MuiFormHelperText-root": {
-                    color: loadingUom ? "#007AFF" : "rgba(0, 0, 0, 0.6)",
-                    fontSize: "0.75rem",
-                    marginTop: 0.5,
-                  },
-                }}
-              />
 
               {/* Action buttons with modern styling */}
               <Stack spacing={1} sx={{ mt: { xs: 1, sm: 1.5 } }}>
