@@ -331,7 +331,7 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
       setBuyerRegistrationHint("");
 
       const response = await fetch(
-        "https://krestacorp.inplsoftwares.online/api/buyer-check",
+        "https://rajbytextilepvt.inplsoftwares.online/api/buyer-check",
         {
           method: "POST",
           headers: {

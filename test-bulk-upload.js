@@ -52,7 +52,7 @@ const testBulkUpload = async () => {
     });
 
     const response = await fetch(
-      "https://krestacorp.inplsoftwares.online/api/tenant/tenant_1756409312403_uo1hmt4tz/invoices/bulk",
+      "https://rajbytextilepvt.inplsoftwares.online/api/tenant/tenant_1756409312403_uo1hmt4tz/invoices/bulk",
       {
         method: "POST",
         headers: {
