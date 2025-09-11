@@ -61,7 +61,7 @@ import hsCodeCache from "../utils/hsCodeCache";
 import Swal from "sweetalert2";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { api, API_CONFIG, debugTokenManager } from "../API/Api";
 
 import TenantSelectionPrompt from "../component/TenantSelectionPrompt";
@@ -244,6 +244,12 @@ export default function CreateInvoice() {
 
   // Buyer and product related state - moved here to avoid initialization errors
   const [buyers, setBuyers] = useState([]);
+  // Buyer pagination/search state
+  const [buyerSearch, setBuyerSearch] = useState("");
+  const [buyerPage, setBuyerPage] = useState(1);
+  const [buyerHasMore, setBuyerHasMore] = useState(true);
+  const [loadingBuyers, setLoadingBuyers] = useState(false);
+  const buyerSearchDebounceRef = React.useRef(null);
   const [products, setProducts] = useState([]);
   const [selectedBuyerId, setSelectedBuyerId] = useState("");
   const [isBuyerModalOpen, setIsBuyerModalOpen] = useState(false);
@@ -251,6 +257,13 @@ export default function CreateInvoice() {
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [uomOptions, setUomOptions] = useState({});
   const [loadingUom, setLoadingUom] = useState({});
+
+  // Product pagination/search state
+  const [productSearch, setProductSearch] = useState("");
+  const [productPage, setProductPage] = useState(1);
+  const [productHasMore, setProductHasMore] = useState(true);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  const searchDebounceRef = React.useRef(null);
 
   const [transactionTypes, setTransactionTypes] = React.useState([]);
   const [transactionTypesError, setTransactionTypesError] =
@@ -1366,50 +1379,101 @@ export default function CreateInvoice() {
   }, [formData.transctypeId, transactionTypeId]);
 
   useEffect(() => {
-    const fetchBuyers = async () => {
+    const fetchBuyersPage = async (page = 1, search = "", append = false) => {
       try {
         if (!selectedTenant) {
-          console.error("No Company selected");
           setBuyers([]);
+          setBuyerHasMore(false);
           return;
         }
 
+        setLoadingBuyers(true);
         const response = await api.get(
-          `/tenant/${selectedTenant.tenant_id}/buyers/all`
+          `/tenant/${selectedTenant.tenant_id}/buyers`,
+          {
+            params: { page, limit: 25, search: search || undefined },
+          }
         );
 
         if (response.data.success) {
-          setBuyers(response.data.data.buyers || []);
+          const rows = response.data.data?.buyers || [];
+          const pagination = response.data.data?.pagination || {};
+          setBuyers((prev) => (append ? [...prev, ...rows] : rows));
+          setBuyerHasMore(
+            (pagination.current_page || page) < (pagination.total_pages || 1)
+          );
+          setBuyerPage(pagination.current_page || page);
         } else {
-          console.error("Failed to fetch buyers:", response.data.message);
-          setBuyers([]);
+          setBuyerHasMore(false);
+          if (!append) setBuyers([]);
         }
       } catch (error) {
-        console.error("Error fetching buyers:", error);
-        setBuyers([]);
+        console.error("Error fetching buyers (paginated):", error);
+        setBuyerHasMore(false);
+        if (!append) setBuyers([]);
+      } finally {
+        setLoadingBuyers(false);
       }
     };
 
-    fetchBuyers();
+    // Reset list when tenant changes
+    setBuyers([]);
+    setBuyerSearch("");
+    setBuyerPage(1);
+    setBuyerHasMore(true);
+    if (selectedTenant) {
+      fetchBuyersPage(1, "", false);
+    }
+
+    // Expose functions to handlers
+    createInvoiceFormFetchers.buyer = fetchBuyersPage;
   }, [selectedTenant]);
 
-  // Fetch existing products when component mounts
-  useEffect(() => {
-    const fetchProducts = async () => {
-      if (!selectedTenant) return;
+  // Local holder for fetchers to use inside event handlers without recreating
+  const createInvoiceFormFetchers = React.useRef({}).current;
+
+  const fetchProductsPage = React.useCallback(
+    async (page = 1, search = "", append = false) => {
+      if (!selectedTenant || loadingProducts) return;
       try {
+        setLoadingProducts(true);
         const response = await api.get(
-          `/tenant/${selectedTenant.tenant_id}/products`
+          `/tenant/${selectedTenant.tenant_id}/products`,
+          {
+            params: {
+              page,
+              limit: 25,
+              search: search || undefined,
+            },
+          }
         );
         if (response.data.success) {
-          setProducts(response.data.data || []);
+          const rows = response.data.data || [];
+          const pagination = response.data.pagination || {};
+          setProducts((prev) => (append ? [...prev, ...rows] : rows));
+          setProductHasMore(!!pagination.hasMore);
+          setProductPage(pagination.page || page);
         }
       } catch (error) {
-        console.error("Error fetching products:", error);
-        setProducts([]);
+        console.error("Error fetching products (paginated):", error);
+        if (!append) setProducts([]);
+        setProductHasMore(false);
+      } finally {
+        setLoadingProducts(false);
       }
-    };
-    fetchProducts();
+    },
+    [selectedTenant, loadingProducts]
+  );
+
+  // Initialize/reset products when tenant changes
+  useEffect(() => {
+    setProducts([]);
+    setProductSearch("");
+    setProductPage(1);
+    setProductHasMore(true);
+    if (selectedTenant) {
+      fetchProductsPage(1, "", false);
+    }
   }, [selectedTenant]);
 
   // BuyerModal functions
@@ -3862,18 +3926,59 @@ export default function CreateInvoice() {
                 </Button>
               </Box>
               <Autocomplete
-                key={`buyer-autocomplete-${selectedBuyerId || "none"}-${buyers.length}`}
+                key={`buyer-autocomplete`}
                 fullWidth
                 size="small"
-                options={buyers}
+                options={[
+                  ...buyers,
+                  ...(loadingBuyers && buyerHasMore
+                    ? [
+                        {
+                          id: "__loading__",
+                          buyerBusinessName: "Loading more...",
+                        },
+                      ]
+                    : []),
+                ]}
                 getOptionLabel={(option) =>
                   option.buyerBusinessName
                     ? `${option.buyerBusinessName} (${option.buyerNTNCNIC})`
                     : ""
                 }
                 value={buyers.find((b) => b.id === selectedBuyerId) || null}
+                onInputChange={(_, inputValue, reason) => {
+                  if (reason === "input") {
+                    setBuyerSearch(inputValue);
+                    if (buyerSearchDebounceRef.current) {
+                      clearTimeout(buyerSearchDebounceRef.current);
+                    }
+                    buyerSearchDebounceRef.current = setTimeout(() => {
+                      setBuyers([]);
+                      setBuyerPage(1);
+                      setBuyerHasMore(true);
+                      createInvoiceFormFetchers.buyer?.(1, inputValue, false);
+                    }, 300);
+                  }
+                }}
+                ListboxProps={{
+                  onScroll: (event) => {
+                    const list = event.currentTarget;
+                    const nearBottom =
+                      list.scrollTop + list.clientHeight >=
+                      list.scrollHeight - 16;
+                    if (nearBottom && buyerHasMore && !loadingBuyers) {
+                      const next = (buyerPage || 1) + 1;
+                      createInvoiceFormFetchers.buyer?.(
+                        next,
+                        buyerSearch,
+                        true
+                      );
+                    }
+                  },
+                }}
                 onChange={(_, newValue) => {
                   console.log("Buyer selection changed:", newValue);
+                  if (newValue?.id === "__loading__") return;
                   setSelectedBuyerId(newValue ? newValue.id : "");
                 }}
                 renderInput={(params) => (
@@ -3885,11 +3990,26 @@ export default function CreateInvoice() {
                       "& .MuiOutlinedInput-root": {
                         "& fieldset": { borderColor: "#e5e7eb" },
                       },
-                      "& .MuiInputLabel-root": { color: "#6b7280" },
                     }}
                   />
                 )}
                 isOptionEqualToValue={(option, value) => option.id === value.id}
+                renderOption={(props, option) => {
+                  const { key, ...rest } = props;
+                  if (option.id === "__loading__") {
+                    return (
+                      <li key={key} {...rest}>
+                        Loading more...
+                      </li>
+                    );
+                  }
+                  return (
+                    <li key={key} {...rest}>
+                      {option.buyerBusinessName}
+                      {option.buyerNTNCNIC ? ` (${option.buyerNTNCNIC})` : ""}
+                    </li>
+                  );
+                }}
                 getOptionKey={(option) =>
                   option.id ||
                   option.buyerNTNCNIC ||
@@ -4266,12 +4386,15 @@ export default function CreateInvoice() {
                 >
                   <Box sx={{ display: "flex", gap: 1 }}>
                     <Autocomplete
-                      key={`product-autocomplete-${selectedProductIdByItem[index] || "none"}-${products.length}`}
+                      key={`product-autocomplete-${index}`}
                       fullWidth
                       size="small"
                       options={[
-                        ...products,
                         { id: "__add__", name: "Add Product" },
+                        ...products,
+                        ...(loadingProducts && productHasMore
+                          ? [{ id: "__loading__", name: "Loading more..." }]
+                          : []),
                       ]}
                       getOptionLabel={(option) => option?.name || ""}
                       value={
@@ -4279,6 +4402,36 @@ export default function CreateInvoice() {
                           (p) => p.id === selectedProductIdByItem[index]
                         ) || null
                       }
+                      onInputChange={(_, inputValue, reason) => {
+                        if (reason === "input") {
+                          setProductSearch(inputValue);
+                          if (searchDebounceRef.current) {
+                            clearTimeout(searchDebounceRef.current);
+                          }
+                          searchDebounceRef.current = setTimeout(() => {
+                            setProducts([]);
+                            setProductPage(1);
+                            setProductHasMore(true);
+                            fetchProductsPage(1, inputValue, false);
+                          }, 300);
+                        }
+                      }}
+                      ListboxProps={{
+                        onScroll: (event) => {
+                          const listboxNode = event.currentTarget;
+                          const nearBottom =
+                            listboxNode.scrollTop + listboxNode.clientHeight >=
+                            listboxNode.scrollHeight - 16;
+                          if (
+                            nearBottom &&
+                            productHasMore &&
+                            !loadingProducts
+                          ) {
+                            const nextPage = (productPage || 1) + 1;
+                            fetchProductsPage(nextPage, productSearch, true);
+                          }
+                        },
+                      }}
                       onChange={(_, newVal) => {
                         console.log("Product selection changed:", {
                           newVal,
@@ -4286,6 +4439,9 @@ export default function CreateInvoice() {
                         });
                         if (newVal?.id === "__add__") {
                           openProductModal();
+                          return;
+                        }
+                        if (newVal?.id === "__loading__") {
                           return;
                         }
                         setSelectedProductIdByItem((prev) => ({
@@ -4324,6 +4480,13 @@ export default function CreateInvoice() {
                               style={{ color: "#007AFF", fontWeight: 600 }}
                             >
                               + Add Product
+                            </li>
+                          );
+                        }
+                        if (option.id === "__loading__") {
+                          return (
+                            <li key={key} {...rest}>
+                              Loading more...
                             </li>
                           );
                         }

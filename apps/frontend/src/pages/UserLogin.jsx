@@ -50,12 +50,12 @@ const UserLogin = () => {
       if (response.data.success) {
         const { token, user } = response.data.data;
 
-        // Store token and user data
+        // Store token and sanitized user data (remove any tenant tokens)
         localStorage.setItem("token", token);
-        localStorage.setItem("user", JSON.stringify(user));
+        localStorage.setItem("user", JSON.stringify(sanitizeUser(user)));
 
         // Update auth context
-        login(user, token);
+        login(sanitizeUser(user), token);
 
         Swal.fire({
           icon: "success",
@@ -213,3 +213,36 @@ const UserLogin = () => {
 };
 
 export default UserLogin;
+
+// Helper: clone user and remove token fields from nested tenants
+const sanitizeUser = (userData) => {
+  try {
+    if (!userData || typeof userData !== "object") return userData;
+
+    const stripTenantTokens = (tenant) => {
+      if (!tenant || typeof tenant !== "object") return tenant;
+      const {
+        sandboxProductionToken,
+        sandboxTestToken,
+        productionToken,
+        token,
+        ...rest
+      } = tenant;
+      return rest;
+    };
+
+    const clone = { ...userData };
+    if (Array.isArray(clone.assignedTenants)) {
+      clone.assignedTenants = clone.assignedTenants.map(stripTenantTokens);
+    }
+    if (Array.isArray(clone.tenants)) {
+      clone.tenants = clone.tenants.map(stripTenantTokens);
+    }
+    if (clone.tenant && typeof clone.tenant === "object") {
+      clone.tenant = stripTenantTokens(clone.tenant);
+    }
+    return clone;
+  } catch (_e) {
+    return userData;
+  }
+};

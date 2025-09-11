@@ -10,44 +10,11 @@ export const postData = async (endpoint, data, environment = "sandbox") => {
   let token = API_CONFIG.getCurrentToken(environment);
 
   if (!token) {
-    console.warn(
-      "Token not available for API call, checking localStorage fallback..."
+    const error = new Error(
+      `No ${environment} token found for the selected Company. Please select a Company to load credentials.`
     );
-
-    // Try fallback from localStorage with environment-specific keys
-    const isProduction = () => {
-      return (
-        window.location.hostname !== "localhost" &&
-        window.location.hostname !== "127.0.0.1" &&
-        !window.location.hostname.includes("dev") &&
-        !window.location.hostname.includes("test")
-      );
-    };
-
-    const getStorageKey = (baseKey) => {
-      const env = isProduction() ? "production" : "development";
-      return `${baseKey}_${env}`;
-    };
-
-    // Try environment-specific fallback first
-    const fallbackTokenKey = getStorageKey("sandboxProductionToken");
-    let fallbackToken = localStorage.getItem(fallbackTokenKey);
-
-    // If not found, try legacy key
-    if (!fallbackToken) {
-      fallbackToken = localStorage.getItem("sandboxProductionToken");
-    }
-
-    if (fallbackToken) {
-      console.log("Found token in localStorage fallback, using it");
-      token = fallbackToken;
-    } else {
-      const error = new Error(
-        `No ${environment} token found for the selected Company. Please ensure the Company is selected and credentials are loaded.`
-      );
-      console.error("Token not available for API call:", error.message);
-      throw error;
-    }
+    console.error("Token not available for API call:", error.message);
+    throw error;
   }
 
   const config = {
@@ -123,44 +90,11 @@ export const fetchData = async (endpoint, environment = "sandbox") => {
   let token = API_CONFIG.getCurrentToken(environment);
 
   if (!token) {
-    console.warn(
-      "Token not available for API call, checking localStorage fallback..."
+    const error = new Error(
+      `No ${environment} token found for the selected Company. Please select a Company to load credentials.`
     );
-
-    // Try fallback from localStorage with environment-specific keys
-    const isProduction = () => {
-      return (
-        window.location.hostname !== "localhost" &&
-        window.location.hostname !== "127.0.0.1" &&
-        !window.location.hostname.includes("dev") &&
-        !window.location.hostname.includes("test")
-      );
-    };
-
-    const getStorageKey = (baseKey) => {
-      const env = isProduction() ? "production" : "development";
-      return `${baseKey}_${env}`;
-    };
-
-    // Try environment-specific fallback first
-    const fallbackTokenKey = getStorageKey("sandboxProductionToken");
-    let fallbackToken = localStorage.getItem(fallbackTokenKey);
-
-    // If not found, try legacy key
-    if (!fallbackToken) {
-      fallbackToken = localStorage.getItem("sandboxProductionToken");
-    }
-
-    if (fallbackToken) {
-      console.log("Found token in localStorage fallback, using it");
-      token = fallbackToken;
-    } else {
-      const error = new Error(
-        `No ${environment} token found for the selected Company. Please ensure the Company is selected and credentials are loaded.`
-      );
-      console.error("Token not available for API call:", error.message);
-      throw error;
-    }
+    console.error("Token not available for API call:", error.message);
+    throw error;
   }
 
   const config = {

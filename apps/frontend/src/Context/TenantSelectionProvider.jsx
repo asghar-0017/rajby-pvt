@@ -37,8 +37,9 @@ export const TenantSelectionProvider = ({ children }) => {
 
   const loadStoredTenant = async () => {
     const storageKey = getStorageKey("selectedTenant");
-    const fallbackTokenKey = getStorageKey("sandboxProductionToken");
-    const storedTenant = localStorage.getItem(storageKey);
+    const storedTenant =
+      localStorage.getItem(storageKey) ||
+      localStorage.getItem("selectedTenant");
     console.log(
       `Loading stored tenant from ${storageKey}:`,
       storedTenant ? "Found" : "Not found"
@@ -53,61 +54,24 @@ export const TenantSelectionProvider = ({ children }) => {
           tokenLength: tenant.sandboxProductionToken?.length || 0,
         });
 
-        setSelectedTenant(tenant);
-
-        if (tenant.sandboxProductionToken) {
-          console.log(
-            "Token found in stored tenant, setting tokensLoaded to true"
-          );
-          setTokensLoaded(true);
-        } else {
-          const fallbackToken = localStorage.getItem(fallbackTokenKey);
-          if (fallbackToken) {
-            console.log("Token found in fallback location, updating tenant");
-            tenant.sandboxProductionToken = fallbackToken;
-            setSelectedTenant({ ...tenant });
-            setTokensLoaded(true);
-          } else {
-            await fetchTenantTokens(tenant);
-          }
-        }
+        // Never trust token from storage; strip it
+        const {
+          sandboxProductionToken,
+          sandboxTestToken,
+          productionToken,
+          token,
+          ...sanitized
+        } = tenant || {};
+        setSelectedTenant(sanitized);
+        // Always fetch fresh token from server when a tenant is present
+        await fetchTenantTokens(sanitized);
       } catch (error) {
         console.error("Error parsing stored tenant:", error);
         localStorage.removeItem(storageKey);
         setTokensLoaded(false);
       }
     } else {
-      const legacyTenant = localStorage.getItem("selectedTenant");
-      const legacyToken = localStorage.getItem("sandboxProductionToken");
-
-      if (legacyTenant || legacyToken) {
-        console.log("Migrating legacy storage keys");
-        try {
-          if (legacyTenant) {
-            const tenant = JSON.parse(legacyTenant);
-            if (legacyToken) {
-              tenant.sandboxProductionToken = legacyToken;
-            }
-            setSelectedTenant(tenant);
-            setTokensLoaded(!!tenant.sandboxProductionToken);
-
-            const storageKey = getStorageKey("selectedTenant");
-            const fallbackTokenKey = getStorageKey("sandboxProductionToken");
-            localStorage.setItem(storageKey, JSON.stringify(tenant));
-            if (legacyToken) {
-              localStorage.setItem(fallbackTokenKey, legacyToken);
-            }
-
-            localStorage.removeItem("selectedTenant");
-            localStorage.removeItem("sandboxProductionToken");
-          }
-        } catch (error) {
-          console.error("Error migrating legacy storage:", error);
-          setTokensLoaded(false);
-        }
-      } else {
-        setTokensLoaded(false);
-      }
+      setTokensLoaded(false);
     }
   };
 
@@ -145,15 +109,25 @@ export const TenantSelectionProvider = ({ children }) => {
           response.data.data.sandboxProductionToken
         ) {
           const tenantWithTokens = response.data.data;
-          setSelectedTenant(tenantWithTokens);
+          // Keep tokens in memory only; persist sanitized tenant for id/name reuse
+          const {
+            sandboxProductionToken,
+            sandboxTestToken,
+            productionToken,
+            token,
+            ...sanitized
+          } = tenantWithTokens;
+          setSelectedTenant({
+            ...sanitized,
+            sandboxProductionToken,
+            sandboxTestToken,
+          });
           localStorage.setItem(
             getStorageKey("selectedTenant"),
-            JSON.stringify(tenantWithTokens)
+            JSON.stringify(sanitized)
           );
-          localStorage.setItem(
-            getStorageKey("sandboxProductionToken"),
-            tenantWithTokens.sandboxProductionToken
-          );
+          // Also store a legacy key for interceptor compatibility
+          localStorage.setItem("selectedTenant", JSON.stringify(sanitized));
           setTokensLoaded(true);
           console.log(
             "Successfully fetched tokens:",
@@ -185,26 +159,24 @@ export const TenantSelectionProvider = ({ children }) => {
   useEffect(() => {
     if (selectedTenant) {
       const storageKey = getStorageKey("selectedTenant");
-      const fallbackTokenKey = getStorageKey("sandboxProductionToken");
-      localStorage.setItem(storageKey, JSON.stringify(selectedTenant));
-      if (selectedTenant.sandboxProductionToken) {
-        localStorage.setItem(
-          fallbackTokenKey,
-          selectedTenant.sandboxProductionToken
-        );
-      } else {
-        localStorage.removeItem(fallbackTokenKey);
-      }
+      const {
+        sandboxProductionToken,
+        sandboxTestToken,
+        productionToken,
+        token,
+        ...sanitized
+      } = selectedTenant || {};
+      localStorage.setItem(storageKey, JSON.stringify(sanitized));
+      // Maintain legacy key without token for consumers like interceptors
+      localStorage.setItem("selectedTenant", JSON.stringify(sanitized));
     } else {
       localStorage.removeItem(getStorageKey("selectedTenant"));
-      localStorage.removeItem(getStorageKey("sandboxProductionToken"));
+      localStorage.removeItem("selectedTenant");
     }
   }, [selectedTenant]);
 
   const getSandboxToken = () => {
-    const token =
-      selectedTenant?.sandboxProductionToken ||
-      localStorage.getItem(getStorageKey("sandboxProductionToken"));
+    const token = selectedTenant?.sandboxProductionToken || null;
     console.log("getSandboxToken:", token ? "Token found" : "No token");
     return token;
   };
@@ -286,7 +258,7 @@ export const TenantSelectionProvider = ({ children }) => {
     setSelectedTenant(null);
     setTokensLoaded(false);
     localStorage.removeItem(getStorageKey("selectedTenant"));
-    localStorage.removeItem(getStorageKey("sandboxProductionToken"));
+    localStorage.removeItem("selectedTenant");
   };
 
   const isTenantSelected = () => {

@@ -101,19 +101,8 @@ const TenantDashboard = () => {
 
   useEffect(() => {
     if (selectedTenant) {
-      // Ensure selectedTenant is stored in localStorage for API interceptor
-      try {
-        localStorage.setItem("selectedTenant", JSON.stringify(selectedTenant));
-        console.log("Stored selectedTenant in localStorage:", selectedTenant);
-      } catch (error) {
-        console.error("Error storing selectedTenant in localStorage:", error);
-      }
-
-      // Small delay to ensure localStorage is properly set
-      setTimeout(() => {
-        fetchTenantStats();
-        fetchDashboard();
-      }, 100);
+      fetchTenantStats();
+      fetchDashboard();
     }
   }, [selectedTenant]);
 

@@ -3,8 +3,53 @@ import { Op } from "sequelize";
 export const listProducts = async (req, res) => {
   try {
     const { Product } = req.tenantModels;
-    const products = await Product.findAll({ order: [["id", "ASC"]] });
-    res.json({ success: true, data: products });
+
+    // Optional pagination and search
+    const { page, limit, search } = req.query;
+
+    const hasPagination =
+      (page && !isNaN(parseInt(page))) ||
+      (limit && !isNaN(parseInt(limit))) ||
+      (typeof search === "string" && search.trim() !== "");
+
+    if (!hasPagination) {
+      const products = await Product.findAll({ order: [["id", "ASC"]] });
+      res.json({ success: true, data: products });
+      return;
+    }
+
+    const currentPage = Math.max(parseInt(page || "1"), 1);
+    const pageSize = Math.min(Math.max(parseInt(limit || "20"), 1), 200);
+
+    const where = {};
+    if (typeof search === "string" && search.trim() !== "") {
+      const like = `%${search.trim()}%`;
+      where[Op.or] = [
+        { name: { [Op.like]: like } },
+        { description: { [Op.like]: like } },
+        { hsCode: { [Op.like]: like } },
+        { uom: { [Op.like]: like } },
+      ];
+    }
+
+    const { rows, count } = await Product.findAndCountAll({
+      where,
+      order: [["id", "ASC"]],
+      offset: (currentPage - 1) * pageSize,
+      limit: pageSize,
+    });
+
+    res.json({
+      success: true,
+      data: rows,
+      pagination: {
+        page: currentPage,
+        limit: pageSize,
+        total: count,
+        totalPages: Math.ceil(count / pageSize) || 1,
+        hasMore: currentPage * pageSize < count,
+      },
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

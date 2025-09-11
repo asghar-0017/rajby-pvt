@@ -25,11 +25,11 @@ export const AuthProvider = ({ children }) => {
       if (response.data.success && response.data.data) {
         const { token, user: userData } = response.data.data;
 
-        // Store token and user data
+        // Store token and sanitized user data
         localStorage.setItem("token", token);
-        localStorage.setItem("user", JSON.stringify(userData));
+        localStorage.setItem("user", JSON.stringify(sanitizeUser(userData)));
 
-        setUser(userData);
+        setUser(sanitizeUser(userData));
         setIsAuthenticated(true);
 
         // Show success message
@@ -46,25 +46,38 @@ export const AuthProvider = ({ children }) => {
           navigate("/tenant-management");
         } else {
           // For regular users, check assignments
-          if (userData.assignedTenants && userData.assignedTenants.length === 1) {
+          if (
+            userData.assignedTenants &&
+            userData.assignedTenants.length === 1
+          ) {
             const onlyTenant = userData.assignedTenants[0];
             try {
               // Fetch complete tenant details including tokens
-              const tenantResp = await api.get(`/user/tenants/${onlyTenant.tenantId}`);
+              const tenantResp = await api.get(
+                `/user/tenants/${onlyTenant.tenantId}`
+              );
               if (tenantResp?.data?.success && tenantResp.data.data) {
                 const tenantWithTokens = tenantResp.data.data;
-                // Store for immediate availability; TenantSelectionProvider will pick this up
-                localStorage.setItem("selectedTenant", JSON.stringify(tenantWithTokens));
-                if (tenantWithTokens.sandboxProductionToken) {
-                  localStorage.setItem("sandboxProductionToken", tenantWithTokens.sandboxProductionToken);
-                }
+                // Persist sanitized tenant only (no token)
+                const { sandboxProductionToken, ...sanitized } =
+                  tenantWithTokens;
+                localStorage.setItem(
+                  "selectedTenant",
+                  JSON.stringify(sanitized)
+                );
               }
             } catch (e) {
               // Non-fatal: proceed without preloading tokens
-              console.warn("Preload tenant tokens on login failed:", e?.message || e);
+              console.warn(
+                "Preload tenant tokens on login failed:",
+                e?.message || e
+              );
             }
             navigate("/");
-          } else if (userData.assignedTenants && userData.assignedTenants.length > 1) {
+          } else if (
+            userData.assignedTenants &&
+            userData.assignedTenants.length > 1
+          ) {
             // Multiple companies - go to selection
             navigate("/tenant-management");
           } else {
@@ -83,9 +96,9 @@ export const AuthProvider = ({ children }) => {
           const { token, user: userData } = response.data.data;
 
           localStorage.setItem("token", token);
-          localStorage.setItem("user", JSON.stringify(userData));
+          localStorage.setItem("user", JSON.stringify(sanitizeUser(userData)));
 
-          setUser(userData);
+          setUser(sanitizeUser(userData));
           setIsAuthenticated(true);
 
           // Swal.fire({
@@ -226,9 +239,10 @@ export const AuthProvider = ({ children }) => {
 
       if (response.data.success && response.data.data) {
         const userData = response.data.data.user;
-        setUser(userData);
-        localStorage.setItem("user", JSON.stringify(userData));
-        return userData;
+        const sanitized = sanitizeUser(userData);
+        setUser(sanitized);
+        localStorage.setItem("user", JSON.stringify(sanitized));
+        return sanitized;
       }
 
       return null;
@@ -250,8 +264,9 @@ export const AuthProvider = ({ children }) => {
 
       if (response.data.success && response.data.data) {
         const userData = response.data.data.user;
-        setUser(userData);
-        localStorage.setItem("user", JSON.stringify(userData));
+        const sanitized = sanitizeUser(userData);
+        setUser(sanitized);
+        localStorage.setItem("user", JSON.stringify(sanitized));
 
         Swal.fire({
           icon: "success",
@@ -519,3 +534,36 @@ export const AuthProvider = ({ children }) => {
 };
 
 export const useAuth = () => useContext(AuthContext);
+
+// Helper: remove any token fields from nested tenant structures
+const sanitizeUser = (userData) => {
+  try {
+    if (!userData || typeof userData !== "object") return userData;
+
+    const stripTenantTokens = (tenant) => {
+      if (!tenant || typeof tenant !== "object") return tenant;
+      const {
+        sandboxProductionToken,
+        sandboxTestToken,
+        productionToken,
+        token,
+        ...rest
+      } = tenant;
+      return rest;
+    };
+
+    const clone = { ...userData };
+    if (Array.isArray(clone.assignedTenants)) {
+      clone.assignedTenants = clone.assignedTenants.map(stripTenantTokens);
+    }
+    if (Array.isArray(clone.tenants)) {
+      clone.tenants = clone.tenants.map(stripTenantTokens);
+    }
+    if (clone.tenant && typeof clone.tenant === "object") {
+      clone.tenant = stripTenantTokens(clone.tenant);
+    }
+    return clone;
+  } catch (_e) {
+    return userData;
+  }
+};
