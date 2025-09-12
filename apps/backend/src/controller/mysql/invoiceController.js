@@ -230,6 +230,12 @@ export const createInvoice = async (req, res) => {
             buyerProvince: buyerProvince || "",
             buyerAddress: buyerAddress || null,
             buyerRegistrationType: buyerRegistrationType || "Unregistered",
+            created_by_user_id: req.user?.userId || req.user?.id || null,
+            created_by_email: req.user?.email || null,
+            created_by_name:
+              (req.user?.firstName || req.user?.lastName)
+                ? `${req.user?.firstName ?? ""}${req.user?.lastName ? ` ${req.user.lastName}` : ""}`.trim()
+                : (req.user?.role === "admin" ? "Admin" : null),
           });
         }
       }
@@ -350,6 +356,12 @@ export const createInvoice = async (req, res) => {
           status: "posted", // Always set as posted when using createInvoice
 
           fbr_invoice_number,
+          created_by_user_id: req.user?.userId || req.user?.id || null,
+          created_by_email: req.user?.email || null,
+          created_by_name:
+            (req.user?.firstName || req.user?.lastName)
+              ? `${req.user?.firstName ?? ""}${req.user?.lastName ? ` ${req.user.lastName}` : ""}`.trim()
+              : (req.user?.role === "admin" ? `Admin (${req.user?.id || req.user?.userId})` : null),
         },
 
         { transaction: t }
@@ -738,6 +750,12 @@ export const saveInvoice = async (req, res) => {
             status: "draft",
 
             fbr_invoice_number: null,
+            created_by_user_id: req.user?.userId || req.user?.id || null,
+            created_by_email: req.user?.email || null,
+            created_by_name:
+              (req.user?.firstName || req.user?.lastName)
+                ? `${req.user?.firstName ?? ""}${req.user?.lastName ? ` ${req.user.lastName}` : ""}`.trim()
+                : (req.user?.role === "admin" ? `Admin ` : null),
           },
 
           { transaction: t }
@@ -1037,6 +1055,14 @@ export const saveAndValidateInvoice = async (req, res) => {
             status: "draft",
 
             fbr_invoice_number: null,
+            created_by_user_id: req.userType === "user" ? (req.user.userId || req.user.id) : null,
+            created_by_email: req.userType === "user" ? req.user.email : null,
+            created_by_name:
+              req.userType === "user"
+                ? ((req.user?.firstName || req.user?.lastName)
+                    ? `${req.user?.firstName ?? ""}${req.user?.lastName ? ` ${req.user.lastName}` : ""}`.trim()
+                    : null)
+                : null,
           },
 
           { transaction: t }
@@ -1095,6 +1121,14 @@ export const saveAndValidateInvoice = async (req, res) => {
             status: "draft",
 
             fbr_invoice_number: null,
+            created_by_user_id: req.user?.userId || req.user?.id || null,
+            created_by_email: req.user?.email || null,
+            created_by_name:
+              req.userType === "user"
+                ? ((req.user?.firstName || req.user?.lastName)
+                    ? `${req.user?.firstName ?? ""}${req.user?.lastName ? ` ${req.user.lastName}` : ""}`.trim()
+                    : null)
+                : (req.user?.role === "admin" ? `Admin ` : null),
           },
 
           { transaction: t }
@@ -1260,6 +1294,16 @@ export const getAllInvoices = async (req, res) => {
 
     const whereClause = {};
 
+    // Restrict invoice visibility for regular users to only their own
+    if (req.userType === "user" && req.user?.role !== "admin") {
+      const creatorId = req.user?.userId || req.user?.id;
+      if (creatorId) {
+        whereClause.created_by_user_id = creatorId;
+      } else if (req.user?.email) {
+        whereClause.created_by_email = req.user.email;
+      }
+    }
+
     // Add search functionality
 
     if (search) {
@@ -1303,12 +1347,25 @@ export const getAllInvoices = async (req, res) => {
     // Add date range filter
 
     if (start_date && end_date) {
-      whereClause.created_at = {
-        [req.tenantDb.Sequelize.Op.between]: [
-          new Date(start_date),
-
-          new Date(end_date),
-        ],
+      const startDate = new Date(start_date);
+      const endDate = new Date(end_date);
+      
+      // Set start date to beginning of day (00:00:00.000)
+      startDate.setHours(0, 0, 0, 0);
+      
+      // Set end date to end of day to include the full day (23:59:59.999)
+      endDate.setHours(23, 59, 59, 999);
+      
+      console.log('Invoice List Date Range Filter:', {
+        start_date,
+        end_date,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString()
+      });
+      
+      // Filter by invoiceDate (the actual invoice date) instead of created_at
+      whereClause.invoiceDate = {
+        [req.tenantDb.Sequelize.Op.between]: [start_date, end_date],
       };
     }
 
@@ -1413,6 +1470,13 @@ export const getAllInvoices = async (req, res) => {
         created_at: plainInvoice.created_at,
 
         updated_at: plainInvoice.updated_at,
+        ...(req.user?.role === "admin"
+          ? {
+              created_by_user_id: plainInvoice.created_by_user_id,
+              created_by_email: plainInvoice.created_by_email,
+              created_by_name: plainInvoice.created_by_name,
+            }
+          : {}),
       };
     });
 
@@ -1916,12 +1980,18 @@ export const getInvoiceStats = async (req, res) => {
     const whereClause = {};
 
     if (start_date && end_date) {
-      whereClause.created_at = {
-        [req.tenantDb.Sequelize.Op.between]: [
-          new Date(start_date),
-
-          new Date(end_date),
-        ],
+      const startDate = new Date(start_date);
+      const endDate = new Date(end_date);
+      
+      // Set start date to beginning of day (00:00:00.000)
+      startDate.setHours(0, 0, 0, 0);
+      
+      // Set end date to end of day to include the full day (23:59:59.999)
+      endDate.setHours(23, 59, 59, 999);
+      
+      // Filter by invoiceDate (the actual invoice date) instead of created_at
+      whereClause.invoiceDate = {
+        [req.tenantDb.Sequelize.Op.between]: [req.query.start_date, req.query.end_date],
       };
     }
 
@@ -2900,6 +2970,12 @@ export const bulkCreateInvoices = async (req, res) => {
           transctypeId: null, // Will be set from items
           status: "draft",
           fbr_invoice_number: null,
+          created_by_user_id: req.user?.userId || req.user?.id || null,
+          created_by_email: req.user?.email || null,
+          created_by_name:
+            (req.user?.firstName || req.user?.lastName)
+              ? `${req.user?.firstName ?? ""}${req.user?.lastName ? ` ${req.user.lastName}` : ""}`.trim()
+              : (req.user?.role === "admin" ? "Admin" : null),
           created_at: new Date(),
           updated_at: new Date(),
         };
@@ -3481,19 +3557,40 @@ export const getDashboardSummary = async (req, res) => {
 
     const { Op } = Sequelize;
 
-    // Default to last 12 months
+    // Handle date range filter
+    let whereDateRange = {};
+    
+    if (req.query.start_date && req.query.end_date) {
+      // Use provided date range
+      const startDate = new Date(req.query.start_date);
+      const endDate = new Date(req.query.end_date);
+      
+      // Set start date to beginning of day (00:00:00.000)
+      startDate.setHours(0, 0, 0, 0);
+      
+      // Set end date to end of day to include the full day (23:59:59.999)
+      endDate.setHours(23, 59, 59, 999);
+      
+    
+      
+      // Filter by invoiceDate (the actual invoice date) instead of created_at
+      whereDateRange = {
+        invoiceDate: {
+          [Op.between]: [
+            req.query.start_date, // Use the original date strings for string comparison
+            req.query.end_date
+          ]
+        }
+      };
+    } else {
+      // Default to last 12 months if no date range specified
+      const endDate = new Date();
+      const startDate = new Date(new Date(endDate).setMonth(endDate.getMonth() - 11, 1));
 
-    const endDate = req.query.end_date
-      ? new Date(req.query.end_date)
-      : new Date();
-
-    const startDate = req.query.start_date
-      ? new Date(req.query.start_date)
-      : new Date(new Date(endDate).setMonth(endDate.getMonth() - 11, 1));
-
-    const whereDateRange = {
-      created_at: { [Op.between]: [startDate, endDate] },
-    };
+      whereDateRange = {
+        created_at: { [Op.between]: [startDate, endDate] },
+      };
+    }
 
     // Key metrics
 
@@ -3505,17 +3602,23 @@ export const getDashboardSummary = async (req, res) => {
 
         Invoice.count({ where: { ...whereDateRange, status: "posted" } }),
 
-        InvoiceItem.sum("totalValues", { where: whereDateRange }).then(
-          (v) => v || 0
-        ),
+        // For InvoiceItem sum, we need to join with Invoice to filter by invoiceDate
+        InvoiceItem.sum("totalValues", { 
+          include: [{
+            model: Invoice,
+            where: whereDateRange,
+            attributes: []
+          }]
+        }).then((v) => v || 0),
       ]);
+
 
     // Monthly overview: counts by month for posted and saved
 
     const monthlyRows = await Invoice.findAll({
       attributes: [
         [
-          Sequelize.fn("DATE_FORMAT", Sequelize.col("created_at"), "%Y-%m"),
+          Sequelize.fn("DATE_FORMAT", Sequelize.col("invoiceDate"), "%Y-%m"),
 
           "month",
         ],
@@ -3542,12 +3645,12 @@ export const getDashboardSummary = async (req, res) => {
       where: whereDateRange,
 
       group: [
-        Sequelize.fn("DATE_FORMAT", Sequelize.col("created_at"), "%Y-%m"),
+        Sequelize.fn("DATE_FORMAT", Sequelize.col("invoiceDate"), "%Y-%m"),
       ],
 
       order: [
         [
-          Sequelize.fn("DATE_FORMAT", Sequelize.col("created_at"), "%Y-%m"),
+          Sequelize.fn("DATE_FORMAT", Sequelize.col("invoiceDate"), "%Y-%m"),
 
           "ASC",
         ],
@@ -3562,7 +3665,7 @@ export const getDashboardSummary = async (req, res) => {
 
         posted: Number(plain.posted || 0),
 
-        saved: Number(plain.saved || 0),
+        draft: Number(plain.draft || 0),
 
         total: Number(plain.total || 0),
       };
@@ -3578,7 +3681,7 @@ export const getDashboardSummary = async (req, res) => {
 
         "status",
 
-        "created_at",
+        "invoiceDate",
 
         [
           Sequelize.fn("SUM", Sequelize.col("InvoiceItems.totalValues")),
@@ -3589,9 +3692,11 @@ export const getDashboardSummary = async (req, res) => {
 
       include: [{ model: InvoiceItem, as: "InvoiceItems", attributes: [] }],
 
+      where: whereDateRange,
+
       group: ["Invoice.id"],
 
-      order: [["created_at", "DESC"]],
+      order: [["invoiceDate", "DESC"]],
 
       limit: 10,
 
@@ -3606,7 +3711,7 @@ export const getDashboardSummary = async (req, res) => {
 
         invoiceNumber: plain.invoiceNumber,
 
-        date: plain.created_at,
+        date: plain.invoiceDate,
 
         amount: Number(plain.amount || 0),
 

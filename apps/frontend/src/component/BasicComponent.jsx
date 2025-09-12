@@ -47,6 +47,7 @@ export default function BasicTable() {
   const [invoices, setInvoices] = useState([]);
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [uploaderOpen, setUploaderOpen] = useState(false);
   const [selectedInvoices, setSelectedInvoices] = useState(new Set());
@@ -60,6 +61,7 @@ export default function BasicTable() {
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [isTyping, setIsTyping] = useState(false);
   const [saleType, setSaleType] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
   const [page, setPage] = useState(1);
@@ -73,6 +75,18 @@ export default function BasicTable() {
   const navigate = useNavigate();
 
   const apiKey = API_CONFIG.apiKeyLocal;
+
+  // Determine if the logged-in user is an admin
+  const isAdmin = (() => {
+    try {
+      const raw = localStorage.getItem("user");
+      if (!raw) return false;
+      const parsed = JSON.parse(raw);
+      return parsed?.role === "admin";
+    } catch {
+      return false;
+    }
+  })();
 
   // Helper function to format date to dd-mm-yyyy (timezone-safe)
   const formatDate = (dateString) => {
@@ -136,19 +150,31 @@ export default function BasicTable() {
 
   // Debounce search input
   useEffect(() => {
+    setIsTyping(true);
+    
     const timer = setTimeout(() => {
       setDebouncedSearch(search);
-    }, 500); // 500ms delay
+      setIsTyping(false);
+    }, 800); // 800ms delay - increased for better UX
 
     return () => clearTimeout(timer);
   }, [search]);
 
-  const getMyInvoices = async () => {
-    setLoading(true);
+  const getMyInvoices = async (isSearchOperation = false) => {
+    if (isSearchOperation) {
+      setSearchLoading(true);
+    } else {
+      setLoading(true);
+    }
+    
     try {
       if (!selectedTenant) {
         console.error("No Company selected");
-        setLoading(false);
+        if (isSearchOperation) {
+          setSearchLoading(false);
+        } else {
+          setLoading(false);
+        }
         return;
       }
 
@@ -197,23 +223,33 @@ export default function BasicTable() {
       }
       setInvoices([]);
     } finally {
-      setLoading(false);
+      if (isSearchOperation) {
+        setSearchLoading(false);
+      } else {
+        setLoading(false);
+      }
     }
   };
 
+  // Initial load only
   useEffect(() => {
     if (selectedTenant) {
-      getMyInvoices();
+      getMyInvoices(false);
     }
-  }, [
-    selectedTenant,
-    page,
-    rowsPerPage,
-    debouncedSearch,
-    saleType,
-    statusFilter,
-    invoiceDate,
-  ]);
+  }, [selectedTenant]);
+
+  // All other operations (search, filters, pagination) - smooth loading
+  useEffect(() => {
+    if (selectedTenant) {
+      // Skip if this is the initial load (debouncedSearch is undefined)
+      if (debouncedSearch === undefined) {
+        return;
+      }
+      
+      // Trigger API call for any changes
+      getMyInvoices(true);
+    }
+  }, [debouncedSearch, page, rowsPerPage, saleType, statusFilter, invoiceDate]);
 
   const handleButtonClick = async (invoice) => {
     try {
@@ -1678,6 +1714,28 @@ export default function BasicTable() {
                     <SearchIcon />
                   </InputAdornment>
                 ),
+                endAdornment: (isTyping || searchLoading) && (
+                  <InputAdornment position="end">
+                    {isTyping ? (
+                      <Box
+                        sx={{
+                          width: 16,
+                          height: 16,
+                          borderRadius: '50%',
+                          border: '2px solid #ccc',
+                          borderTop: '2px solid #1976d2',
+                          animation: 'spin 1s linear infinite',
+                          '@keyframes spin': {
+                            '0%': { transform: 'rotate(0deg)' },
+                            '100%': { transform: 'rotate(360deg)' },
+                          },
+                        }}
+                      />
+                    ) : (
+                      <CircularProgress size={16} />
+                    )}
+                  </InputAdornment>
+                ),
               }}
               sx={{
                 minWidth: 260,
@@ -1699,6 +1757,13 @@ export default function BasicTable() {
                 setSaleType(e.target.value);
                 setPage(1);
               }}
+              InputProps={{
+                endAdornment: searchLoading && (
+                  <InputAdornment position="end">
+                    <CircularProgress size={16} />
+                  </InputAdornment>
+                ),
+              }}
               sx={{ minWidth: 160 }}
             >
               <MenuItem value="All">All</MenuItem>
@@ -1713,6 +1778,13 @@ export default function BasicTable() {
               onChange={(e) => {
                 setStatusFilter(e.target.value);
                 setPage(1);
+              }}
+              InputProps={{
+                endAdornment: searchLoading && (
+                  <InputAdornment position="end">
+                    <CircularProgress size={16} />
+                  </InputAdornment>
+                ),
               }}
               sx={{ minWidth: 140 }}
             >
@@ -1730,7 +1802,17 @@ export default function BasicTable() {
                   setPage(1);
                 }}
                 slotProps={{
-                  textField: { size: "small", sx: { minWidth: 140 } },
+                  textField: { 
+                    size: "small", 
+                    sx: { minWidth: 140 },
+                    InputProps: {
+                      endAdornment: searchLoading && (
+                        <InputAdornment position="end">
+                          <CircularProgress size={16} />
+                        </InputAdornment>
+                      ),
+                    }
+                  },
                 }}
               />
             </LocalizationProvider>
@@ -1742,6 +1824,13 @@ export default function BasicTable() {
               onChange={(e) => {
                 setRowsPerPage(Number(e.target.value));
                 setPage(1);
+              }}
+              InputProps={{
+                endAdornment: searchLoading && (
+                  <InputAdornment position="end">
+                    <CircularProgress size={16} />
+                  </InputAdornment>
+                ),
               }}
               sx={{ minWidth: 120 }}
             >
@@ -1773,6 +1862,9 @@ export default function BasicTable() {
                   borderRadius: 3,
                   overflow: "hidden",
                   boxShadow: 4,
+                  position: "relative",
+                  opacity: searchLoading ? 0.7 : 1,
+                  transition: "opacity 0.3s ease",
                 }}
               >
                 <Table
@@ -1828,6 +1920,7 @@ export default function BasicTable() {
                         "Buyer",
                         "Buyer NTN",
                         "Product Description",
+                        ...(isAdmin ? ["Created By"] : []),
                         "Actions",
                       ].map((heading) => (
                         <TableCell
@@ -2001,6 +2094,13 @@ export default function BasicTable() {
                                 .join(", ")
                             : "N/A"}
                         </TableCell>
+                        {isAdmin && (
+                          <TableCell align="center" sx={{ fontWeight: 500 }}>
+                            {row.created_by_name
+                              ? `${row.created_by_name} (${row.created_by_user_id || ""})`
+                              : row.created_by_email || "-"}
+                          </TableCell>
+                        )}
                         <TableCell align="center">
                           <Box
                             sx={{

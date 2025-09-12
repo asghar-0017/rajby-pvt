@@ -20,6 +20,7 @@ import {
   TableRow,
   Paper,
   Stack,
+  TextField,
 } from "@mui/material";
 import {
   Business as BusinessIcon,
@@ -41,6 +42,9 @@ import {
   Legend,
 } from "recharts";
 import CustomPagination from "./CustomPagination";
+import { DatePicker, LocalizationProvider } from "@mui/x-date-pickers";
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
+import dayjs from "dayjs";
 
 const TenantDashboard = () => {
   const { selectedTenant } = useTenantSelection();
@@ -53,6 +57,8 @@ const TenantDashboard = () => {
   // Table pagination for dashboard recent invoices
   const [tablePage, setTablePage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [fromDate, setFromDate] = useState(dayjs().subtract(11, 'month').startOf('month'));
+  const [toDate, setToDate] = useState(dayjs().endOf('month'));
 
   // Helper function to get status color
   const getStatusColor = (status) => {
@@ -104,7 +110,7 @@ const TenantDashboard = () => {
       fetchTenantStats();
       fetchDashboard();
     }
-  }, [selectedTenant]);
+  }, [selectedTenant, fromDate, toDate]);
 
   const fetchTenantStats = async () => {
     try {
@@ -162,8 +168,12 @@ const TenantDashboard = () => {
 
       console.log("Fetching dashboard for tenant:", selectedTenant.tenant_id);
 
+      const params = new URLSearchParams();
+      params.append('start_date', fromDate.format('YYYY-MM-DD'));
+      params.append('end_date', toDate.format('YYYY-MM-DD'));
+      
       const res = await api.get(
-        `/tenant/${selectedTenant.tenant_id}/dashboard/summary`
+        `/tenant/${selectedTenant.tenant_id}/dashboard/summary?${params.toString()}`
       );
 
       if (res.data.success) {
@@ -201,15 +211,27 @@ const TenantDashboard = () => {
     }
   };
 
-  // Function to get current month data for the bar graph
-  const getCurrentMonthData = () => {
+  // Function to get chart data based on selected date range
+  const getChartData = () => {
     if (!dashboard?.metrics) return [];
 
-    const currentMonth = new Date().toLocaleString("en-US", { month: "long" });
+    // If we have monthly overview data, use it
+    if (dashboard?.monthly_overview && dashboard.monthly_overview.length > 0) {
+      return dashboard.monthly_overview.map((month) => ({
+        name: new Date(month.month + '-01').toLocaleString("en-US", { month: "short", year: "numeric" }),
+        "Posted to FBR": month.posted || 0,
+        Draft: month.draft || 0,
+      }));
+    }
+
+    // Fallback: show aggregated data for the selected date range
+    const dateRangeLabel = fromDate.format('MMM DD') === toDate.format('MMM DD') 
+      ? fromDate.format('MMM DD, YYYY')
+      : `${fromDate.format('MMM DD')} - ${toDate.format('MMM DD, YYYY')}`;
 
     return [
       {
-        name: currentMonth,
+        name: dateRangeLabel,
         "Posted to FBR": dashboard.metrics?.total_posted_to_fbr || 0,
         Draft: dashboard.metrics?.total_invoices_draft || 0,
       },
@@ -293,9 +315,28 @@ const TenantDashboard = () => {
             </Typography>
           )}
         </Box>
-        <Typography sx={{ fontSize: 15, fontWeight: 700 }}>
-          Here's your invoice summary for this month.
-        </Typography>
+        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 2 }}>
+          <Typography sx={{ fontSize: 15, fontWeight: 700 }}>
+            Here's your invoice summary for the selected date range.
+          </Typography>
+          <LocalizationProvider dateAdapter={AdapterDayjs}>
+            <Stack direction="row" spacing={2} alignItems="center">
+              <DatePicker
+                label="From Date"
+                value={fromDate}
+                onChange={(newValue) => setFromDate(newValue)}
+                slotProps={{ textField: { size: 'small', sx: { minWidth: 150 } } }}
+              />
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>to</Typography>
+              <DatePicker
+                label="To Date"
+                value={toDate}
+                onChange={(newValue) => setToDate(newValue)}
+                slotProps={{ textField: { size: 'small', sx: { minWidth: 150 } } }}
+              />
+            </Stack>
+          </LocalizationProvider>
+        </Box>
       </Box>
 
       {/* Statistics Cards */}
@@ -470,14 +511,16 @@ const TenantDashboard = () => {
                 alignItems="center"
                 mb={2}
               >
-                <Typography variant="h6">Month Overview</Typography>
-                <Chip label="This Month" size="small" color="primary" />
+                <Typography variant="h6">Date Range Overview</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {fromDate.format('MMM DD, YYYY')} - {toDate.format('MMM DD, YYYY')}
+                </Typography>
               </Box>
               <Box sx={{ width: "100%", height: 320 }}>
                 <ResponsiveContainer width="100%" height={320}>
-                  <BarChart
-                    data={getCurrentMonthData()}
-                    barSize={60}
+                    <BarChart
+                      data={getChartData()}
+                      barSize={60}
                     barGap={20}
                     margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
                   >

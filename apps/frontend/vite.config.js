@@ -17,7 +17,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "https://luckytex.inplsoftwares.online",
+        target: "https://signs-now.inplsoftwares.online",
         changeOrigin: true,
         secure: false,
       },

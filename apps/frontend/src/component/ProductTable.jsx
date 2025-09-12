@@ -45,8 +45,7 @@ export default function ProductTable({
     return (
       (product.name || "").toLowerCase().includes(searchLower) ||
       (product.description || "").toLowerCase().includes(searchLower) ||
-      (product.hsCode || "").toLowerCase().includes(searchLower) ||
-      (product.uom || "").toLowerCase().includes(searchLower)
+      (product.hsCode || "").toLowerCase().includes(searchLower)
     );
   });
 
@@ -108,7 +107,6 @@ export default function ProductTable({
                 <TableCell>Name</TableCell>
                 <TableCell>Description</TableCell>
                 <TableCell>HS Code</TableCell>
-                <TableCell>UOM</TableCell>
                 <TableCell>Actions</TableCell>
               </TableRow>
             </TableHead>
@@ -126,9 +124,6 @@ export default function ProductTable({
                   </TableCell>
                   <TableCell>
                     <Skeleton variant="text" width={80} height={20} />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton variant="text" width={60} height={20} />
                   </TableCell>
                   <TableCell>
                     <Skeleton variant="text" width={80} height={20} />
@@ -369,7 +364,7 @@ export default function ProductTable({
                     "Name",
                     "Description",
                     "HS Code",
-                    "UOM",
+                    "Created By",
                     "Actions",
                   ].map((heading) => (
                     <TableCell
@@ -435,9 +430,13 @@ export default function ProductTable({
                     <TableCell align="center" sx={{ fontWeight: 500 }}>
                       {product.hsCode || "-"}
                     </TableCell>
+                    
                     <TableCell align="center" sx={{ fontWeight: 500 }}>
-                      {product.uom || "-"}
+                      {product.created_by_name
+                        ? `${product.created_by_name} (${product.created_by_user_id || ""})`
+                        : product.created_by_email || "-"}
                     </TableCell>
+                    
                     <TableCell align="center">
                       <Box
                         sx={{

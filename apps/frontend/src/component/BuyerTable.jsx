@@ -374,6 +374,7 @@ export default function BuyerTable({
                         "Province",
                         "Address",
                         "Registration Type",
+                        "Created By",
                         "Actions",
                       ].map((heading) => (
                         <TableCell
@@ -446,6 +447,11 @@ export default function BuyerTable({
                         </TableCell>
                         <TableCell align="center" sx={{ fontWeight: 500 }}>
                           {buyer.buyerRegistrationType}
+                        </TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 500 }}>
+                          {buyer.created_by_name
+                            ? `${buyer.created_by_name} (${buyer.created_by_user_id || ""})`
+                            : buyer.created_by_email || "-"}
                         </TableCell>
                         <TableCell align="center">
                           <Box

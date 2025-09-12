@@ -94,6 +94,12 @@ export const createBuyer = async (req, res) => {
       buyerProvince: normalizedProvince,
       buyerAddress,
       buyerRegistrationType,
+      created_by_user_id: req.user?.userId || req.user?.id || null,
+      created_by_email: req.user?.email || null,
+      created_by_name:
+        (req.user?.firstName || req.user?.lastName)
+          ? `${req.user?.firstName ?? ""}${req.user?.lastName ? ` ${req.user.lastName}` : ""}`.trim()
+          : (req.user?.role === "admin" ? `Admin (${req.user?.id || req.user?.userId})` : null),
     });
 
     res.status(201).json({

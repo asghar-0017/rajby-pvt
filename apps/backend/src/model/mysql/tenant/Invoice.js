@@ -102,6 +102,19 @@ export const createInvoiceModel = (sequelize) => {
         allowNull: true,
         unique: true,
       },
+      // Track which user created the invoice (from user management)
+      created_by_user_id: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+      },
+      created_by_email: {
+        type: DataTypes.STRING(255),
+        allowNull: true,
+      },
+      created_by_name: {
+        type: DataTypes.STRING(255),
+        allowNull: true,
+      },
     },
     {
       tableName: "invoices",
