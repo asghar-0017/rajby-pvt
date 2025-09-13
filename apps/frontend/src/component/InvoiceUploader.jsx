@@ -1711,56 +1711,37 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
             </Alert>
           )}
 
-          {/* Download Template Button - Generate from backend */}
+          {/* Download Template Button - Download from public folder */}
           <Box sx={{ mb: 2 }}>
             <Button
               variant="outlined"
-              onClick={async () => {
+              onClick={() => {
                 try {
-                  if (!selectedTenant) {
-                    toast.error("Please select a company first to download the template");
-                    return;
-                  }
-
                   setDownloadingTemplate(true);
                   // Show loading state
-                  toast.info("Generating Excel template...");
-
-                  // Call backend API to generate and download template
-                  const response = await api.get(
-                    `/tenant/${selectedTenant.tenant_id}/invoices/template.xlsx`,
-                    {
-                      responseType: 'blob', // Important for file downloads
-                    }
-                  );
-
-                  // Create blob and download
-                  const blob = new Blob([response.data], {
-                    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-                  });
                   
-                  const url = window.URL.createObjectURL(blob);
+
+                  // Create a link to download the static template from public folder
                   const link = document.createElement("a");
-                  link.href = url;
-                  link.download = `invoice_template_${selectedTenant.sellerBusinessName || 'template'}.xlsx`;
+                  link.href = "/invoiceTemplate/invoice_template.xlsx";
+                  link.download = "invoice_template.xlsx";
                   document.body.appendChild(link);
                   link.click();
                   document.body.removeChild(link);
-                  window.URL.revokeObjectURL(url);
                   
-                  toast.success("Excel template generated and downloaded successfully!");
+                  toast.success("Excel template downloaded successfully!");
                 } catch (error) {
                   console.error("Error downloading template:", error);
-                  toast.error("Could not generate Excel template. Please try again.");
+                  toast.error("Could not download Excel template. Please try again.");
                 } finally {
                   setDownloadingTemplate(false);
                 }
               }}
               size="small"
-              disabled={!selectedTenant || downloadingTemplate}
+              disabled={downloadingTemplate}
               startIcon={downloadingTemplate ? <CircularProgress size={16} /> : <Download />}
             >
-              {downloadingTemplate ? "Generating..." : "Download Excel Template"}
+              {downloadingTemplate ? "Downloading..." : "Download Excel Template"}
             </Button>
           </Box>
 
