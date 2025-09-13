@@ -1995,6 +1995,14 @@ export const getInvoiceStats = async (req, res) => {
       };
     }
 
+    // Add user filter for non-admin users
+    if (req.userType === "user" && req.user?.role !== "admin") {
+      const userId = req.user?.userId || req.user?.id;
+      if (userId) {
+        whereClause.created_by_user_id = userId;
+      }
+    }
+
     const totalInvoices = await Invoice.count({ where: whereClause });
 
     const totalAmount = await Invoice.sum("totalValues", {
@@ -3592,6 +3600,14 @@ export const getDashboardSummary = async (req, res) => {
       };
     }
 
+    // Add user filter for non-admin users
+    if (req.userType === "user" && req.user?.role !== "admin") {
+      const userId = req.user?.userId || req.user?.id;
+      if (userId) {
+        whereDateRange.created_by_user_id = userId;
+      }
+    }
+
     // Key metrics
 
     const [totalCreated, totalDrafts, totalPosted, totalAmount] =
@@ -4618,80 +4634,120 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
       }
     }
 
-    // Fetch SRO schedules per rate id (aggregate across province codes) and create comprehensive SRO list
-
+    // Fetch SRO schedules for all available rate IDs and create comprehensive SRO list
+    // IMPORTANT: Always include rate_id=133 plus all other rate IDs
     const sroByRateId = {};
     const allUniqueSROs = new Set(); // Track all unique SRO Schedule Numbers
 
-    if (token && rateDescToId.size > 0) {
-      const candidateProvinceCodes = [];
-
-      if (provinceCode) {
-        candidateProvinceCodes.push(provinceCode);
-      } else if (provinceMap && Object.keys(provinceMap).length > 0) {
-        const uniqueCodes = new Set(
-          Object.values(provinceMap)
-
-            .map((v) => (v == null ? null : String(v)))
-
-            .filter((v) => v && v.length > 0)
-        );
-
-        candidateProvinceCodes.push(...uniqueCodes);
+    if (token) {
+      // Start with rate_id=133 as a priority, then add all other rate IDs
+      const uniqueRateIds = new Set();
+      
+      // ALWAYS include rate_id=133 first (priority)
+      uniqueRateIds.add('133');
+      console.log('✅ Rate ID 133 explicitly included as priority');
+      
+      // Add all other rate IDs from rateDescToId if available
+      if (rateDescToId && rateDescToId.size > 0) {
+        const otherRateIds = Array.from(rateDescToId.values());
+        otherRateIds.forEach(id => uniqueRateIds.add(String(id)));
+        console.log(`Added ${otherRateIds.length} additional rate IDs from rateDescToId`);
       }
+      
+      // Add some common rate IDs as fallback to ensure comprehensive coverage
+      const commonRateIds = ['134', '135', '136', '137', '138', '139', '140'];
+      commonRateIds.forEach(id => uniqueRateIds.add(id));
+      console.log('Added common rate IDs as fallback');
+      
+      console.log(`Fetching SRO Schedule data for ${uniqueRateIds.size} rate IDs...`);
+      console.log('All Rate IDs to fetch:', Array.from(uniqueRateIds).slice(0, 15));
+      
+      let successfulFetches = 0;
+      let failedFetches = 0;
 
-      console.log(
-        `Fetching SRO Schedule data for ${rateDescToId.size} rate IDs across ${candidateProvinceCodes.length} province codes...`
-      );
+      for (const rateId of uniqueRateIds) {
+        try {
+          console.log(`Fetching SRO Schedule data for rate_id=${rateId}...`);
+          
+          // Fetch SRO Schedule data for each rate ID
+          const sroRaw = await fetchData(
+            `pdi/v1/SroSchedule?rate_id=${rateId}&date=04-Feb-2024&origination_supplier_csv=1`,
+            "sandbox",
+            token
+          );
 
-      for (const id of new Set(Array.from(rateDescToId.values()))) {
-        const aggregated = new Map(); // desc -> id
+          console.log(`SRO Schedule API response for rate_id=${rateId}:`, {
+            isArray: Array.isArray(sroRaw),
+            length: Array.isArray(sroRaw) ? sroRaw.length : 'N/A',
+            sample: Array.isArray(sroRaw) && sroRaw.length > 0 ? sroRaw[0] : 'No data'
+          });
 
-        for (const code of candidateProvinceCodes) {
-          try {
-            const sroRaw = await fetchData(
-              `pdi/v1/SroSchedule?rate_id=${encodeURIComponent(id)}&date=04-Feb-2024&origination_supplier_csv=${encodeURIComponent(
-                code
-              )}`,
+          const items = (Array.isArray(sroRaw) ? sroRaw : [])
+            .map((s) => {
+              // Extract srO_DESC from the API response
+              const sroDesc = s.srO_DESC || s.SRO_DESC || s.desc || null;
+              const sroId = s.srO_ID || s.SRO_ID || s.id || null;
 
-              "sandbox",
+              return sroDesc && sroId
+                ? { id: String(sroId), desc: String(sroDesc).trim() }
+                : null;
+            })
+            .filter(Boolean);
 
-              token
-            );
+          console.log(`Found ${items.length} SRO Schedule items for rate_id=${rateId}`);
 
-            const items = (Array.isArray(sroRaw) ? sroRaw : [])
-
-              .map((s) => {
-                const sroDesc = s.srO_DESC || s.SRO_DESC || s.desc || null;
-
-                const sroId = s.srO_ID || s.SRO_ID || s.id || null;
-
-                return sroDesc && sroId
-                  ? { id: String(sroId), desc: String(sroDesc).trim() }
-                  : null;
-              })
-
-              .filter(Boolean);
-
-            for (const it of items) {
-              if (!aggregated.has(it.desc)) aggregated.set(it.desc, it.id);
-
-              // Add all SRO descriptions to the comprehensive set
-              if (it.desc) {
-                allUniqueSROs.add(it.desc);
-              }
+          // Create a map for this rate ID
+          const aggregated = new Map(); // desc -> id
+          
+          for (const it of items) {
+            if (!aggregated.has(it.desc)) {
+              aggregated.set(it.desc, it.id);
             }
-          } catch (e) {
-            // continue
+            
+            // Add all SRO descriptions to the comprehensive set
+            if (it.desc) {
+              allUniqueSROs.add(it.desc);
+            }
+          }
+
+          sroByRateId[rateId] = aggregated; // Map(desc -> id)
+          successfulFetches++;
+
+          // Special logging for rate_id=133
+          if (rateId === '133') {
+            console.log(`✅ SUCCESS: Rate ID 133 fetched ${items.length} SRO Schedule items`);
+            console.log('Rate ID 133 SRO Descriptions:', Array.from(aggregated.keys()).slice(0, 5));
+          }
+
+        } catch (e) {
+          console.error(`Failed to fetch SRO Schedule data for rate_id=${rateId}:`, e.message);
+          sroByRateId[rateId] = new Map(); // Empty map for failed fetches
+          failedFetches++;
+          
+          // Special error logging for rate_id=133
+          if (rateId === '133') {
+            console.error('❌ CRITICAL: Failed to fetch rate_id=133 SRO Schedule data!');
           }
         }
-
-        sroByRateId[id] = aggregated; // Map(desc -> id)
       }
 
+      console.log(`SRO Schedule Fetch Summary: ${successfulFetches} successful, ${failedFetches} failed`);
       console.log(
-        `Collected ${allUniqueSROs.size} unique SRO Schedule Numbers from API`
+        `Collected ${allUniqueSROs.size} unique SRO Schedule Numbers from API across all rate IDs`
       );
+      
+      // Verify rate_id=133 was successfully fetched
+      if (sroByRateId['133'] && sroByRateId['133'].size > 0) {
+        console.log(`✅ CONFIRMED: Rate ID 133 has ${sroByRateId['133'].size} SRO Schedule items`);
+      } else {
+        console.warn('⚠️ WARNING: Rate ID 133 has no SRO Schedule items!');
+      }
+      
+      // Log sample SRO descriptions
+      console.log('Sample SRO Descriptions from all rate IDs:', Array.from(allUniqueSROs).slice(0, 10));
+      
+    } else {
+      console.log('No token available for SRO Schedule fetching');
     }
 
     // Add fallback SRO Schedule data for comprehensive coverage
@@ -4843,39 +4899,70 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
     );
 
     // Build SRO Item lists per SRO Id (for Excel dropdowns) and create comprehensive SRO Item list
-
+    // ENHANCED: Include specific SRO IDs (383, 384, 385, 439, 391) plus existing SRO IDs
     const sroItemsBySroId = {};
     const allUniqueSROItems = new Set(); // Track all unique SRO Item Numbers
 
-    if (token && sroByRateId && Object.keys(sroByRateId).length > 0) {
-      // Collect unique SRO Ids across all rates
+    if (token) {
+      // Start with specific SRO IDs as priority, then add existing SRO IDs
       const uniqueSroIds = new Set();
-
-      for (const sroMap of Object.values(sroByRateId)) {
-        for (const id of sroMap.values()) uniqueSroIds.add(id);
+      
+      // ALWAYS include specific SRO IDs first (priority)
+      const specificSroIds = ['383', '384', '385', '439', '391'];
+      specificSroIds.forEach(id => uniqueSroIds.add(id));
+      console.log('✅ Specific SRO IDs explicitly included as priority:', specificSroIds);
+      
+      // Add existing SRO IDs from sroByRateId if available
+      if (sroByRateId && Object.keys(sroByRateId).length > 0) {
+        const existingSroIds = new Set();
+        for (const sroMap of Object.values(sroByRateId)) {
+          for (const id of sroMap.values()) existingSroIds.add(String(id));
+        }
+        existingSroIds.forEach(id => uniqueSroIds.add(id));
+        console.log(`Added ${existingSroIds.size} existing SRO IDs from sroByRateId`);
       }
-
+      
       console.log(`Fetching SRO Item data for ${uniqueSroIds.size} SRO IDs...`);
+      console.log('All SRO IDs to fetch:', Array.from(uniqueSroIds).slice(0, 15));
+      
+      let successfulFetches = 0;
+      let failedFetches = 0;
 
       for (const sroId of uniqueSroIds) {
         try {
+          console.log(`Fetching SRO Item data for sro_id=${sroId}...`);
+          
+          // Fetch SRO Item data for each SRO ID
           const sroItemsRaw = await fetchData(
-            `pdi/v2/SROItem?date=2025-03-25&sro_id=${encodeURIComponent(
-              sroId
-            )}`,
+            `pdi/v2/SROItem?date=2025-03-25&sro_id=${encodeURIComponent(sroId)}`,
             "sandbox",
             token
           );
 
+          console.log(`SRO Item API response for sro_id=${sroId}:`, {
+            isArray: Array.isArray(sroItemsRaw),
+            length: Array.isArray(sroItemsRaw) ? sroItemsRaw.length : 'N/A',
+            sample: Array.isArray(sroItemsRaw) && sroItemsRaw.length > 0 ? sroItemsRaw[0] : 'No data'
+          });
+
           const items = (Array.isArray(sroItemsRaw) ? sroItemsRaw : [])
             .map((it) => {
-              const desc =
-                it.srO_ITEM_DESC || it.SRO_ITEM_DESC || it.desc || null;
+              // Extract srO_ITEM_DESC from the API response
+              const desc = it.srO_ITEM_DESC || it.SRO_ITEM_DESC || it.desc || null;
               return desc ? String(desc).trim() : null;
             })
             .filter(Boolean);
 
+          console.log(`Found ${items.length} SRO Item items for sro_id=${sroId}`);
+
           sroItemsBySroId[sroId] = items;
+          successfulFetches++;
+
+          // Special logging for specific SRO IDs
+          if (specificSroIds.includes(sroId)) {
+            console.log(`✅ SUCCESS: Specific SRO ID ${sroId} fetched ${items.length} SRO Item items`);
+            console.log(`SRO ID ${sroId} Item Descriptions:`, items.slice(0, 5));
+          }
 
           // Add all SRO Item descriptions to the comprehensive set
           items.forEach((item) => {
@@ -4883,14 +4970,36 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
               allUniqueSROItems.add(item);
             }
           });
+
         } catch (e) {
+          console.error(`Failed to fetch SRO Item data for sro_id=${sroId}:`, e.message);
           sroItemsBySroId[sroId] = [];
+          failedFetches++;
+          
+          // Special error logging for specific SRO IDs
+          if (specificSroIds.includes(sroId)) {
+            console.error(`❌ CRITICAL: Failed to fetch specific SRO ID ${sroId} SRO Item data!`);
+          }
         }
       }
 
+      console.log(`SRO Item Fetch Summary: ${successfulFetches} successful, ${failedFetches} failed`);
       console.log(
-        `Collected ${allUniqueSROItems.size} unique SRO Item Numbers from API`
+        `Collected ${allUniqueSROItems.size} unique SRO Item Numbers from API across all SRO IDs`
       );
+      
+      // Verify specific SRO IDs were successfully fetched
+      const specificSroSuccess = specificSroIds.filter(id => 
+        sroItemsBySroId[id] && sroItemsBySroId[id].length > 0
+      );
+      console.log(`✅ CONFIRMED: ${specificSroSuccess.length}/${specificSroIds.length} specific SRO IDs have SRO Item data`);
+      console.log('Successful specific SRO IDs:', specificSroSuccess);
+      
+      // Log sample SRO Item descriptions
+      console.log('Sample SRO Item Descriptions from all SRO IDs:', Array.from(allUniqueSROItems).slice(0, 10));
+      
+    } else {
+      console.log('No token available for SRO Item fetching');
     }
 
     // Add fallback SRO Item data for comprehensive coverage

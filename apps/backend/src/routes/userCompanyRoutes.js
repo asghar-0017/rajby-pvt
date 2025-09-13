@@ -286,9 +286,20 @@ router.get("/tenants/:tenantId/stats", async (req, res) => {
       const tenantDb = await TenantDatabaseService.getTenantDatabase(tenantId);
       const { models } = tenantDb;
 
-      // Get counts
-      const buyerCount = await models.Buyer.count();
-      const invoiceCount = await models.Invoice.count();
+      // Get counts - filter by user for non-admin users
+      let buyerWhereClause = {};
+      let invoiceWhereClause = {};
+      
+      if (req.user?.role !== "admin") {
+        const userId = req.user?.userId || req.user?.id;
+        if (userId) {
+          buyerWhereClause.created_by_user_id = userId;
+          invoiceWhereClause.created_by_user_id = userId;
+        }
+      }
+      
+      const buyerCount = await models.Buyer.count({ where: buyerWhereClause });
+      const invoiceCount = await models.Invoice.count({ where: invoiceWhereClause });
 
       const stats = {
         buyerCount,
