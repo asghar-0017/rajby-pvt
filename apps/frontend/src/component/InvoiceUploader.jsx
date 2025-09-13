@@ -140,6 +140,7 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
   const [existingInvoices, setExistingInvoices] = useState([]);
   const [newInvoices, setNewInvoices] = useState([]);
   const [checkingExisting, setCheckingExisting] = useState(false);
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
 
   const fileInputRef = useRef(null);
 
@@ -1710,29 +1711,56 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
             </Alert>
           )}
 
-          {/* Download Template Button - Download from public folder */}
+          {/* Download Template Button - Generate from backend */}
           <Box sx={{ mb: 2 }}>
             <Button
               variant="outlined"
-              startIcon={<Download />}
-              onClick={() => {
+              onClick={async () => {
                 try {
-                  // Create a link element to download the template from public folder
+                  if (!selectedTenant) {
+                    toast.error("Please select a company first to download the template");
+                    return;
+                  }
+
+                  setDownloadingTemplate(true);
+                  // Show loading state
+                  toast.info("Generating Excel template...");
+
+                  // Call backend API to generate and download template
+                  const response = await api.get(
+                    `/tenant/${selectedTenant.tenant_id}/invoices/template.xlsx`,
+                    {
+                      responseType: 'blob', // Important for file downloads
+                    }
+                  );
+
+                  // Create blob and download
+                  const blob = new Blob([response.data], {
+                    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                  });
+                  
+                  const url = window.URL.createObjectURL(blob);
                   const link = document.createElement("a");
-                  link.href = "/invoiceTemplate/invoice_template.xlsx";
-                  link.download = "invoice_template.xlsx";
+                  link.href = url;
+                  link.download = `invoice_template_${selectedTenant.sellerBusinessName || 'template'}.xlsx`;
                   document.body.appendChild(link);
                   link.click();
                   document.body.removeChild(link);
-                  toast.success("Excel template downloaded successfully!");
+                  window.URL.revokeObjectURL(url);
+                  
+                  toast.success("Excel template generated and downloaded successfully!");
                 } catch (error) {
                   console.error("Error downloading template:", error);
-                  toast.error("Could not download Excel template.");
+                  toast.error("Could not generate Excel template. Please try again.");
+                } finally {
+                  setDownloadingTemplate(false);
                 }
               }}
               size="small"
+              disabled={!selectedTenant || downloadingTemplate}
+              startIcon={downloadingTemplate ? <CircularProgress size={16} /> : <Download />}
             >
-              Download Excel Template
+              {downloadingTemplate ? "Generating..." : "Download Excel Template"}
             </Button>
           </Box>
 
