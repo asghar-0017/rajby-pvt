@@ -17,7 +17,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "https://alhamdenterprises.inplsoftwares.online",
+        target: "https://briogene.inplsoftwares.online",
         changeOrigin: true,
         secure: false,
       },
