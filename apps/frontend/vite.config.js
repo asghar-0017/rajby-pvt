@@ -17,7 +17,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "https://nationalenterprises.inplsoftwares.online",
+        target: "https://multimed.inplsoftwares.online",
         changeOrigin: true,
         secure: false,
       },
