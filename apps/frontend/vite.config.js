@@ -17,7 +17,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "https://multimed.inplsoftwares.online",
+        target: "https://sardarhos.inplsoftwares.online",
         changeOrigin: true,
         secure: false,
       },
