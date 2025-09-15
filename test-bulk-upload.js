@@ -52,7 +52,7 @@ const testBulkUpload = async () => {
     });
 
     const response = await fetch(
-      "https://premierpipe.inplsoftwares.online/api/tenant/tenant_1756409312403_uo1hmt4tz/invoices/bulk",
+      "https://einv-aaafm.inplsoftwares.online/api/tenant/tenant_1756409312403_uo1hmt4tz/invoices/bulk",
       {
         method: "POST",
         headers: {
