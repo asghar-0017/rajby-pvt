@@ -17,7 +17,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "https://tsbuttons.inplsoftwares.online",
+        target: "https://jbzippers.inplsoftwares.online",
         changeOrigin: true,
         secure: false,
       },
