@@ -48,7 +48,7 @@ app.use(
         connectSrc: [
           "'self'",
           "https://gw.fbr.gov.pk",
-          "https://briogene.inplsoftwares.online",
+          "https://alhamdenterprises.inplsoftwares.online",
         ],
         scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
@@ -62,8 +62,8 @@ app.use(
   cors({
     origin: [
       "http://localhost:5174",
-      "https://briogene.inplsoftwares.online",
-      "https://briogene.inplsoftwares.online",
+      "https://alhamdenterprises.inplsoftwares.online",
+      "https://alhamdenterprises.inplsoftwares.online",
       "https://fbrtestcase.inplsoftwares.online",
       "*",
     ],
