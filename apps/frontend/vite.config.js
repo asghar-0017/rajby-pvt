@@ -17,7 +17,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "https://threadzpoly.inplsoftwares.online",
+        target: "https://krestacorp.inplsoftwares.online",
         changeOrigin: true,
         secure: false,
       },
