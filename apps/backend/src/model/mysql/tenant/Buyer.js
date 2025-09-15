@@ -62,22 +62,13 @@ export const createBuyerModel = (sequelize) => {
     createdAt: 'created_at',
     updatedAt: 'updated_at',
     indexes: [
-      // Primary index on buyerNTNCNIC for ultra-fast lookups
-      {
-        name: 'idx_buyer_ntn_cnic',
-        fields: ['buyerNTNCNIC'],
-        unique: true
-      },
       // Index on buyerBusinessName for business name searches
       {
         name: 'idx_buyer_business_name',
         fields: ['buyerBusinessName']
-      },
-      // Composite index for province-based queries
-      {
-        name: 'idx_buyer_province_ntn',
-        fields: ['buyerProvince', 'buyerNTNCNIC']
       }
+      // Note: buyerNTNCNIC already has unique constraint from column definition
+      // Note: Composite indexes can be added later if needed for performance
     ]
   });
 
