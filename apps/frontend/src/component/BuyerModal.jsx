@@ -331,7 +331,7 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
       setBuyerRegistrationHint("");
 
       const response = await fetch(
-        "https://enl.inplsoftwares.online/api/buyer-check",
+        "https://hkplastik.inplsoftwares.online/api/buyer-check",
         {
           method: "POST",
           headers: {
