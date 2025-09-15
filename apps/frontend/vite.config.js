@@ -17,7 +17,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "https://machinery-zone.inplsoftwares.online",
+        target: "https://china-youncheng.inplsoftwares.online",
         changeOrigin: true,
         secure: false,
       },
