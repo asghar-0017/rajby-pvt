@@ -3,7 +3,7 @@
  * Provides real-time progress tracking and chunked uploads
  */
 
-import { api } from '../API/Api';
+import { api } from "../API/Api";
 
 class StreamingUploadService {
   constructor() {
@@ -27,13 +27,13 @@ class StreamingUploadService {
     } = options;
 
     if (!tenantId) {
-      throw new Error('Tenant ID is required for upload');
+      throw new Error("Tenant ID is required for upload");
     }
 
     const uploadId = this.generateUploadId();
     const totalInvoices = invoices.length;
     const totalChunks = Math.ceil(totalInvoices / chunkSize);
-    
+
     // Initialize upload tracking
     this.activeUploads.set(uploadId, {
       totalInvoices,
@@ -48,7 +48,7 @@ class StreamingUploadService {
     try {
       // SIMPLIFIED: Send all invoices at once instead of chunking
       console.log(`🚀 Uploading all ${totalInvoices} invoices at once...`);
-      
+
       // Update progress
       const progress = {
         uploadId,
@@ -58,7 +58,7 @@ class StreamingUploadService {
         completedInvoices: 0,
         totalInvoices,
         percentage: 0,
-        status: 'uploading',
+        status: "uploading",
       };
 
       onProgress(progress);
@@ -101,7 +101,9 @@ class StreamingUploadService {
         warnings: upload.warnings,
         totalTime,
         performance: {
-          invoicesPerSecond: Math.round((successfulInvoices / totalTime) * 1000),
+          invoicesPerSecond: Math.round(
+            (successfulInvoices / totalTime) * 1000
+          ),
           averageTimePerInvoice: Math.round(totalTime / totalInvoices),
         },
         results: [result],
@@ -115,15 +117,14 @@ class StreamingUploadService {
         completedInvoices: successfulInvoices,
         totalInvoices,
         percentage: 100,
-        status: 'completed',
+        status: "completed",
         result: finalResult,
       });
 
       return finalResult;
-
     } catch (error) {
-      console.error('Upload failed:', error);
-      
+      console.error("Upload failed:", error);
+
       onError({
         uploadId,
         error: error.message,
@@ -146,24 +147,42 @@ class StreamingUploadService {
     const { chunkSize, chunkIndex } = options;
 
     try {
-                    const response = await api.post(
-         `/tenant/${tenantId}/invoices/bulk`,
-         {
-           invoices: chunk,
-           chunkSize,
-           chunkIndex,
-         }
-       );
+      // Debug: Log the payload being sent
+      console.log("🔍 API Payload Debug:", {
+        tenantId,
+        chunkSize,
+        chunkIndex,
+        totalInvoices: chunk.length,
+        firstInvoice: chunk[0],
+        firstInvoiceItems: chunk[0]?.items?.[0],
+        dcDocFields: chunk[0]?.items?.[0]
+          ? {
+              dcDocId: chunk[0].items[0].dcDocId,
+              dcDocDate: chunk[0].items[0].dcDocDate,
+              item_dcDocId: chunk[0].items[0].item_dcDocId,
+              item_dcDocDate: chunk[0].items[0].item_dcDocDate,
+              allDcDocFields: Object.keys(chunk[0].items[0]).filter((key) =>
+                key.includes("dcDoc")
+              ),
+            }
+          : null,
+      });
 
-       const result = response.data;
-      
+      const response = await api.post(`/tenant/${tenantId}/invoices/bulk`, {
+        invoices: chunk,
+        chunkSize,
+        chunkIndex,
+      });
+
+      const result = response.data;
+
       if (!result.success) {
-        throw new Error(result.message || 'Upload failed');
+        throw new Error(result.message || "Upload failed");
       }
 
       return result.data;
     } catch (error) {
-      console.error('Chunk upload error:', error);
+      console.error("Chunk upload error:", error);
       throw error;
     }
   }
@@ -210,7 +229,7 @@ class StreamingUploadService {
    * @param {number} ms - Milliseconds to delay
    */
   delay(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /**
@@ -222,10 +241,11 @@ class StreamingUploadService {
     // Based on historical performance data
     const averageTimePerInvoice = 50; // milliseconds
     const averageTimePerChunk = 2000; // milliseconds
-    
+
     const totalChunks = Math.ceil(invoiceCount / chunkSize);
-    const estimatedTime = (invoiceCount * averageTimePerInvoice) + (totalChunks * averageTimePerChunk);
-    
+    const estimatedTime =
+      invoiceCount * averageTimePerInvoice + totalChunks * averageTimePerChunk;
+
     return {
       estimatedTimeMs: estimatedTime,
       estimatedTimeSeconds: Math.round(estimatedTime / 1000),

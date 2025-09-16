@@ -21,6 +21,7 @@ import {
   Link,
   LinearProgress,
 } from "@mui/material";
+import { useTenantSelection } from "../Context/TenantSelectionProvider";
 import {
   CloudUpload,
   FileUpload,
@@ -132,6 +133,7 @@ const convertExcelDateToYYYYMMDD = (excelDate) => {
 };
 
 const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
+  const { getSelectedTenantId } = useTenantSelection();
   const [file, setFile] = useState(null);
   const [previewData, setPreviewData] = useState([]);
   const [uploading, setUploading] = useState(false);
@@ -188,11 +190,14 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     "buyerProvince",
     "buyerAddress",
     "buyerRegistrationType",
+    "buyerTelephone",
     // Transaction and item details
     "transctypeId",
     "item_rate",
     "item_sroScheduleNo",
     "item_sroItemSerialNo",
+    "item_dcDocId",
+    "item_dcDocDate",
     "item_saleType",
     "item_hsCode",
     "item_uoM",
@@ -226,10 +231,13 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     "Buyer Province": "buyerProvince",
     "Buyer Address": "buyerAddress",
     "Buyer Registration Type": "buyerRegistrationType",
+    "Buyer Telephone No": "buyerTelephone",
     "Transaction Type": "transctypeId",
     Rate: "item_rate",
     "SRO Schedule No": "item_sroScheduleNo",
     "SRO Item No": "item_sroItemSerialNo",
+    "DC Doc Id": "item_dcDocId",
+    "DC Doc Date": "item_dcDocDate",
     "Sale Type": "item_saleType",
     "HS Code": "item_hsCode",
     "Unit Of Measurement": "item_uoM",
@@ -244,6 +252,8 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     "Further Tax": "item_furtherTax",
     "FED Payable": "item_fedPayable",
     Discount: "item_discount",
+    Cartages: "item_cartages",
+    Others: "item_others",
     "Total Values": "item_totalValues",
   };
 
@@ -268,6 +278,8 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       Transactio: "transctypeId",
       "SRO Sched": "item_sroScheduleNo",
       "SRO Item": "item_sroItemSerialNo",
+      "DC Doc I": "item_dcDocId",
+      "DC Doc Da": "item_dcDocDate",
       "Product Na": "item_productName",
       "Product De": "item_productDescription",
       "Value Sale": "item_valueSalesExcludingST",
@@ -324,20 +336,6 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         row.item_valueSalesExcludingST !== 0);
 
     const hasData = hasInvoiceData || hasItemData;
-
-    // Debug logging for empty rows
-    if (!hasData && rowIndex < 10) {
-      // Only log first 10 for debugging
-      console.log(`🚫 Row ${rowIndex + 1} filtered out as empty:`, {
-        invoiceType: row.invoiceType,
-        buyerBusinessName: row.buyerBusinessName,
-        companyInvoiceRefNo: row.companyInvoiceRefNo,
-        item_productName: row.item_productName,
-        item_hsCode: row.item_hsCode,
-        item_quantity: row.item_quantity,
-        item_unitPrice: row.item_unitPrice,
-      });
-    }
 
     return hasData;
   };
@@ -488,22 +486,15 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
 
     const stringValue = String(value).trim();
 
-    console.log(
-      "🔍 cleanHsCode input:",
-      stringValue.substring(0, 100) + (stringValue.length > 100 ? "..." : "")
-    );
-
     // If it contains " - ", extract the part before the first " - "
     if (stringValue.includes(" - ")) {
       const parts = stringValue.split(" - ");
       const codePart = parts[0].trim();
-      console.log("🔍 cleanHsCode output:", codePart);
       // Return the code part if it's not empty
       return codePart;
     }
 
     // If no " - " found, assume the entire string is the code
-    console.log("🔍 cleanHsCode output (no dash):", stringValue);
     return stringValue;
   };
 
@@ -662,10 +653,6 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         // Get headers from first row and normalize
         const headers = jsonData[0].map((header) => normalizeHeader(header));
 
-        // Log available headers for debugging
-        console.log("Available headers in Excel file:", headers);
-        console.log("Expected columns:", expectedColumns);
-
         // Log missing headers but don't throw error - process whatever columns are available
         const missingHeaders = expectedColumns.filter(
           (col) => !headers.includes(col)
@@ -722,23 +709,6 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
 
                 rowData[header] = value;
               });
-
-              // Debug: Log raw parsed data for first few rows
-              if (i <= 3) {
-                console.log(`🔍 Raw Excel Row ${i}:`, {
-                  headers: headers,
-                  rawRow: row,
-                  parsedRowData: rowData,
-                  companyInvoiceRefNo: rowData.companyInvoiceRefNo,
-                  hasCompanyInvoiceRefNo: !!rowData.companyInvoiceRefNo,
-                  internalInvoiceNo: rowData.internalInvoiceNo, // Still logged for reference
-                  productName: rowData.item_productName,
-                  productDescription: rowData.item_productDescription,
-                  hsCode: rowData.item_hsCode,
-                  quantity: rowData.item_quantity,
-                  unitPrice: rowData.item_unitPrice,
-                });
-              }
 
               // Only include expected columns
               const filteredRow = {};
@@ -826,8 +796,6 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
   };
 
   const validateAndSetPreview = async (data) => {
-    console.log(`Raw data rows received: ${data.length}`);
-
     // Filter out completely empty rows and special rows
     let validData = data
       .filter((row, index) => {
@@ -875,15 +843,6 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         return processedRow;
       });
 
-    console.log(`Valid data rows after filtering: ${validData.length}`);
-
-    // Log details about filtered rows for debugging
-    const filteredOutCount = data.length - validData.length;
-    if (filteredOutCount > 0) {
-      console.log(`🚫 Filtered out ${filteredOutCount} empty/invalid rows`);
-      console.log(`✅ Kept ${validData.length} rows with meaningful data`);
-    }
-
     // Populate seller details from selected tenant
     if (selectedTenant) {
       // Validate that tenant has required seller information
@@ -922,7 +881,7 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       }
       try {
         const resp = await fetch(
-          "https://signs-now.inplsoftwares.online/api/buyer-check",
+          "https://rajbytextileind.inplsoftwares.online/api/buyer-check",
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -1050,33 +1009,10 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       invoicesData.forEach((invoice) => {
         if (invoice.items && Array.isArray(invoice.items)) {
           invoice.items.forEach((item) => {
-            // Debug: Log what we're looking for
-            console.log("🔍 Product extraction debug:", {
-              item_productName: item.item_productName,
-              item_name: item.item_name,
-              name: item.name,
-              item_hsCode: item.item_hsCode,
-              hsCode: item.hsCode,
-              hasProductName: !!(
-                item.item_productName ||
-                item.item_name ||
-                item.name
-              ),
-              hasHsCode: !!(item.item_hsCode || item.hsCode),
-            });
-
             // Create a unique key for each product using cleaned HS code
             const rawHsCode = item.item_hsCode || item.hsCode || "";
             const cleanedHsCode = cleanHsCode(rawHsCode);
             const productKey = `${item.item_productName || item.item_name || item.name || ""}-${cleanedHsCode}`;
-
-            console.log("🔍 HS Code cleaning:", {
-              rawHsCode:
-                rawHsCode.substring(0, 100) +
-                (rawHsCode.length > 100 ? "..." : ""),
-              cleanedHsCode: cleanedHsCode,
-              productKey: productKey,
-            });
 
             if (productKey && productKey !== "-") {
               allProducts.add(productKey);
@@ -1103,15 +1039,8 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       });
 
       if (allProducts.size === 0) {
-        console.log("No products found in invoice data");
         return;
       }
-
-      console.log(
-        `Found ${allProducts.size} unique products in invoice data:`,
-        Array.from(allProducts)
-      );
-      console.log("Product details:", Array.from(productDetails.entries()));
 
       // Get existing products to check which ones need to be created
       const existingProductsResponse = await api.get(
@@ -1140,14 +1069,8 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       });
 
       if (missingProducts.length === 0) {
-        console.log("All products already exist in the system");
         return;
       }
-
-      console.log(
-        `Found ${missingProducts.length} missing products to create:`,
-        missingProducts
-      );
 
       // Create missing products
       const createdProducts = [];
@@ -1179,8 +1102,6 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
             // You can add more fields as needed
           };
 
-          console.log("🔍 Creating product with data:", productData);
-
           const createResponse = await api.post(
             `/tenant/${selectedTenant.tenant_id}/products`,
             productData
@@ -1188,7 +1109,6 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
 
           if (createResponse.data.success) {
             createdProducts.push(product.name);
-            console.log(`Successfully created product: ${product.name}`);
           } else {
             failedProducts.push(product.name);
             console.error(
@@ -1208,20 +1128,12 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
           `Successfully created ${createdProducts.length} new products: ${createdProducts.slice(0, 3).join(", ")}${createdProducts.length > 3 ? "..." : ""}`,
           { autoClose: 5000 }
         );
-        console.log(
-          `Created ${createdProducts.length} products:`,
-          createdProducts
-        );
       }
 
       if (failedProducts.length > 0) {
         toast.warning(
           `Failed to create ${failedProducts.length} products: ${failedProducts.slice(0, 3).join(", ")}${failedProducts.length > 3 ? "..." : ""}`,
           { autoClose: 5000 }
-        );
-        console.log(
-          `Failed to create ${failedProducts.length} products:`,
-          failedProducts
         );
       }
     } catch (error) {
@@ -1248,7 +1160,6 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
 
       if (isAlreadyGrouped) {
         // Data is already grouped by worker, use it directly
-        console.log("🔍 Using already-grouped invoices from worker");
         invoicesToUpload = previewData.map((invoice) => ({
           ...invoice,
           // Ensure seller details are populated from selected tenant
@@ -1260,7 +1171,6 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         }));
       } else {
         // Data is individual rows, need to group them
-        console.log("🔍 Grouping individual rows");
         const groupedInvoices = new Map();
         const groupingErrors = [];
 
@@ -1282,30 +1192,13 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
 
           // Map Excel field names to backend expected field names
           // Backend expects productName or name, but Excel sends item_productName
-          console.log("🔍 Frontend Debug: Before mapping:", {
-            item_productName: cleanedItem.item_productName,
-            name: cleanedItem.name,
-            productName: cleanedItem.productName,
-          });
-
           if (
             cleanedItem.item_productName &&
             cleanedItem.item_productName.trim() !== ""
           ) {
             cleanedItem.productName = cleanedItem.item_productName;
             cleanedItem.name = cleanedItem.item_productName;
-            console.log(
-              "✅ Frontend: Mapped product name:",
-              cleanedItem.item_productName
-            );
-          } else {
-            console.log("❌ Frontend: No valid item_productName found");
           }
-
-          console.log("🔍 Frontend Debug: After mapping:", {
-            name: cleanedItem.name,
-            productName: cleanedItem.productName,
-          });
 
           // Map other item fields to remove the 'item_' prefix
           if (cleanedItem.item_hsCode) {
@@ -1363,6 +1256,12 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
           if (cleanedItem.item_sroItemSerialNo) {
             cleanedItem.sroItemSerialNo = cleanedItem.item_sroItemSerialNo;
           }
+          if (cleanedItem.item_dcDocId) {
+            cleanedItem.dcDocId = cleanedItem.item_dcDocId;
+          }
+          if (cleanedItem.item_dcDocDate) {
+            cleanedItem.dcDocDate = cleanedItem.item_dcDocDate;
+          }
 
           // Get the companyInvoiceRefNo for grouping (changed from internalInvoiceNo)
           const companyInvoiceRefNo =
@@ -1419,6 +1318,11 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
                 `Buyer Registration Type mismatch: ${existingInvoice.buyerRegistrationType} vs ${cleanedItem.buyerRegistrationType}`
               );
             }
+            if (existingInvoice.buyerTelephone !== cleanedItem.buyerTelephone) {
+              consistencyErrors.push(
+                `Buyer Telephone mismatch: ${existingInvoice.buyerTelephone} vs ${cleanedItem.buyerTelephone}`
+              );
+            }
 
             if (consistencyErrors.length > 0) {
               groupingErrors.push({
@@ -1429,10 +1333,66 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
               });
             }
 
-            existingInvoice.items.push(cleanedItem);
+            // Create item object with only item-specific fields (exclude buyer and invoice fields)
+            const itemData = {
+              // Product/item fields
+              productName: cleanedItem.productName,
+              name: cleanedItem.name,
+              hsCode: cleanedItem.hsCode,
+              productDescription: cleanedItem.productDescription,
+              rate: cleanedItem.rate,
+              dcDocId: cleanedItem.dcDocId,
+              dcDocDate: cleanedItem.dcDocDate,
+              uoM: cleanedItem.uoM,
+              quantity: cleanedItem.quantity,
+              unitPrice: cleanedItem.unitPrice,
+              totalValues: cleanedItem.totalValues,
+              valueSalesExcludingST: cleanedItem.valueSalesExcludingST,
+              fixedNotifiedValueOrRetailPrice:
+                cleanedItem.fixedNotifiedValueOrRetailPrice,
+              salesTaxApplicable: cleanedItem.salesTaxApplicable,
+              extraTax: cleanedItem.extraTax,
+              furtherTax: cleanedItem.furtherTax,
+              sroScheduleNo: cleanedItem.sroScheduleNo,
+              fedPayable: cleanedItem.fedPayable,
+              discount: cleanedItem.discount,
+              saleType: cleanedItem.saleType,
+              sroItemSerialNo: cleanedItem.sroItemSerialNo,
+              // Item fields with item_ prefix
+              item_rate: cleanedItem.item_rate,
+              item_sroScheduleNo: cleanedItem.item_sroScheduleNo,
+              item_sroItemSerialNo: cleanedItem.item_sroItemSerialNo,
+              item_dcDocId: cleanedItem.item_dcDocId,
+              item_dcDocDate: cleanedItem.item_dcDocDate,
+              item_saleType: cleanedItem.item_saleType,
+              item_hsCode: cleanedItem.item_hsCode,
+              item_uoM: cleanedItem.item_uoM,
+              item_productName: cleanedItem.item_productName,
+              item_productDescription: cleanedItem.item_productDescription,
+              item_valueSalesExcludingST:
+                cleanedItem.item_valueSalesExcludingST,
+              item_quantity: cleanedItem.item_quantity,
+              item_unitPrice: cleanedItem.item_unitPrice,
+              item_salesTaxApplicable: cleanedItem.item_salesTaxApplicable,
+              item_salesTaxWithheldAtSource:
+                cleanedItem.item_salesTaxWithheldAtSource,
+              item_extraTax: cleanedItem.item_extraTax,
+              item_furtherTax: cleanedItem.item_furtherTax,
+              item_fedPayable: cleanedItem.item_fedPayable,
+              item_discount: cleanedItem.item_discount,
+              item_totalValues: cleanedItem.item_totalValues,
+              item_fixedNotifiedValueOrRetailPrice:
+                cleanedItem.item_fixedNotifiedValueOrRetailPrice,
+              // Transaction field
+              transctypeId: cleanedItem.transctypeId,
+              // Row tracking
+              _row: cleanedItem._row,
+            };
+
+            existingInvoice.items.push(itemData);
           } else {
             // Create new invoice group
-            groupedInvoices.set(companyInvoiceRefNo, {
+            const newInvoice = {
               invoiceType: cleanedItem.invoiceType,
               invoiceDate: cleanedItem.invoiceDate,
               invoiceRefNo: cleanedItem.invoiceRefNo,
@@ -1450,9 +1410,69 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
               buyerProvince: cleanedItem.buyerProvince,
               buyerAddress: cleanedItem.buyerAddress,
               buyerRegistrationType: cleanedItem.buyerRegistrationType,
-              items: [cleanedItem],
+              buyerTelephone: cleanedItem.buyerTelephone,
+              items: [
+                {
+                  // Product/item fields
+                  productName: cleanedItem.productName,
+                  name: cleanedItem.name,
+                  hsCode: cleanedItem.hsCode,
+                  productDescription: cleanedItem.productDescription,
+                  rate: cleanedItem.rate,
+                  dcDocId: cleanedItem.dcDocId,
+                  dcDocDate: cleanedItem.dcDocDate,
+                  uoM: cleanedItem.uoM,
+                  quantity: cleanedItem.quantity,
+                  unitPrice: cleanedItem.unitPrice,
+                  totalValues: cleanedItem.totalValues,
+                  valueSalesExcludingST: cleanedItem.valueSalesExcludingST,
+                  fixedNotifiedValueOrRetailPrice:
+                    cleanedItem.fixedNotifiedValueOrRetailPrice,
+                  salesTaxApplicable: cleanedItem.salesTaxApplicable,
+                  extraTax: cleanedItem.extraTax,
+                  furtherTax: cleanedItem.furtherTax,
+                  sroScheduleNo: cleanedItem.sroScheduleNo,
+                  fedPayable: cleanedItem.fedPayable,
+                  discount: cleanedItem.discount,
+                  saleType: cleanedItem.saleType,
+                  sroItemSerialNo: cleanedItem.sroItemSerialNo,
+                  // Item fields with item_ prefix
+                  item_rate: cleanedItem.item_rate,
+                  item_sroScheduleNo: cleanedItem.item_sroScheduleNo,
+                  item_sroItemSerialNo: cleanedItem.item_sroItemSerialNo,
+                  item_dcDocId: cleanedItem.item_dcDocId,
+                  item_dcDocDate: cleanedItem.item_dcDocDate,
+                  item_saleType: cleanedItem.item_saleType,
+                  item_hsCode: cleanedItem.item_hsCode,
+                  item_uoM: cleanedItem.item_uoM,
+                  item_productName: cleanedItem.item_productName,
+                  item_productDescription: cleanedItem.item_productDescription,
+                  item_valueSalesExcludingST:
+                    cleanedItem.item_valueSalesExcludingST,
+                  item_quantity: cleanedItem.item_quantity,
+                  item_unitPrice: cleanedItem.item_unitPrice,
+                  item_salesTaxApplicable: cleanedItem.item_salesTaxApplicable,
+                  item_salesTaxWithheldAtSource:
+                    cleanedItem.item_salesTaxWithheldAtSource,
+                  item_extraTax: cleanedItem.item_extraTax,
+                  item_furtherTax: cleanedItem.item_furtherTax,
+                  item_fedPayable: cleanedItem.item_fedPayable,
+                  item_discount: cleanedItem.item_discount,
+                  item_cartages: cleanedItem.item_cartages,
+                  item_others: cleanedItem.item_others,
+                  item_totalValues: cleanedItem.item_totalValues,
+                  item_fixedNotifiedValueOrRetailPrice:
+                    cleanedItem.item_fixedNotifiedValueOrRetailPrice,
+                  // Transaction field
+                  transctypeId: cleanedItem.transctypeId,
+                  // Row tracking
+                  _row: cleanedItem._row,
+                },
+              ],
               _row: index + 1, // Track the first row for this invoice
-            });
+            };
+
+            groupedInvoices.set(companyInvoiceRefNo, newInvoice);
           }
         });
 
@@ -1479,32 +1499,11 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         );
       }
 
-      // Log seller details being populated
-      console.log("🔍 Debug: Seller details populated from tenant:", {
-        tenantName: selectedTenant?.sellerBusinessName,
-        sellerNTNCNIC: selectedTenant?.sellerNTNCNIC,
-        sellerProvince: selectedTenant?.sellerProvince,
-        sellerAddress: selectedTenant?.sellerAddress,
-        totalInvoices: invoicesToUpload.length,
-      });
-
-      console.log("🔍 Debug: Grouped invoices for backend:", {
-        totalInvoices: invoicesToUpload.length,
-        totalRows: previewData.length,
-        sampleInvoice: invoicesToUpload[0],
-        sampleInvoiceItems: invoicesToUpload[0]?.items?.length || 0,
-        sampleCompanyInvoiceRefNo: invoicesToUpload[0]?.companyInvoiceRefNo,
-        hasCompanyInvoiceRefNo: !!invoicesToUpload[0]?.companyInvoiceRefNo,
-        sampleInternalInvoiceNo: invoicesToUpload[0]?.internalInvoiceNo, // Still logged for reference
-        groupingSummary: invoicesToUpload.map((inv) => ({
-          companyInvoiceRefNo: inv.companyInvoiceRefNo,
-          internalInvoiceNo: inv.internalInvoiceNo, // Still included for reference
-          itemCount: inv.items.length,
-          rows: inv.items.map((item) => item._row),
-        })),
-      });
-
       // Use streaming upload for large files, regular upload for small files
+      let uploadSuccess = false;
+      let successCount = 0;
+      let failedCount = 0;
+
       if (invoicesToUpload.length > 100) {
         // Estimate upload time
         const estimate = estimateUploadTime(invoicesToUpload.length);
@@ -1520,6 +1519,9 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
 
         if (result.success) {
           const { successfulInvoices, failedInvoices, errors } = result;
+          uploadSuccess = true;
+          successCount = successfulInvoices;
+          failedCount = failedInvoices;
 
           if (failedInvoices > 0) {
             toast.warning(
@@ -1531,10 +1533,6 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
               }
             );
             console.error("Upload errors:", errors);
-          } else {
-            toast.success(
-              `Successfully uploaded ${successfulInvoices} invoices as drafts!`
-            );
           }
         } else {
           throw new Error("Streaming upload failed");
@@ -1542,6 +1540,7 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       } else {
         // Use regular upload for small files
         const result = await onUpload(invoicesToUpload);
+        uploadSuccess = true;
 
         // Check if there were any errors in the upload
         if (
@@ -1551,6 +1550,8 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
           result.data.data.summary
         ) {
           const { summary, errors } = result.data.data;
+          successCount = summary.successful;
+          failedCount = summary.failed;
 
           if (summary.failed > 0) {
             // Show detailed error information
@@ -1573,17 +1574,14 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
               }
             );
             console.error("Upload errors:", errors);
-          } else {
-            toast.success(
-              `Successfully uploaded ${summary.successful} invoices as drafts!`
-            );
           }
         } else {
-          toast.success(
-            `Successfully uploaded ${invoicesToUpload.length} invoices as drafts`
-          );
+          successCount = invoicesToUpload.length;
+          failedCount = 0;
         }
       }
+
+      // Success toast is handled by the parent component (handleBulkUpload)
 
       // Close the modal immediately after a successful upload
       handleClose();
@@ -1715,15 +1713,26 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
             <Button
               variant="outlined"
               startIcon={<Download />}
-              onClick={() => {
+              onClick={async () => {
                 try {
-                  // Create a link element to download the template from public folder
+                  // Download template directly from public folder
+                  const response = await fetch(
+                    "/invoiceTemplate/invoice_template.xlsx"
+                  );
+
+                  if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                  }
+
+                  const blob = await response.blob();
+                  const url = window.URL.createObjectURL(blob);
                   const link = document.createElement("a");
-                  link.href = "/invoiceTemplate/invoice_template.xlsx";
+                  link.href = url;
                   link.download = "invoice_template.xlsx";
                   document.body.appendChild(link);
                   link.click();
                   document.body.removeChild(link);
+                  window.URL.revokeObjectURL(url);
                   toast.success("Excel template downloaded successfully!");
                 } catch (error) {
                   console.error("Error downloading template:", error);

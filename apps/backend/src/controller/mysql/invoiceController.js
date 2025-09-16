@@ -143,6 +143,8 @@ export const createInvoice = async (req, res) => {
 
       buyerRegistrationType,
 
+      buyerTelephone,
+
       invoiceRefNo,
 
       companyInvoiceRefNo,
@@ -230,12 +232,17 @@ export const createInvoice = async (req, res) => {
             buyerProvince: buyerProvince || "",
             buyerAddress: buyerAddress || null,
             buyerRegistrationType: buyerRegistrationType || "Unregistered",
+            buyerTelephone: buyerTelephone || null,
             created_by_user_id: req.user?.userId || req.user?.id || null,
             created_by_email: req.user?.email || null,
             created_by_name:
-              (req.user?.firstName || req.user?.lastName)
-                ? `${req.user?.firstName ?? ""}${req.user?.lastName ? ` ${req.user.lastName}` : ""}`.trim()
-                : (req.user?.role === "admin" ? "Admin" : null),
+              req.userType === "user"
+                ? req.user?.firstName || req.user?.lastName
+                  ? `${req.user?.firstName ?? ""}${req.user?.lastName ? ` ${req.user.lastName}` : ""}`.trim()
+                  : null
+                : req.user?.role === "admin"
+                  ? "Admin"
+                  : null,
           });
         }
       }
@@ -345,6 +352,8 @@ export const createInvoice = async (req, res) => {
 
           buyerRegistrationType,
 
+          buyerTelephone,
+
           invoiceRefNo,
 
           companyInvoiceRefNo,
@@ -359,9 +368,13 @@ export const createInvoice = async (req, res) => {
           created_by_user_id: req.user?.userId || req.user?.id || null,
           created_by_email: req.user?.email || null,
           created_by_name:
-            (req.user?.firstName || req.user?.lastName)
-              ? `${req.user?.firstName ?? ""}${req.user?.lastName ? ` ${req.user.lastName}` : ""}`.trim()
-              : (req.user?.role === "admin" ? `Admin (${req.user?.id || req.user?.userId})` : null),
+            req.userType === "user"
+              ? req.user?.firstName || req.user?.lastName
+                ? `${req.user?.firstName ?? ""}${req.user?.lastName ? ` ${req.user.lastName}` : ""}`.trim()
+                : null
+              : req.user?.role === "admin"
+                ? `Admin (${req.user?.id || req.user?.userId})`
+                : null,
         },
 
         { transaction: t }
@@ -435,6 +448,10 @@ export const createInvoice = async (req, res) => {
 
             rate: cleanValue(item.rate),
 
+            dcDocId: cleanValue(item.dcDocId),
+
+            dcDocDate: item.dcDocDate ? new Date(item.dcDocDate) : null,
+
             uoM: cleanValue(item.uoM),
 
             quantity: cleanNumericValue(item.quantity),
@@ -466,6 +483,10 @@ export const createInvoice = async (req, res) => {
             advanceIncomeTax: cleanNumericValue(item.advanceIncomeTax),
 
             discount: cleanNumericValue(item.discount),
+
+            cartages: cleanNumericValue(item.cartages),
+
+            others: cleanNumericValue(item.others),
 
             saleType: cleanValue(item.saleType),
 
@@ -599,6 +620,8 @@ export const saveInvoice = async (req, res) => {
 
       buyerRegistrationType,
 
+      buyerTelephone,
+
       invoiceRefNo,
 
       companyInvoiceRefNo,
@@ -671,6 +694,8 @@ export const saveInvoice = async (req, res) => {
 
             buyerRegistrationType,
 
+            buyerTelephone,
+
             invoiceRefNo,
 
             companyInvoiceRefNo,
@@ -739,6 +764,8 @@ export const saveInvoice = async (req, res) => {
 
             buyerRegistrationType,
 
+            buyerTelephone,
+
             invoiceRefNo,
 
             companyInvoiceRefNo,
@@ -753,9 +780,13 @@ export const saveInvoice = async (req, res) => {
             created_by_user_id: req.user?.userId || req.user?.id || null,
             created_by_email: req.user?.email || null,
             created_by_name:
-              (req.user?.firstName || req.user?.lastName)
-                ? `${req.user?.firstName ?? ""}${req.user?.lastName ? ` ${req.user.lastName}` : ""}`.trim()
-                : (req.user?.role === "admin" ? `Admin ` : null),
+              req.userType === "user"
+                ? req.user?.firstName || req.user?.lastName
+                  ? `${req.user?.firstName ?? ""}${req.user?.lastName ? ` ${req.user.lastName}` : ""}`.trim()
+                  : null
+                : req.user?.role === "admin"
+                  ? `Admin `
+                  : null,
           },
 
           { transaction: t }
@@ -818,6 +849,10 @@ export const saveInvoice = async (req, res) => {
 
             rate: cleanValue(item.rate),
 
+            dcDocId: cleanValue(item.dcDocId),
+
+            dcDocDate: item.dcDocDate ? new Date(item.dcDocDate) : null,
+
             uoM: cleanValue(item.uoM),
 
             quantity: cleanNumericValue(item.quantity),
@@ -849,6 +884,10 @@ export const saveInvoice = async (req, res) => {
             advanceIncomeTax: cleanNumericValue(item.advanceIncomeTax),
 
             discount: cleanNumericValue(item.discount),
+
+            cartages: cleanNumericValue(item.cartages),
+
+            others: cleanNumericValue(item.others),
 
             saleType: cleanValue(item.saleType),
 
@@ -934,6 +973,8 @@ export const saveAndValidateInvoice = async (req, res) => {
       buyerAddress,
 
       buyerRegistrationType,
+
+      buyerTelephone,
 
       invoiceRefNo,
 
@@ -1044,6 +1085,8 @@ export const saveAndValidateInvoice = async (req, res) => {
 
             buyerRegistrationType,
 
+            buyerTelephone,
+
             invoiceRefNo,
 
             companyInvoiceRefNo,
@@ -1055,14 +1098,8 @@ export const saveAndValidateInvoice = async (req, res) => {
             status: "draft",
 
             fbr_invoice_number: null,
-            created_by_user_id: req.userType === "user" ? (req.user.userId || req.user.id) : null,
-            created_by_email: req.userType === "user" ? req.user.email : null,
-            created_by_name:
-              req.userType === "user"
-                ? ((req.user?.firstName || req.user?.lastName)
-                    ? `${req.user?.firstName ?? ""}${req.user?.lastName ? ` ${req.user.lastName}` : ""}`.trim()
-                    : null)
-                : null,
+            // Preserve original creator information when updating existing invoice
+            // Only set created_by fields for new invoices, not when updating existing ones
           },
 
           { transaction: t }
@@ -1110,6 +1147,8 @@ export const saveAndValidateInvoice = async (req, res) => {
 
             buyerRegistrationType,
 
+            buyerTelephone,
+
             invoiceRefNo,
 
             companyInvoiceRefNo,
@@ -1125,10 +1164,12 @@ export const saveAndValidateInvoice = async (req, res) => {
             created_by_email: req.user?.email || null,
             created_by_name:
               req.userType === "user"
-                ? ((req.user?.firstName || req.user?.lastName)
-                    ? `${req.user?.firstName ?? ""}${req.user?.lastName ? ` ${req.user.lastName}` : ""}`.trim()
-                    : null)
-                : (req.user?.role === "admin" ? `Admin ` : null),
+                ? req.user?.firstName || req.user?.lastName
+                  ? `${req.user?.firstName ?? ""}${req.user?.lastName ? ` ${req.user.lastName}` : ""}`.trim()
+                  : null
+                : req.user?.role === "admin"
+                  ? `Admin `
+                  : null,
           },
 
           { transaction: t }
@@ -1189,6 +1230,10 @@ export const saveAndValidateInvoice = async (req, res) => {
 
             rate: cleanValue(item.rate),
 
+            dcDocId: cleanValue(item.dcDocId),
+
+            dcDocDate: item.dcDocDate ? new Date(item.dcDocDate) : null,
+
             uoM: cleanValue(item.uoM),
 
             quantity: cleanNumericValue(item.quantity),
@@ -1220,6 +1265,10 @@ export const saveAndValidateInvoice = async (req, res) => {
             advanceIncomeTax: cleanNumericValue(item.advanceIncomeTax),
 
             discount: cleanNumericValue(item.discount),
+
+            cartages: cleanNumericValue(item.cartages),
+
+            others: cleanNumericValue(item.others),
 
             saleType: cleanValue(item.saleType),
 
@@ -1349,20 +1398,20 @@ export const getAllInvoices = async (req, res) => {
     if (start_date && end_date) {
       const startDate = new Date(start_date);
       const endDate = new Date(end_date);
-      
+
       // Set start date to beginning of day (00:00:00.000)
       startDate.setHours(0, 0, 0, 0);
-      
+
       // Set end date to end of day to include the full day (23:59:59.999)
       endDate.setHours(23, 59, 59, 999);
-      
-      console.log('Invoice List Date Range Filter:', {
+
+      console.log("Invoice List Date Range Filter:", {
         start_date,
         end_date,
         startDate: startDate.toISOString(),
-        endDate: endDate.toISOString()
+        endDate: endDate.toISOString(),
       });
-      
+
       // Filter by invoiceDate (the actual invoice date) instead of created_at
       whereClause.invoiceDate = {
         [req.tenantDb.Sequelize.Op.between]: [start_date, end_date],
@@ -1470,13 +1519,10 @@ export const getAllInvoices = async (req, res) => {
         created_at: plainInvoice.created_at,
 
         updated_at: plainInvoice.updated_at,
-        ...(req.user?.role === "admin"
-          ? {
-              created_by_user_id: plainInvoice.created_by_user_id,
-              created_by_email: plainInvoice.created_by_email,
-              created_by_name: plainInvoice.created_by_name,
-            }
-          : {}),
+        // Include created_by fields for all users (not just admins)
+        created_by_user_id: plainInvoice.created_by_user_id,
+        created_by_email: plainInvoice.created_by_email,
+        created_by_name: plainInvoice.created_by_name,
       };
     });
 
@@ -1592,6 +1638,10 @@ export const getInvoiceById = async (req, res) => {
       created_at: plainInvoice.created_at,
 
       updated_at: plainInvoice.updated_at,
+      // Include created_by fields for all users
+      created_by_user_id: plainInvoice.created_by_user_id,
+      created_by_email: plainInvoice.created_by_email,
+      created_by_name: plainInvoice.created_by_name,
     };
 
     res.status(200).json({
@@ -1722,9 +1772,34 @@ export const printInvoice = async (req, res) => {
     const pakistanGumLogoBase64 = fs
 
       .readFileSync(
-        path.join(process.cwd(), "public", "images", "Pakprogressive.png")
+        path.join(process.cwd(), "public", "images", "rajbyLogo.jpg")
       )
 
+      .toString("base64");
+
+    // Base64 encode social media logos
+    const whiteLinkedinLogoBase64 = fs
+      .readFileSync(
+        path.join(process.cwd(), "public", "images", "WhiteLinkedinLogo.png")
+      )
+      .toString("base64");
+
+    const whiteInstagramLogoBase64 = fs
+      .readFileSync(
+        path.join(process.cwd(), "public", "images", "WhiteInstagramLogo.png")
+      )
+      .toString("base64");
+
+    const whiteFacebookLogoBase64 = fs
+      .readFileSync(
+        path.join(process.cwd(), "public", "images", "WhiteFacebookLogo.png")
+      )
+      .toString("base64");
+
+    const whiteBrowserLogoBase64 = fs
+      .readFileSync(
+        path.join(process.cwd(), "public", "images", "WhiteBrowserLogo.png")
+      )
       .toString("base64");
 
     // Prepare paths
@@ -1797,65 +1872,366 @@ export const printInvoice = async (req, res) => {
       // Some templates read underscore variant
       plainInvoice.seller_full_ntn =
         tenant.sellerFullNTN || plainInvoice.seller_full_ntn;
+      // Map seller telephone from tenant record
+      plainInvoice.seller_phone =
+        tenant.sellerTelephoneNo || plainInvoice.seller_phone;
     }
 
-    // Render EJS HTML
-
-    const html = await ejs.renderFile(
-      path.join(process.cwd(), "src", "views", "invoiceTemplate.ejs"),
-
-      {
-        invoice: plainInvoice,
-
-        qrData,
-
-        fbrLogoBase64,
-
-        companyLogoBase64,
-
-        pakistanGumLogoBase64,
-
-        showFbrLogo: invoiceWithItems.status === "posted", // Only show FBR logo for posted invoices
-
-        showQRCode: invoiceWithItems.status === "posted", // Only show QR code for posted invoices
-
-        convertToWords: (amount) => {
-          if (!amount || isNaN(amount)) return "Zero Rupees Only";
-
-          const rupees = Math.floor(amount);
-
-          const paisa = Math.round((amount - rupees) * 100);
-
-          let result = "";
-
-          if (rupees > 0) {
-            const rupeesWords = toWords(rupees);
-
-            result =
-              rupeesWords.replace(/,/g, "").charAt(0).toUpperCase() +
-              rupeesWords.replace(/,/g, "").slice(1) +
-              " Rupees";
-          }
-
-          if (paisa > 0) {
-            if (result) result += " and ";
-
-            const paisaWords = toWords(paisa);
-
-            result +=
-              paisaWords.replace(/,/g, "").charAt(0).toLowerCase() +
-              paisaWords.replace(/,/g, "").slice(1) +
-              " Paisa";
-          }
-
-          if (!result) result = "Zero Rupees";
-
-          result += " Only";
-
-          return result;
-        },
-      }
+    // Read HTML template and replace placeholders
+    const htmlTemplate = fs.readFileSync(
+      path.join(process.cwd(), "src", "views", "invoiceTemplate.html"),
+      "utf8"
     );
+
+    // Helper function to convert amount to words
+    const convertToWords = (amount) => {
+      if (!amount || isNaN(amount)) return "Zero Rupees Only";
+
+      const rupees = Math.floor(amount);
+      const paisa = Math.round((amount - rupees) * 100);
+      let result = "";
+
+      if (rupees > 0) {
+        const rupeesWords = toWords(rupees);
+        result =
+          rupeesWords.replace(/,/g, "").charAt(0).toUpperCase() +
+          rupeesWords.replace(/,/g, "").slice(1) +
+          " Rupees";
+      }
+
+      if (paisa > 0) {
+        if (result) result += " and ";
+        const paisaWords = toWords(paisa);
+        result +=
+          paisaWords.replace(/,/g, "").charAt(0).toLowerCase() +
+          paisaWords.replace(/,/g, "").slice(1) +
+          " Paisa";
+      }
+
+      if (!result) result = "Zero Rupees";
+      result += " Only";
+      return result;
+    };
+
+    // Generate items table rows
+    let itemsTableRows = "";
+    if (plainInvoice.items && plainInvoice.items.length > 0) {
+      itemsTableRows = plainInvoice.items
+        .map(
+          (item) => `
+        <tr>
+          <td>${item.dcDocId || "N/A"}</td>
+          <td>${item.dcDocDate ? formatDate(item.dcDocDate) : "N/A"}</td>
+          <td class="text-left">${item.productDescription || item.name || "N/A"}</td>
+          <td>${plainInvoice.invoiceType || "N/A"}</td>
+          <td>${item.hsCode || "N/A"}</td>
+          <td class="text-right">${item.quantity || "N/A"}</td>
+          <td>${item.uoM || item.billOfLadingUoM || "N/A"}</td>
+          <td class="text-right">${item.rate || item.unitPrice || "N/A"}</td>
+          <td class="text-right">${item.valueSalesExcludingST || item.totalValues || item.total_amount || "N/A"}</td>
+        </tr>
+      `
+        )
+        .join("");
+
+      // Add total row
+      const totalAmount = plainInvoice.items.reduce((total, item) => {
+        const amount = parseFloat(
+          item.valueSalesExcludingST ||
+            item.totalValues ||
+            item.total_amount ||
+            0
+        );
+        return total + (isNaN(amount) ? 0 : amount);
+      }, 0);
+
+      itemsTableRows += `
+        <tr class="total-row">
+          <td colspan="4"><bold>Total Items: ${plainInvoice.items.length}</bold></td>
+          <td colspan="2" class="text-right">
+            <bold>Total Quantity: ${plainInvoice.items.reduce((sum, item) => sum + (parseFloat(item.quantity) || 0), 0)}</bold>
+          </td>
+          <td colspan="2"><bold>Amount Excl. ST</bold></td>
+          <td><bold>${totalAmount.toLocaleString()}</bold></td>
+        </tr>
+      `;
+    } else {
+      itemsTableRows = `
+        <tr>
+          <td colspan="9" style="text-align: center; padding: 20px;">
+            No items found
+          </td>
+        </tr>
+      `;
+    }
+
+    // Replace placeholders in HTML template
+    let html = htmlTemplate
+      .replace(
+        /\{\{invoice\.invoice_number\}\}/g,
+        plainInvoice.invoice_number || "N/A"
+      )
+      .replace(
+        /\{\{invoice\.invoice_date\}\}/g,
+        plainInvoice.invoiceDate || "N/A"
+      )
+      .replace(
+        /\{\{invoice\.seller_name\}\}/g,
+        plainInvoice.sellerBusinessName || "N/A"
+      )
+      .replace(
+        /\{\{invoice\.seller_address\}\}/g,
+        plainInvoice.sellerAddress || "N/A"
+      )
+      .replace(
+        /\{\{invoice\.seller_city\}\}/g,
+        plainInvoice.sellerCity || "N/A"
+      )
+      .replace(
+        /\{\{invoice\.seller_province\}\}/g,
+        plainInvoice.sellerProvince || "N/A"
+      )
+      .replace(
+        /\{\{invoice\.seller_ntn\}\}/g,
+        plainInvoice.sellerFullNTN || plainInvoice.seller_full_ntn || "N/A"
+      )
+      .replace(
+        /\{\{invoice\.seller_phone\}\}/g,
+        plainInvoice.seller_phone || "N/A"
+      )
+      .replace(
+        /\{\{invoice\.seller_email\}\}/g,
+        plainInvoice.seller_email || "N/A"
+      )
+      .replace(
+        /\{\{invoice\.buyer_name\}\}/g,
+        plainInvoice.buyerBusinessName || "N/A"
+      )
+      .replace(
+        /\{\{invoice\.buyer_address\}\}/g,
+        plainInvoice.buyerAddress || "N/A"
+      )
+      .replace(/\{\{invoice\.buyer_city\}\}/g, plainInvoice.buyerCity || "N/A")
+      .replace(
+        /\{\{invoice\.buyer_province\}\}/g,
+        plainInvoice.buyerProvince || "N/A"
+      )
+      .replace(
+        /\{\{invoice\.buyer_ntn\}\}/g,
+        plainInvoice.buyerNTNCNIC || "N/A"
+      )
+      .replace(
+        /\{\{invoice\.buyer_phone\}\}/g,
+        plainInvoice.buyerTelephone || "N/A"
+      )
+      .replace(
+        /\{\{invoice\.buyer_email\}\}/g,
+        plainInvoice.buyer_email || "N/A"
+      )
+      .replace(
+        /\{\{invoice\.subtotal\}\}/g,
+        plainInvoice.subtotal || plainInvoice.total_amount || "0.00"
+      )
+      .replace(
+        /\{\{invoice\.tax_amount\}\}/g,
+        plainInvoice.tax_amount || "0.00"
+      )
+      .replace(
+        /\{\{invoice\.total_amount\}\}/g,
+        plainInvoice.total_amount || "0.00"
+      )
+      .replace(
+        /\{\{qrData\}\}/g,
+        invoiceWithItems.status === "posted"
+          ? `<img style="width: 72px; height: 72px;" src="data:${qrData}" alt="QR Code" class="qr-image" />`
+          : ""
+      )
+      .replace(
+        /\{\{companyLogoBase64\}\}/g,
+        invoiceWithItems.status === "posted"
+          ? `<img src="data:image/jpeg;base64,${companyLogoBase64}" alt="FBR Logo" class="rajby-logo" style="width: 72px; height: 72px" />`
+          : ""
+      )
+      .replace(/\{\{fbrLogoBase64\}\}/g, fbrLogoBase64)
+      .replace(/\{\{pakistanGumLogoBase64\}\}/g, pakistanGumLogoBase64)
+      .replace(/\{\{whiteLinkedinLogoBase64\}\}/g, whiteLinkedinLogoBase64)
+      .replace(/\{\{whiteInstagramLogoBase64\}\}/g, whiteInstagramLogoBase64)
+      .replace(/\{\{whiteFacebookLogoBase64\}\}/g, whiteFacebookLogoBase64)
+      .replace(/\{\{whiteBrowserLogoBase64\}\}/g, whiteBrowserLogoBase64)
+      .replace(
+        /\{\{convertToWords\(invoice\.total_amount\)\}\}/g,
+        convertToWords(plainInvoice.total_amount)
+      )
+      .replace(
+        /\{\{item\.dcDocId\}\}/g,
+        plainInvoice.items && plainInvoice.items.length > 0
+          ? plainInvoice.items[0].dcDocId || "N/A"
+          : "N/A"
+      )
+      .replace(
+        /\{\{item\.dcDocDate\}\}/g,
+        plainInvoice.items &&
+          plainInvoice.items.length > 0 &&
+          plainInvoice.items[0].dcDocDate
+          ? formatDate(plainInvoice.items[0].dcDocDate)
+          : "N/A"
+      )
+      .replace(
+        /\{\{item\.productName\}\}/g,
+        plainInvoice.items && plainInvoice.items.length > 0
+          ? plainInvoice.items[0].productDescription ||
+              plainInvoice.items[0].name ||
+              "N/A"
+          : "N/A"
+      )
+      .replace(
+        /\{\{invoice\.invoiceType\}\}/g,
+        plainInvoice.invoiceType || "N/A"
+      )
+      .replace(
+        /\{\{item\.hsCode\}\}/g,
+        plainInvoice.items && plainInvoice.items.length > 0
+          ? plainInvoice.items[0].hsCode || "N/A"
+          : "N/A"
+      )
+      .replace(
+        /\{\{item\.quantity\}\}/g,
+        plainInvoice.items && plainInvoice.items.length > 0
+          ? plainInvoice.items[0].quantity || "N/A"
+          : "N/A"
+      )
+      .replace(
+        /\{\{item\.uom\}\}/g,
+        plainInvoice.items && plainInvoice.items.length > 0
+          ? plainInvoice.items[0].uoM ||
+              plainInvoice.items[0].billOfLadingUoM ||
+              "N/A"
+          : "N/A"
+      )
+      .replace(
+        /\{\{item\.rate\}\}/g,
+        plainInvoice.items && plainInvoice.items.length > 0
+          ? plainInvoice.items[0].rate ||
+              plainInvoice.items[0].unitPrice ||
+              "N/A"
+          : "N/A"
+      )
+      .replace(
+        /\{\{item\.amount\}\}/g,
+        plainInvoice.items && plainInvoice.items.length > 0
+          ? plainInvoice.items[0].valueSalesExcludingST ||
+              plainInvoice.items[0].totalValues ||
+              plainInvoice.items[0].total_amount ||
+              "N/A"
+          : "N/A"
+      )
+      .replace(/<!-- Items will be populated dynamically -->/g, itemsTableRows)
+      .replace(
+        /\{\{totalSalesTax\}\}/g,
+        plainInvoice.items && plainInvoice.items.length > 0
+          ? plainInvoice.items
+              .reduce((total, item) => {
+                const salesTax = parseFloat(item.salesTaxApplicable || 0);
+                return total + (isNaN(salesTax) ? 0 : salesTax);
+              }, 0)
+              .toLocaleString()
+          : "0"
+      )
+      .replace(
+        /\{\{totalCartage\}\}/g,
+        plainInvoice.items && plainInvoice.items.length > 0
+          ? plainInvoice.items
+              .reduce((total, item) => {
+                const cartage = parseFloat(item.cartages || 0);
+                return total + (isNaN(cartage) ? 0 : cartage);
+              }, 0)
+              .toLocaleString()
+          : "0"
+      )
+      .replace(
+        /\{\{totalOthers\}\}/g,
+        plainInvoice.items && plainInvoice.items.length > 0
+          ? plainInvoice.items
+              .reduce((total, item) => {
+                const others = parseFloat(item.others || 0);
+                return total + (isNaN(others) ? 0 : others);
+              }, 0)
+              .toLocaleString()
+          : "0"
+      )
+      .replace(
+        /\{\{totalAmountInclTax\}\}/g,
+        plainInvoice.items && plainInvoice.items.length > 0
+          ? (() => {
+              const totalAmount = plainInvoice.items.reduce((total, item) => {
+                const amount = parseFloat(
+                  item.valueSalesExcludingST ||
+                    item.totalValues ||
+                    item.total_amount ||
+                    0
+                );
+                return total + (isNaN(amount) ? 0 : amount);
+              }, 0);
+
+              const totalSalesTax = plainInvoice.items.reduce((total, item) => {
+                const salesTax = parseFloat(item.salesTaxApplicable || 0);
+                return total + (isNaN(salesTax) ? 0 : salesTax);
+              }, 0);
+
+              const totalCartage = plainInvoice.items.reduce((total, item) => {
+                const cartage = parseFloat(item.cartages || 0);
+                return total + (isNaN(cartage) ? 0 : cartage);
+              }, 0);
+
+              const totalOthers = plainInvoice.items.reduce((total, item) => {
+                const others = parseFloat(item.others || 0);
+                return total + (isNaN(others) ? 0 : others);
+              }, 0);
+
+              return (
+                totalAmount +
+                totalSalesTax +
+                totalCartage +
+                totalOthers
+              ).toLocaleString();
+            })()
+          : "0"
+      )
+      .replace(
+        /\{\{amountInWords\}\}/g,
+        plainInvoice.items && plainInvoice.items.length > 0
+          ? (() => {
+              const totalAmount = plainInvoice.items.reduce((total, item) => {
+                const amount = parseFloat(
+                  item.valueSalesExcludingST ||
+                    item.totalValues ||
+                    item.total_amount ||
+                    0
+                );
+                return total + (isNaN(amount) ? 0 : amount);
+              }, 0);
+
+              const totalSalesTax = plainInvoice.items.reduce((total, item) => {
+                const salesTax = parseFloat(item.salesTaxApplicable || 0);
+                return total + (isNaN(salesTax) ? 0 : salesTax);
+              }, 0);
+
+              const totalCartage = plainInvoice.items.reduce((total, item) => {
+                const cartage = parseFloat(item.cartages || 0);
+                return total + (isNaN(cartage) ? 0 : cartage);
+              }, 0);
+
+              const totalOthers = plainInvoice.items.reduce((total, item) => {
+                const others = parseFloat(item.others || 0);
+                return total + (isNaN(others) ? 0 : others);
+              }, 0);
+
+              const finalAmount =
+                totalAmount + totalSalesTax + totalCartage + totalOthers;
+              return convertToWords(finalAmount);
+            })()
+          : "Zero Rupees Only"
+      );
 
     // Generate PDF using Puppeteer
 
@@ -1899,6 +2275,14 @@ export const updateInvoice = async (req, res) => {
 
     const updateData = req.body;
 
+    // Remove created_by fields to prevent overwriting original creator information
+    const {
+      created_by_user_id,
+      created_by_email,
+      created_by_name,
+      ...safeUpdateData
+    } = updateData;
+
     const invoice = await Invoice.findByPk(id);
 
     if (!invoice) {
@@ -1909,7 +2293,7 @@ export const updateInvoice = async (req, res) => {
       });
     }
 
-    await invoice.update(updateData);
+    await invoice.update(safeUpdateData);
 
     res.status(200).json({
       success: true,
@@ -1982,16 +2366,19 @@ export const getInvoiceStats = async (req, res) => {
     if (start_date && end_date) {
       const startDate = new Date(start_date);
       const endDate = new Date(end_date);
-      
+
       // Set start date to beginning of day (00:00:00.000)
       startDate.setHours(0, 0, 0, 0);
-      
+
       // Set end date to end of day to include the full day (23:59:59.999)
       endDate.setHours(23, 59, 59, 999);
-      
+
       // Filter by invoiceDate (the actual invoice date) instead of created_at
       whereClause.invoiceDate = {
-        [req.tenantDb.Sequelize.Op.between]: [req.query.start_date, req.query.end_date],
+        [req.tenantDb.Sequelize.Op.between]: [
+          req.query.start_date,
+          req.query.end_date,
+        ],
       };
     }
 
@@ -2588,6 +2975,73 @@ export const submitSavedInvoice = async (req, res) => {
   }
 };
 
+/**
+ * Convert Excel date serial number to proper date
+ * @param {string|number} excelDate - Excel date serial number or date string
+ * @returns {Date|null} - Converted date or null
+ */
+const convertExcelDate = (excelDate) => {
+  console.log(
+    "🔍 convertExcelDate called with:",
+    excelDate,
+    "type:",
+    typeof excelDate
+  );
+
+  if (!excelDate) {
+    console.log("🔍 No date provided, returning null");
+    return null;
+  }
+
+  // If it's a number (Excel serial date), convert it first
+  if (typeof excelDate === "number" || !isNaN(Number(excelDate))) {
+    const serialNumber = Number(excelDate);
+    console.log("🔍 Converting Excel serial number:", serialNumber);
+
+    // Excel date serial number: days since 1900-01-01 (with leap year bug)
+    // JavaScript Date: milliseconds since 1970-01-01
+    const excelEpoch = new Date(1900, 0, 1); // 1900-01-01
+    const jsEpoch = new Date(1970, 0, 1); // 1970-01-01
+    const daysBetweenEpochs = (excelEpoch - jsEpoch) / (1000 * 60 * 60 * 24);
+
+    // Convert Excel serial to JavaScript date
+    const jsDate = new Date(
+      (serialNumber - 2 + daysBetweenEpochs) * 24 * 60 * 60 * 1000
+    );
+
+    console.log(
+      "🔍 Converted date:",
+      jsDate,
+      "isValid:",
+      !isNaN(jsDate.getTime())
+    );
+
+    // Check if the date is valid
+    if (isNaN(jsDate.getTime())) {
+      console.warn(`Invalid Excel date: ${excelDate}`);
+      return null;
+    }
+
+    return jsDate;
+  }
+
+  // If it's already a valid date string, return it
+  if (typeof excelDate === "string" && !isNaN(Date.parse(excelDate))) {
+    console.log("🔍 Parsing as date string");
+    return new Date(excelDate);
+  }
+
+  // Try to parse as regular date string
+  console.log("🔍 Trying to parse as regular date string");
+  const parsedDate = new Date(excelDate);
+  if (isNaN(parsedDate.getTime())) {
+    console.warn(`Could not parse date: ${excelDate}`);
+    return null;
+  }
+
+  return parsedDate;
+};
+
 // Bulk create invoices with items (draft status) - CHUNKED OPTIMIZED VERSION
 export const bulkCreateInvoices = async (req, res) => {
   const startTime = process.hrtime.bigint();
@@ -2615,6 +3069,18 @@ export const bulkCreateInvoices = async (req, res) => {
       seller_business_name: req.tenant?.seller_business_name,
       seller_province: req.tenant?.seller_province,
       seller_address: req.tenant?.seller_address,
+    });
+
+    // Debug: Log user information
+    console.log(`🔍 Debug: User information:`, {
+      hasUser: !!req.user,
+      userType: req.userType,
+      userId: req.user?.userId || req.user?.id,
+      email: req.user?.email,
+      firstName: req.user?.firstName,
+      lastName: req.user?.lastName,
+      role: req.user?.role,
+      userKeys: req.user ? Object.keys(req.user) : [],
     });
 
     // Optimize database for bulk operations - do this before any database operations
@@ -2923,6 +3389,17 @@ export const bulkCreateInvoices = async (req, res) => {
               buyerAddress: invoiceData.buyerAddress || null,
               buyerRegistrationType:
                 invoiceData.buyerRegistrationType || "Unregistered",
+              buyerTelephone: invoiceData.buyerTelephone || null,
+              created_by_user_id: req.user?.userId || req.user?.id || null,
+              created_by_email: req.user?.email || null,
+              created_by_name:
+                req.userType === "user"
+                  ? req.user?.firstName || req.user?.lastName
+                    ? `${req.user?.firstName ?? ""}${req.user?.lastName ? ` ${req.user.lastName}` : ""}`.trim()
+                    : null
+                  : req.user?.role === "admin"
+                    ? `Admin (${req.user?.id || req.user?.userId})`
+                    : null,
             });
           }
         }
@@ -2947,6 +3424,14 @@ export const bulkCreateInvoices = async (req, res) => {
           }
         );
 
+        // Debug: Log buyer telephone for bulk create
+        console.log(`🔍 Backend Debug: Invoice ${i + 1} Buyer Telephone:`, {
+          buyerTelephone: invoiceData.buyerTelephone,
+          hasValue: !!invoiceData.buyerTelephone,
+          trimmedValue: invoiceData.buyerTelephone?.trim(),
+          type: typeof invoiceData.buyerTelephone,
+        });
+
         // Prepare invoice data for batch insert
         const invoiceRecord = {
           invoice_number: `DRAFT_${Date.now()}_${i}_${Math.random().toString(36).substr(2, 5)}`,
@@ -2964,6 +3449,7 @@ export const bulkCreateInvoices = async (req, res) => {
           buyerAddress: invoiceData.buyerAddress?.trim() || null,
           buyerRegistrationType:
             invoiceData.buyerRegistrationType?.trim() || null,
+          buyerTelephone: invoiceData.buyerTelephone?.trim() || null,
           invoiceRefNo: invoiceData.invoiceRefNo?.trim() || null,
           companyInvoiceRefNo: invoiceData.companyInvoiceRefNo?.trim() || null,
           internal_invoice_no: invoiceData.internalInvoiceNo?.trim() || null,
@@ -2972,10 +3458,46 @@ export const bulkCreateInvoices = async (req, res) => {
           fbr_invoice_number: null,
           created_by_user_id: req.user?.userId || req.user?.id || null,
           created_by_email: req.user?.email || null,
-          created_by_name:
-            (req.user?.firstName || req.user?.lastName)
-              ? `${req.user?.firstName ?? ""}${req.user?.lastName ? ` ${req.user.lastName}` : ""}`.trim()
-              : (req.user?.role === "admin" ? "Admin" : null),
+          created_by_name: (() => {
+            const firstName = req.user?.firstName;
+            const lastName = req.user?.lastName;
+            const role = req.user?.role;
+            const userType = req.userType;
+
+            console.log(
+              `🔍 Debug: Creating created_by_name for invoice ${i}:`,
+              {
+                firstName,
+                lastName,
+                role,
+                userType,
+                hasFirstName: !!firstName,
+                hasLastName: !!lastName,
+                firstNameType: typeof firstName,
+                lastNameType: typeof lastName,
+              }
+            );
+
+            if (userType === "user") {
+              if (firstName || lastName) {
+                const name =
+                  `${firstName ?? ""}${lastName ? ` ${lastName}` : ""}`.trim();
+                console.log(`🔍 Debug: Generated user name: "${name}"`);
+                return name;
+              } else {
+                console.log(
+                  `🔍 Debug: User type but no name available, setting to null`
+                );
+                return null;
+              }
+            } else if (role === "admin") {
+              console.log(`🔍 Debug: Using admin name`);
+              return "Admin";
+            } else {
+              console.log(`🔍 Debug: No name available, setting to null`);
+              return null;
+            }
+          })(),
           created_at: new Date(),
           updated_at: new Date(),
         };
@@ -3054,6 +3576,18 @@ export const bulkCreateInvoices = async (req, res) => {
               productName: itemData.productName,
             });
 
+            // Debug: Log DC Doc fields before processing
+            console.log("🔍 Backend Debug - Item DC Doc fields:", {
+              item_dcDocId: itemData.item_dcDocId,
+              item_dcDocDate: itemData.item_dcDocDate,
+              dcDocId: itemData.dcDocId,
+              dcDocDate: itemData.dcDocDate,
+              allDcDocFields: Object.keys(itemData).filter((key) =>
+                key.includes("dcDoc")
+              ),
+              itemDataKeys: Object.keys(itemData),
+            });
+
             // Prepare item data for batch insert
             const itemRecord = {
               invoice_id: null, // Will be set after invoice creation
@@ -3066,6 +3600,21 @@ export const bulkCreateInvoices = async (req, res) => {
               productDescription:
                 itemData.item_productDescription?.trim() || null,
               rate: rate,
+              dcDocId: itemData.item_dcDocId?.trim() || null,
+              dcDocDate: itemData.item_dcDocDate
+                ? (() => {
+                    const convertedDate = convertExcelDate(
+                      itemData.item_dcDocDate
+                    );
+                    console.log("🔍 Date conversion debug:", {
+                      original: itemData.item_dcDocDate,
+                      type: typeof itemData.item_dcDocDate,
+                      converted: convertedDate,
+                      isValid: convertedDate && !isNaN(convertedDate.getTime()),
+                    });
+                    return convertedDate;
+                  })()
+                : null,
               uoM: itemData.item_uoM?.trim() || null,
               quantity: parseFloat(itemData.item_quantity) || 0,
               unitPrice: parseFloat(itemData.item_unitPrice) || 0,
@@ -3086,6 +3635,8 @@ export const bulkCreateInvoices = async (req, res) => {
               sroScheduleNo: itemData.item_sroScheduleNo?.trim() || null,
               fedPayable: parseFloat(itemData.item_fedPayable) || 0,
               discount: parseFloat(itemData.item_discount) || 0,
+              cartages: parseFloat(itemData.item_cartages) || 0,
+              others: parseFloat(itemData.item_others) || 0,
               saleType:
                 itemData.item_saleType?.trim() ||
                 "Goods at standard rate (default)",
@@ -3100,6 +3651,10 @@ export const bulkCreateInvoices = async (req, res) => {
               name: itemRecord.name,
               hsCode: itemRecord.hsCode,
               productDescription: itemRecord.productDescription,
+              cartages: itemRecord.cartages,
+              others: itemRecord.others,
+              item_cartages: itemData.item_cartages,
+              item_others: itemData.item_others,
             });
 
             invoiceItemBatches.push({
@@ -3559,33 +4114,33 @@ export const getDashboardSummary = async (req, res) => {
 
     // Handle date range filter
     let whereDateRange = {};
-    
+
     if (req.query.start_date && req.query.end_date) {
       // Use provided date range
       const startDate = new Date(req.query.start_date);
       const endDate = new Date(req.query.end_date);
-      
+
       // Set start date to beginning of day (00:00:00.000)
       startDate.setHours(0, 0, 0, 0);
-      
+
       // Set end date to end of day to include the full day (23:59:59.999)
       endDate.setHours(23, 59, 59, 999);
-      
-    
-      
+
       // Filter by invoiceDate (the actual invoice date) instead of created_at
       whereDateRange = {
         invoiceDate: {
           [Op.between]: [
             req.query.start_date, // Use the original date strings for string comparison
-            req.query.end_date
-          ]
-        }
+            req.query.end_date,
+          ],
+        },
       };
     } else {
       // Default to last 12 months if no date range specified
       const endDate = new Date();
-      const startDate = new Date(new Date(endDate).setMonth(endDate.getMonth() - 11, 1));
+      const startDate = new Date(
+        new Date(endDate).setMonth(endDate.getMonth() - 11, 1)
+      );
 
       whereDateRange = {
         created_at: { [Op.between]: [startDate, endDate] },
@@ -3603,15 +4158,16 @@ export const getDashboardSummary = async (req, res) => {
         Invoice.count({ where: { ...whereDateRange, status: "posted" } }),
 
         // For InvoiceItem sum, we need to join with Invoice to filter by invoiceDate
-        InvoiceItem.sum("totalValues", { 
-          include: [{
-            model: Invoice,
-            where: whereDateRange,
-            attributes: []
-          }]
+        InvoiceItem.sum("totalValues", {
+          include: [
+            {
+              model: Invoice,
+              where: whereDateRange,
+              attributes: [],
+            },
+          ],
         }).then((v) => v || 0),
       ]);
-
 
     // Monthly overview: counts by month for posted and saved
 
@@ -4659,6 +5215,17 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
               token
             );
 
+            // Debug logging for rate_id 133
+            if (id === "133") {
+              console.log(`🔍 SRO API Response for rate_id 133 (${code}):`, {
+                rateId: id,
+                provinceCode: code,
+                response: sroRaw,
+                responseType: Array.isArray(sroRaw) ? "array" : typeof sroRaw,
+                responseLength: Array.isArray(sroRaw) ? sroRaw.length : "N/A",
+              });
+            }
+
             const items = (Array.isArray(sroRaw) ? sroRaw : [])
 
               .map((s) => {
@@ -4673,6 +5240,15 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
 
               .filter(Boolean);
 
+            // Debug logging for processed items
+            if (id === "133") {
+              console.log(`🔍 Processed SRO items for rate_id 133:`, {
+                rawItems: sroRaw,
+                processedItems: items,
+                itemCount: items.length,
+              });
+            }
+
             for (const it of items) {
               if (!aggregated.has(it.desc)) aggregated.set(it.desc, it.id);
 
@@ -4681,16 +5257,54 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
                 allUniqueSROs.add(it.desc);
               }
             }
+
+            // Debug logging for aggregated data
+            if (id === "133") {
+              console.log(`🔍 Aggregated SRO data for rate_id 133:`, {
+                aggregatedSize: aggregated.size,
+                aggregatedData: Array.from(aggregated.entries()),
+                allUniqueSROsSize: allUniqueSROs.size,
+              });
+            }
           } catch (e) {
+            // Enhanced error logging for rate_id 133
+            if (id === "133") {
+              console.error(`❌ SRO API Error for rate_id 133 (Exempt):`, {
+                error: e.message,
+                status: e.response?.status,
+                data: e.response?.data,
+                provinceCode: code,
+              });
+            }
             // continue
           }
         }
 
         sroByRateId[id] = aggregated; // Map(desc -> id)
+
+        // Debug logging for rate_id 133
+        if (id === "133") {
+          console.log(`🔍 Final sroByRateId for rate_id 133:`, {
+            rateId: id,
+            aggregatedSize: aggregated.size,
+            aggregatedData: Array.from(aggregated.entries()),
+            allUniqueSROsSize: allUniqueSROs.size,
+          });
+        }
       }
 
       console.log(
         `Collected ${allUniqueSROs.size} unique SRO Schedule Numbers from API`
+      );
+
+      // Debug logging for sroByRateId mapping
+      console.log(
+        `🔍 sroByRateId mapping:`,
+        Object.keys(sroByRateId).map((id) => ({
+          rateId: id,
+          sroCount: sroByRateId[id]?.size || 0,
+          sroData: Array.from(sroByRateId[id]?.entries() || []),
+        }))
       );
     }
 
@@ -4829,17 +5443,56 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
       allUniqueSROs.add(sro);
     });
 
+    // Ensure rate_id 133 SRO data is included (manual addition if API failed)
+    if (sroByRateId["133"] && sroByRateId["133"].size > 0) {
+      console.log(
+        `🔍 Adding rate_id 133 SRO data to comprehensive set:`,
+        Array.from(sroByRateId["133"].entries())
+      );
+      for (const [desc, id] of sroByRateId["133"].entries()) {
+        allUniqueSROs.add(desc);
+      }
+    } else {
+      console.log(`⚠️ No SRO data found for rate_id 133, adding manually...`);
+      // Manually add rate_id 133 SRO data if API failed
+      const rate133SROs = [
+        "6th Schd Table I",
+        "6th Schd Table II",
+        "6th Schd Table III",
+        "Eighth Schedule Table 1",
+        "NINTH SCHEDULE",
+      ];
+      rate133SROs.forEach((sro) => allUniqueSROs.add(sro));
+      console.log(`✅ Manually added rate_id 133 SRO data:`, rate133SROs);
+    }
+
     // Create comprehensive SRO Schedule list for dropdown (prepend "N/A")
     const comprehensiveSROList = Array.from(allUniqueSROs).sort();
     if (!comprehensiveSROList.includes("N/A")) {
       comprehensiveSROList.unshift("N/A");
     }
 
+    // Debug logging for comprehensive SRO list
     console.log(
       `Total unique SRO Schedule Numbers available: ${comprehensiveSROList.length}`
     );
     console.log(
       `SRO Schedule Numbers: ${comprehensiveSROList.slice(0, 10).join(", ")}${comprehensiveSROList.length > 10 ? "..." : ""}`
+    );
+
+    // Check if rate_id 133 SRO data is included
+    const rate133SROs = comprehensiveSROList.filter(
+      (sro) =>
+        sro.includes("6th Schd") ||
+        sro.includes("Eighth Schedule") ||
+        sro.includes("NINTH SCHEDULE")
+    );
+    console.log(`🔍 Rate ID 133 SRO Schedule Numbers found:`, rate133SROs);
+
+    // Log all SRO data for debugging
+    console.log(
+      `🔍 All SRO Schedule Numbers in comprehensive list:`,
+      comprehensiveSROList
     );
 
     // Build SRO Item lists per SRO Id (for Excel dropdowns) and create comprehensive SRO Item list
@@ -4867,6 +5520,20 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
             token
           );
 
+          // Debug logging for specific SRO IDs (383, 384, 385, 439, 391)
+          if (["383", "384", "385", "439", "391"].includes(sroId)) {
+            console.log(`🔍 SRO Item API Response for sro_id ${sroId}:`, {
+              sroId: sroId,
+              response: sroItemsRaw,
+              responseType: Array.isArray(sroItemsRaw)
+                ? "array"
+                : typeof sroItemsRaw,
+              responseLength: Array.isArray(sroItemsRaw)
+                ? sroItemsRaw.length
+                : "N/A",
+            });
+          }
+
           const items = (Array.isArray(sroItemsRaw) ? sroItemsRaw : [])
             .map((it) => {
               const desc =
@@ -4874,6 +5541,16 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
               return desc ? String(desc).trim() : null;
             })
             .filter(Boolean);
+
+          // Debug logging for processed SRO items
+          if (["383", "384", "385", "439", "391"].includes(sroId)) {
+            console.log(`🔍 Processed SRO Items for sro_id ${sroId}:`, {
+              sroId: sroId,
+              rawItems: sroItemsRaw,
+              processedItems: items,
+              itemCount: items.length,
+            });
+          }
 
           sroItemsBySroId[sroId] = items;
 
@@ -4884,6 +5561,24 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
             }
           });
         } catch (e) {
+          // Enhanced error logging for SRO Items
+          console.warn(`SRO Item API call failed for sro_id ${sroId}:`, {
+            error: e.message,
+            status: e.response?.status,
+            data: e.response?.data,
+            sroId: sroId,
+          });
+
+          // Special logging for specific SRO IDs
+          if (["383", "384", "385", "439", "391"].includes(sroId)) {
+            console.error(`❌ SRO Item API Error for sro_id ${sroId}:`, {
+              error: e.message,
+              status: e.response?.status,
+              data: e.response?.data,
+              sroId: sroId,
+            });
+          }
+
           sroItemsBySroId[sroId] = [];
         }
       }
@@ -4952,6 +5647,93 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
       allUniqueSROItems.add(item);
     });
 
+    // Ensure SRO Item data for specific SRO IDs is included (make actual API calls)
+    const specificSroIds = ["383", "384", "385", "439", "391"];
+    console.log(
+      `🔍 Making additional API calls for specific SRO IDs: ${specificSroIds.join(", ")}`
+    );
+
+    for (const sroId of specificSroIds) {
+      // Check if we already have data for this SRO ID
+      if (sroItemsBySroId[sroId] && sroItemsBySroId[sroId].length > 0) {
+        console.log(
+          `✅ SRO Item data already available for sro_id ${sroId}:`,
+          sroItemsBySroId[sroId]
+        );
+        continue;
+      }
+
+      try {
+        console.log(`🔍 Making API call for sro_id ${sroId}...`);
+        const sroItemsRaw = await fetchData(
+          `pdi/v2/SROItem?date=2025-03-25&sro_id=${encodeURIComponent(sroId)}`,
+          "sandbox",
+          token
+        );
+
+        console.log(`🔍 SRO Item API Response for sro_id ${sroId}:`, {
+          sroId: sroId,
+          response: sroItemsRaw,
+          responseType: Array.isArray(sroItemsRaw)
+            ? "array"
+            : typeof sroItemsRaw,
+          responseLength: Array.isArray(sroItemsRaw)
+            ? sroItemsRaw.length
+            : "N/A",
+        });
+
+        const items = (Array.isArray(sroItemsRaw) ? sroItemsRaw : [])
+          .map((it) => {
+            const desc =
+              it.srO_ITEM_DESC || it.SRO_ITEM_DESC || it.desc || null;
+            return desc ? String(desc).trim() : null;
+          })
+          .filter(Boolean);
+
+        console.log(`🔍 Processed SRO Items for sro_id ${sroId}:`, {
+          sroId: sroId,
+          rawItems: sroItemsRaw,
+          processedItems: items,
+          itemCount: items.length,
+        });
+
+        sroItemsBySroId[sroId] = items;
+
+        // Add all SRO Item descriptions to the comprehensive set
+        items.forEach((item) => {
+          if (item) {
+            allUniqueSROItems.add(item);
+          }
+        });
+
+        console.log(
+          `✅ Successfully added SRO Item data for sro_id ${sroId}:`,
+          items
+        );
+      } catch (e) {
+        console.error(`❌ SRO Item API Error for sro_id ${sroId}:`, {
+          error: e.message,
+          status: e.response?.status,
+          data: e.response?.data,
+          sroId: sroId,
+        });
+
+        // Add fallback data if API fails
+        const fallbackItems = [
+          `SRO Item for ${sroId} - Item 1`,
+          `SRO Item for ${sroId} - Item 2`,
+          `SRO Item for ${sroId} - Item 3`,
+        ];
+
+        sroItemsBySroId[sroId] = fallbackItems;
+        fallbackItems.forEach((item) => allUniqueSROItems.add(item));
+        console.log(
+          `⚠️ Added fallback SRO Item data for sro_id ${sroId}:`,
+          fallbackItems
+        );
+      }
+    }
+
     // Create comprehensive SRO Item list for dropdown (prepend "N/A")
     const comprehensiveSROItemList = Array.from(allUniqueSROItems).sort();
     if (!comprehensiveSROItemList.includes("N/A")) {
@@ -4960,6 +5742,30 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
 
     console.log(
       `Total unique SRO Item Numbers available: ${comprehensiveSROItemList.length}`
+    );
+
+    // Check if SRO Item data for specific SRO IDs is included
+    const specificSroItemData = comprehensiveSROItemList.filter(
+      (item) =>
+        item.includes("SRO Item for 383") ||
+        item.includes("SRO Item for 384") ||
+        item.includes("SRO Item for 385") ||
+        item.includes("SRO Item for 439") ||
+        item.includes("SRO Item for 391")
+    );
+    console.log(
+      `🔍 SRO Item Numbers for specific SRO IDs found:`,
+      specificSroItemData
+    );
+
+    // Log sroItemsBySroId mapping for debugging
+    console.log(
+      `🔍 sroItemsBySroId mapping:`,
+      Object.keys(sroItemsBySroId).map((id) => ({
+        sroId: id,
+        itemCount: sroItemsBySroId[id]?.length || 0,
+        items: sroItemsBySroId[id]?.slice(0, 3) || [], // Show first 3 items
+      }))
     );
     console.log(
       `SRO Item Numbers: ${comprehensiveSROItemList.slice(0, 10).join(", ")}${comprehensiveSROItemList.length > 10 ? "..." : ""}`
@@ -5166,11 +5972,14 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
       "buyerProvince",
       "buyerAddress",
       "buyerRegistrationType",
+      "buyerTelephone",
       // Transaction and item details
       "transctypeId",
       "item_rate",
       "item_sroScheduleNo",
       "item_sroItemSerialNo",
+      "item_dcDocId",
+      "item_dcDocDate",
       "item_saleType",
       "item_hsCode",
       "item_uoM",
@@ -5185,6 +5994,8 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
       "item_furtherTax",
       "item_fedPayable",
       "item_discount",
+      "item_cartages",
+      "item_others",
       "item_totalValues",
     ];
 
@@ -5199,10 +6010,13 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
       buyerProvince: "Buyer Province",
       buyerAddress: "Buyer Address",
       buyerRegistrationType: "Buyer Registration Type",
+      buyerTelephone: "Buyer Telephone No",
       transctypeId: "Transaction Type",
       item_rate: "Rate",
       item_sroScheduleNo: "SRO Schedule No",
       item_sroItemSerialNo: "SRO Item No",
+      item_dcDocId: "DC Doc Id",
+      item_dcDocDate: "DC Doc Date",
       item_saleType: "Sale Type",
       item_hsCode: "HS Code",
       item_uoM: "Unit Of Measurement",
@@ -5217,6 +6031,8 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
       item_furtherTax: "Further Tax",
       item_fedPayable: "FED Payable",
       item_discount: "Discount",
+      item_cartages: "Cartages",
+      item_others: "Others",
       item_totalValues: "Total Values",
     };
 
@@ -5233,6 +6049,15 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
       col.numFmt = "@";
       col.alignment = { horizontal: "left" };
       if (!col.width || col.width < 18) col.width = 20;
+    }
+
+    // Buyer Telephone formatting: Treat as text to preserve phone number format
+    const buyerTelephoneIdx = columns.indexOf("buyerTelephone") + 1;
+    if (buyerTelephoneIdx > 0) {
+      const col = template.getColumn(buyerTelephoneIdx);
+      col.numFmt = "@";
+      col.alignment = { horizontal: "left" };
+      if (!col.width || col.width < 15) col.width = 18;
     }
 
     // HS Code formatting: Treat as text to preserve format (e.g., 0101.10.00)
@@ -6261,9 +7086,11 @@ $${retailColLetter}${r}*(VALUE(SUBSTITUTE($${rateColLetter}${r},"%",""))/100))))
       );
       const ftrColLetter = getColLetter(headerIndex("item_furtherTax"));
       const dscColLetter = getColLetter(headerIndex("item_discount"));
+      const cartColLetter = getColLetter(headerIndex("item_cartages"));
+      const othColLetter = getColLetter(headerIndex("item_others"));
       template.getCell(r, headerIndex("item_totalValues")).value = {
         formula: `IF($${retailColLetter}${r}="","",
-SUM($${vsColLetter}${r},$${staColLetter}${r},$${fedColLetter}${r},$${stwColLetter}${r},$${ftrColLetter}${r})-
+SUM($${vsColLetter}${r},$${staColLetter}${r},$${fedColLetter}${r},$${stwColLetter}${r},$${ftrColLetter}${r},$${cartColLetter}${r},$${othColLetter}${r})-
 IF($${dscColLetter}${r}="",0,VALUE($${dscColLetter}${r})))`,
       };
 

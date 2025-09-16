@@ -22,7 +22,9 @@ class UserManagementService {
       } = userData;
 
       // Check if user already exists (only active users)
-      const existingUser = await User.findOne({ where: { email, isActive: true } });
+      const existingUser = await User.findOne({
+        where: { email, isActive: true },
+      });
       if (existingUser) {
         throw new Error("User with this email already exists");
       }
@@ -271,12 +273,12 @@ class UserManagementService {
 
       // First, remove all tenant assignments
       await UserTenantAssignment.destroy({
-        where: { userId }
+        where: { userId },
       });
 
       // Then, physically delete the user from the database
       await User.destroy({
-        where: { id: userId }
+        where: { id: userId },
       });
 
       return { message: "User deleted successfully" };
@@ -301,6 +303,7 @@ class UserManagementService {
         "seller_province",
         "seller_address",
         "seller_full_ntn",
+        "seller_telephone_no",
       ];
 
       const updateFields = {};
@@ -323,6 +326,9 @@ class UserManagementService {
       if (updateData.sellerFullNTN !== undefined) {
         updateFields.seller_full_ntn = updateData.sellerFullNTN;
       }
+      if (updateData.sellerTelephoneNo !== undefined) {
+        updateFields.seller_telephone_no = updateData.sellerTelephoneNo;
+      }
 
       await tenant.update(updateFields);
 
@@ -335,6 +341,7 @@ class UserManagementService {
         sellerBusinessName: tenant.seller_business_name,
         sellerProvince: tenant.seller_province,
         sellerAddress: tenant.seller_address,
+        sellerTelephoneNo: tenant.seller_telephone_no,
         database_name: tenant.database_name,
         sandboxTestToken: tenant.sandbox_test_token,
         sandboxProductionToken: tenant.sandbox_production_token,
@@ -360,6 +367,7 @@ class UserManagementService {
           "seller_full_ntn",
           "seller_province",
           "seller_address",
+          "seller_telephone_no",
           "database_name",
           "is_active",
           "created_at",
@@ -379,6 +387,7 @@ class UserManagementService {
         sellerBusinessName: tenant.seller_business_name,
         sellerProvince: tenant.seller_province,
         sellerAddress: tenant.seller_address,
+        sellerTelephoneNo: tenant.seller_telephone_no,
         is_active: Boolean(tenant.is_active), // Convert MySQL boolean to JavaScript boolean
         database_name: tenant.database_name,
         created_at: tenant.created_at,

@@ -123,6 +123,7 @@ export const getTenantById = async (req, res) => {
         "seller_business_name",
         "seller_province",
         "seller_address",
+        "seller_telephone_no",
         "is_active",
         "database_name",
         "created_at",
@@ -148,6 +149,7 @@ export const getTenantById = async (req, res) => {
       sellerBusinessName: tenant.seller_business_name,
       sellerProvince: tenant.seller_province,
       sellerAddress: tenant.seller_address,
+      sellerTelephoneNo: tenant.seller_telephone_no,
       is_active: tenant.is_active,
       database_name: tenant.database_name,
       created_at: tenant.created_at,
@@ -173,8 +175,13 @@ export const getTenantById = async (req, res) => {
 export const updateTenant = async (req, res) => {
   try {
     const { tenantId } = req.params;
-    const { sellerBusinessName, sellerProvince, sellerAddress, sellerFullNTN } =
-      req.body;
+    const {
+      sellerBusinessName,
+      sellerProvince,
+      sellerAddress,
+      sellerFullNTN,
+      sellerTelephoneNo,
+    } = req.body;
 
     const tenant = await Tenant.findOne({
       where: { tenant_id: tenantId },
@@ -192,6 +199,9 @@ export const updateTenant = async (req, res) => {
       seller_province: sellerProvince,
       seller_address: sellerAddress,
       ...(sellerFullNTN !== undefined && { seller_full_ntn: sellerFullNTN }),
+      ...(sellerTelephoneNo !== undefined && {
+        seller_telephone_no: sellerTelephoneNo,
+      }),
     });
 
     // Map fields to camelCase for consistency with frontend
@@ -203,6 +213,7 @@ export const updateTenant = async (req, res) => {
       sellerBusinessName: tenant.seller_business_name,
       sellerProvince: tenant.seller_province,
       sellerAddress: tenant.seller_address,
+      sellerTelephoneNo: tenant.seller_telephone_no,
       database_name: tenant.database_name,
       sandboxTestToken: tenant.sandbox_test_token,
       sandboxProductionToken: tenant.sandbox_production_token,

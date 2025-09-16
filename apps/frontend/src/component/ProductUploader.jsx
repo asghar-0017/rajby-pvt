@@ -69,19 +69,13 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
   const fileInputRef = useRef(null);
 
   // Internal keys for product data
-  const expectedColumns = [
-    "productName",
-    "productDescription",
-    "hsCode",
-    "uom",
-  ];
+  const expectedColumns = ["productName", "productDescription", "hsCode"];
 
   // Map display headers (as shown in Excel) back to internal keys
   const displayToInternalHeaderMap = {
     "Product Name": "productName",
     "Product Description": "productDescription",
     "HS Code": "hsCode",
-    "Unit Of Measurement": "uom",
   };
 
   const downloadTemplate = async () => {
@@ -94,12 +88,7 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       });
 
       // Header row with visual labels
-      const visualHeaders = [
-        "Product Name",
-        "Product Description",
-        "HS Code",
-        "Unit Of Measurement",
-      ];
+      const visualHeaders = ["Product Name", "Product Description", "HS Code"];
       worksheet.addRow(visualHeaders);
       worksheet.getRow(1).font = { bold: true };
 
@@ -149,61 +138,14 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         ];
       }
 
-      // Hardcoded UOM options from API response
-      const uomOptions = [
-        "MT",
-        "Bill of lading",
-        "SET",
-        "KWH",
-        "40KG",
-        "Liter",
-        "SqY",
-        "Bag",
-        "KG",
-        "MMBTU",
-        "Meter",
-        "Pcs",
-        "Carat",
-        "Cubic Metre",
-        "Dozen",
-        "Gram",
-        "Gallon",
-        "Kilogram",
-        "Pound",
-        "Timber Logs",
-        "Numbers, pieces, units",
-        "Packs",
-        "Pair",
-        "Square Foot",
-        "Square Metre",
-        "Thousand Unit",
-        "Mega Watt",
-        "Foot",
-        "Barrels",
-        "NO",
-        "Others",
-        "1000 kWh",
-      ];
-
-      console.log(
-        "UOM dropdown enabled with",
-        uomOptions.length,
-        "hardcoded options"
-      );
-
       // Create a veryHidden worksheet to store the lists
       const listsSheet = workbook.addWorksheet("Lists");
       listsSheet.state = "veryHidden"; // cannot be unhidden via Excel UI
 
       console.log("Creating Excel with:", {
-        uomCount: uomOptions.length,
         hsCount: hsCodeValues.length,
       });
 
-      // Column A: UOM list
-      uomOptions.forEach((uom, i) => {
-        listsSheet.getCell(1 + i, 1).value = uom;
-      });
       // Column B: HS Code list (with description) - No longer used for dropdown validation
       // Users can now input their own HS Code values
       // Ensure HS Codes are stored as strings to prevent Excel from treating them as numbers
@@ -225,30 +167,19 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         return temp;
       };
 
-      const uomColIdx = visualHeaders.indexOf("Unit Of Measurement") + 1;
       const hsColIdx = visualHeaders.indexOf("HS Code") + 1;
       // No row limit - allow unlimited rows of data
       const maxRows = 100000; // allow up to 100,000 rows of data for template generation
 
-      const uomRange = `'Lists'!$A$1:$A$${Math.max(1, uomOptions.length)}`;
       const hsRange = `'Lists'!$B$1:$B$${Math.max(1, hsCodeValues.length)}`;
 
       console.log("Data validation ranges:", {
-        uomRange,
         hsRange:
           "HS Code range no longer used for validation - users input free text",
       });
 
       // Apply data validations row-wise (limited to reasonable number for template)
       for (let r = 2; r <= Math.min(maxRows, 10000); r++) {
-        if (uomColIdx > 0) {
-          worksheet.getCell(r, uomColIdx).dataValidation = {
-            type: "list",
-            allowBlank: true,
-            formulae: [uomRange],
-            showErrorMessage: true,
-          };
-        }
         // HS Code dropdown removed - users can now input their own values
         // if (hsColIdx > 0) {
         //   worksheet.getCell(r, hsColIdx).dataValidation = {
@@ -545,42 +476,6 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     const validData = [];
     const validationErrors = [];
 
-    // Hardcoded UOM options for validation
-    const validUOMs = [
-      "MT",
-      "Bill of lading",
-      "SET",
-      "KWH",
-      "40KG",
-      "Liter",
-      "SqY",
-      "Bag",
-      "KG",
-      "MMBTU",
-      "Meter",
-      "Pcs",
-      "Carat",
-      "Cubic Metre",
-      "Dozen",
-      "Gram",
-      "Gallon",
-      "Kilogram",
-      "Pound",
-      "Timber Logs",
-      "Numbers, pieces, units",
-      "Packs",
-      "Pair",
-      "Square Foot",
-      "Square Metre",
-      "Thousand Unit",
-      "Mega Watt",
-      "Foot",
-      "Barrels",
-      "NO",
-      "Others",
-      "1000 kWh",
-    ];
-
     data.forEach((row, index) => {
       const rowErrors = [];
 
@@ -591,27 +486,6 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
 
       if (!row.hsCode || row.hsCode.trim() === "") {
         rowErrors.push("HS Code is required");
-      }
-
-      if (!row.uom || row.uom.trim() === "") {
-        rowErrors.push("Unit of Measurement is required");
-      }
-
-      // UOM validation using hardcoded options
-      if (row.uom && row.uom.trim() !== "") {
-        const uomValue = String(row.uom).trim();
-        const isValidUOM = validUOMs.some(
-          (validUom) =>
-            validUom.toLowerCase() === uomValue.toLowerCase() ||
-            validUom.toLowerCase().includes(uomValue.toLowerCase()) ||
-            uomValue.toLowerCase().includes(validUom.toLowerCase())
-        );
-
-        if (!isValidUOM) {
-          rowErrors.push(
-            `Unit of Measurement "${row.uom}" is not valid. Please select from the dropdown.`
-          );
-        }
       }
 
       // Note: Products can have the same name OR same HS code, but not both
@@ -851,7 +725,6 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
           productName: "",
           productDescription: "",
           hsCode: "",
-          uom: "",
         };
       }
 
@@ -860,7 +733,6 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         productName: data.productName || data.name || "",
         productDescription: data.productDescription || data.description || "",
         hsCode: data.hsCode || "",
-        uom: data.uom || "",
       };
     };
 
@@ -913,7 +785,7 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         <Box sx={{ mb: 3 }}>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             Upload a CSV or Excel file with the following columns: Product Name,
-            Product Description, HS Code, Unit Of Measurement.
+            Product Description, HS Code.
             <br />
             <strong>Note:</strong> Products with duplicate names AND HS codes
             will be skipped during upload.
@@ -1058,7 +930,6 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
                       <TableCell>Product Name</TableCell>
                       <TableCell>Product Description</TableCell>
                       <TableCell>HS Code</TableCell>
-                      <TableCell>Unit Of Measurement</TableCell>
                       <TableCell>Status</TableCell>
                     </TableRow>
                   </TableHead>
@@ -1069,7 +940,6 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
                         <TableCell>{row.productName}</TableCell>
                         <TableCell>{row.productDescription}</TableCell>
                         <TableCell>{row.hsCode}</TableCell>
-                        <TableCell>{row.uom}</TableCell>
                         <TableCell>
                           {row._status === "existing" ? (
                             <Chip

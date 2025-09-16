@@ -35,6 +35,7 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
     buyerProvince: "",
     buyerAddress: "",
     buyerRegistrationType: "",
+    buyerTelephone: "",
     documentType: "NTN", // Default to NTN
   });
   const [provinces, setProvinces] = useState([]);
@@ -82,6 +83,7 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
           buyerProvince: buyer.buyerProvince || "",
           buyerAddress: buyer.buyerAddress || "",
           buyerRegistrationType: buyer.buyerRegistrationType || "",
+          buyerTelephone: buyer.buyerTelephone || "",
           documentType: documentType,
         });
         console.log("Form data set with NTN/CNIC:", buyer.buyerNTNCNIC || "");
@@ -96,6 +98,7 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
           buyerProvince: "",
           buyerAddress: "",
           buyerRegistrationType: "",
+          buyerTelephone: "",
           documentType: "NTN",
         });
         setRegistrationTypeLocked(false);
@@ -286,6 +289,7 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
         buyerProvince,
         buyerAddress,
         buyerRegistrationType,
+        buyerTelephone,
         documentType,
       } = formData;
       if (
@@ -307,6 +311,7 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
       }
 
       // Proceed with saving
+      console.log("Sending formData to onSave:", formData);
       onSave(formData);
     } catch (error) {
       console.error("Error during save process:", error);
@@ -331,7 +336,7 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
       setBuyerRegistrationHint("");
 
       const response = await fetch(
-        "https://signs-now.inplsoftwares.online/api/buyer-check",
+        "https://rajbytextileind.inplsoftwares.online/api/buyer-check",
         {
           method: "POST",
           headers: {
@@ -673,6 +678,41 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
                 required
                 variant="outlined"
                 size="small"
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    backgroundColor: "rgba(255, 255, 255, 0.6)",
+                    backdropFilter: "blur(10px)",
+                    borderRadius: 2,
+                    "& fieldset": {
+                      borderColor: "rgba(0, 0, 0, 0.12)",
+                    },
+                    "&:hover fieldset": {
+                      borderColor: "rgba(0, 0, 0, 0.2)",
+                    },
+                    "&.Mui-focused fieldset": {
+                      borderColor: "#007AFF",
+                      borderWidth: 2,
+                    },
+                  },
+                  "& .MuiInputLabel-root": {
+                    color: "#1a1a1a",
+                    fontWeight: 500,
+                  },
+                  "& .MuiOutlinedInput-input": {
+                    color: "#1a1a1a",
+                  },
+                }}
+              />
+
+              <TextField
+                label="Telephone No"
+                name="buyerTelephone"
+                value={formData.buyerTelephone}
+                onChange={handleChange}
+                fullWidth
+                variant="outlined"
+                size="small"
+                placeholder="Enter telephone number"
                 sx={{
                   "& .MuiOutlinedInput-root": {
                     backgroundColor: "rgba(255, 255, 255, 0.6)",

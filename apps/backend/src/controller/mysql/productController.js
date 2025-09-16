@@ -13,7 +13,9 @@ export const listProducts = async (req, res) => {
       (typeof search === "string" && search.trim() !== "");
 
     if (!hasPagination) {
-      const products = await Product.findAll({ order: [["created_at", "DESC"]] });
+      const products = await Product.findAll({
+        order: [["created_at", "DESC"]],
+      });
       res.json({ success: true, data: products });
       return;
     }
@@ -28,7 +30,6 @@ export const listProducts = async (req, res) => {
         { name: { [Op.like]: like } },
         { description: { [Op.like]: like } },
         { hsCode: { [Op.like]: like } },
-        { uom: { [Op.like]: like } },
       ];
     }
 
@@ -58,7 +59,7 @@ export const listProducts = async (req, res) => {
 export const createProduct = async (req, res) => {
   try {
     const { Product } = req.tenantModels;
-    const { name, description, hsCode, uom } = req.body;
+    const { name, description, hsCode } = req.body;
     if (!name)
       return res
         .status(400)
@@ -67,13 +68,14 @@ export const createProduct = async (req, res) => {
       name,
       description,
       hsCode,
-      uom,
       created_by_user_id: req.user?.userId || req.user?.id || null,
       created_by_email: req.user?.email || null,
       created_by_name:
-        (req.user?.firstName || req.user?.lastName)
+        req.user?.firstName || req.user?.lastName
           ? `${req.user?.firstName ?? ""}${req.user?.lastName ? ` ${req.user.lastName}` : ""}`.trim()
-          : (req.user?.role === "admin" ? "Admin" : null),
+          : req.user?.role === "admin"
+            ? "Admin"
+            : null,
     });
     res.status(201).json({ success: true, data: product });
   } catch (err) {
@@ -101,7 +103,7 @@ export const updateProduct = async (req, res) => {
   try {
     const { Product } = req.tenantModels;
     const { id } = req.params;
-    const { name, description, hsCode, uom } = req.body;
+    const { name, description, hsCode } = req.body;
 
     const product = await Product.findByPk(id);
     if (!product) {
@@ -120,7 +122,6 @@ export const updateProduct = async (req, res) => {
       name,
       description,
       hsCode,
-      uom,
     });
     res.json({ success: true, data: product });
   } catch (err) {
@@ -175,7 +176,6 @@ export const checkExistingProducts = async (req, res) => {
           product.productDescription ||
           product.ProductDescription,
         hsCode: product.hsCode || product.HSCode || product.hs_code,
-        uom: product.uom || product.UOM || product.unitOfMeasure,
       }))
       .filter((p) => p.name); // Only include products with names
 
@@ -198,7 +198,7 @@ export const checkExistingProducts = async (req, res) => {
           { hsCode: { [Op.in]: hsCodes } },
         ],
       },
-      attributes: ["id", "name", "hsCode", "description", "uom"],
+      attributes: ["id", "name", "hsCode", "description"],
     });
 
     // Create lookup maps for O(1) performance
@@ -313,10 +313,6 @@ export const bulkCreateProducts = async (req, res) => {
         rowErrors.push("HS Code is required");
       }
 
-      if (!productData.uom || productData.uom.trim() === "") {
-        rowErrors.push("Unit of Measurement is required");
-      }
-
       if (rowErrors.length > 0) {
         validationErrors.push({
           row: i + 1,
@@ -398,7 +394,6 @@ export const bulkCreateProducts = async (req, res) => {
         name: product.name,
         description: product.description || product.productDescription || null,
         hsCode: product.hsCode,
-        uom: product.uom,
         createdAt: new Date(),
         updatedAt: new Date(),
       }));

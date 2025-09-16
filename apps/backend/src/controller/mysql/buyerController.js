@@ -11,7 +11,13 @@ export const createBuyer = async (req, res) => {
       buyerProvince,
       buyerAddress,
       buyerRegistrationType,
+      buyerTelephone,
     } = req.body;
+
+    console.log("=== CREATE BUYER DEBUG ===");
+    console.log("Request body:", req.body);
+    console.log("buyerTelephone:", buyerTelephone);
+    console.log("=== END CREATE BUYER DEBUG ===");
 
     // Validate required fields
     if (!buyerProvince || !buyerRegistrationType) {
@@ -43,7 +49,8 @@ export const createBuyer = async (req, res) => {
       } else {
         return res.status(400).json({
           success: false,
-          message: "NTN must be 7 characters or CNIC must be 13 characters long.",
+          message:
+            "NTN must be 7 characters or CNIC must be 13 characters long.",
         });
       }
     }
@@ -94,12 +101,15 @@ export const createBuyer = async (req, res) => {
       buyerProvince: normalizedProvince,
       buyerAddress,
       buyerRegistrationType,
+      buyerTelephone,
       created_by_user_id: req.user?.userId || req.user?.id || null,
       created_by_email: req.user?.email || null,
       created_by_name:
-        (req.user?.firstName || req.user?.lastName)
+        req.user?.firstName || req.user?.lastName
           ? `${req.user?.firstName ?? ""}${req.user?.lastName ? ` ${req.user.lastName}` : ""}`.trim()
-          : (req.user?.role === "admin" ? `Admin (${req.user?.id || req.user?.userId})` : null),
+          : req.user?.role === "admin"
+            ? `Admin (${req.user?.id || req.user?.userId})`
+            : null,
     });
 
     res.status(201).json({
@@ -268,7 +278,13 @@ export const updateBuyer = async (req, res) => {
       buyerProvince,
       buyerAddress,
       buyerRegistrationType,
+      buyerTelephone,
     } = req.body;
+
+    console.log("=== UPDATE BUYER DEBUG ===");
+    console.log("Request body:", req.body);
+    console.log("buyerTelephone:", buyerTelephone);
+    console.log("=== END UPDATE BUYER DEBUG ===");
 
     const buyer = await Buyer.findByPk(id);
 
@@ -301,7 +317,8 @@ export const updateBuyer = async (req, res) => {
       } else {
         return res.status(400).json({
           success: false,
-          message: "NTN must be 7 characters or CNIC must be 13 characters long.",
+          message:
+            "NTN must be 7 characters or CNIC must be 13 characters long.",
         });
       }
     }
@@ -354,6 +371,7 @@ export const updateBuyer = async (req, res) => {
       buyerProvince: normalizedProvince,
       buyerAddress,
       buyerRegistrationType,
+      buyerTelephone,
     });
 
     res.status(200).json({
@@ -611,6 +629,15 @@ export const bulkCreateBuyers = async (req, res) => {
         buyerProvince: buyer.normalizedProvince,
         buyerAddress: buyer.buyerAddress?.trim() || null,
         buyerRegistrationType: buyer.buyerRegistrationType.trim(),
+        buyerTelephone: buyer.buyerTelephone?.trim() || null,
+        created_by_user_id: req.user?.userId || req.user?.id || null,
+        created_by_email: req.user?.email || null,
+        created_by_name:
+          req.user?.firstName || req.user?.lastName
+            ? `${req.user?.firstName ?? ""}${req.user?.lastName ? ` ${req.user.lastName}` : ""}`.trim()
+            : req.user?.role === "admin"
+              ? `Admin (${req.user?.id || req.user?.userId})`
+              : null,
       });
     });
 
@@ -843,7 +870,7 @@ export const bulkCheckFBRRegistration = async (req, res) => {
         },
       });
     }
-  
+
     // Process in moderate batches with controlled concurrency to avoid upstream throttling
     const batchSize = 50;
     const batches = [];
@@ -869,7 +896,10 @@ export const bulkCheckFBRRegistration = async (req, res) => {
           resultsLocal[current] = await iterator(items[current], current);
         }
       };
-      const workers = Array.from({ length: Math.min(limit, items.length) }, run);
+      const workers = Array.from(
+        { length: Math.min(limit, items.length) },
+        run
+      );
       await Promise.all(workers);
       return resultsLocal;
     };
@@ -882,17 +912,24 @@ export const bulkCheckFBRRegistration = async (req, res) => {
           `🔍 Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} buyers) with limited concurrency...`
         );
 
-        const batchResults = await mapWithConcurrency(batch, 10, async (buyer) => {
-          try {
-            const registrationType = await checkFBRRegistrationAPI(
-              buyer.buyerNTNCNIC
-            );
-            return { ...buyer, buyerRegistrationType: registrationType };
-          } catch (error) {
-            console.error(`Error checking FBR for ${buyer.buyerNTNCNIC}:`, error);
-            return { ...buyer, buyerRegistrationType: "Unregistered" };
+        const batchResults = await mapWithConcurrency(
+          batch,
+          10,
+          async (buyer) => {
+            try {
+              const registrationType = await checkFBRRegistrationAPI(
+                buyer.buyerNTNCNIC
+              );
+              return { ...buyer, buyerRegistrationType: registrationType };
+            } catch (error) {
+              console.error(
+                `Error checking FBR for ${buyer.buyerNTNCNIC}:`,
+                error
+              );
+              return { ...buyer, buyerRegistrationType: "Unregistered" };
+            }
           }
-        });
+        );
 
         results.push(...batchResults);
         console.log(
@@ -902,7 +939,10 @@ export const bulkCheckFBRRegistration = async (req, res) => {
         console.error(`❌ Batch ${batchIndex + 1} failed:`, batchError);
         errors.push(batchError);
         results.push(
-          ...batch.map((buyer) => ({ ...buyer, buyerRegistrationType: "Unregistered" }))
+          ...batch.map((buyer) => ({
+            ...buyer,
+            buyerRegistrationType: "Unregistered",
+          }))
         );
       }
     }

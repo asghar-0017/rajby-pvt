@@ -112,6 +112,15 @@ const SROItem = ({ index, item, handleItemChange, disabled }) => {
     return null;
   }
 
+  // Hide SRO Item No field if SRO Schedule No is empty or "N/A"
+  if (
+    !item.sroScheduleNo ||
+    item.sroScheduleNo.trim() === "" ||
+    item.sroScheduleNo === "N/A"
+  ) {
+    return null;
+  }
+
   // Determine the value to show: if data exists and matches, select it; otherwise, show 'N/A' if no SRO items
   let selectedValue = "";
   if (sro.length === 0) {

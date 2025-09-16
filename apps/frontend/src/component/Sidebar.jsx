@@ -215,9 +215,13 @@ export default function Sidebar({ onLogout }) {
             </MenuItem>
             <Divider />
             {user?.role === "admin" && (
-              <MenuItem onClick={handleOpenProfileModal}>Update Profile</MenuItem>
+              <MenuItem onClick={handleOpenProfileModal}>
+                Update Profile
+              </MenuItem>
             )}
-            <MenuItem onClick={handleOpenPasswordModal}>Change Password</MenuItem>
+            <MenuItem onClick={handleOpenPasswordModal}>
+              Change Password
+            </MenuItem>
             <MenuItem onClick={handleLogoutClick}>Logout</MenuItem>
           </Menu>
         </Toolbar>
@@ -237,7 +241,7 @@ export default function Sidebar({ onLogout }) {
       >
         <DrawerHeader>
           {/* Logo at the top of sidebar */}
-          {/* <Box
+          <Box
             sx={{
               display: "flex",
               justifyContent: "center",
@@ -247,17 +251,17 @@ export default function Sidebar({ onLogout }) {
             }}
           >
             <img
-              src="/images/Pakprogressive.png"
-              alt="Pak Progressive"
+              src="/images/rajbyLogo.jpg"
+              alt="Rajby"
               style={{
-                // maxWidth: "100%",
-                width: "2500px",
+                maxWidth: "100%",
+                // width: "2500px",
                 height: "100%",
                 maxHeight: "60px",
-                objectFit: "cover",
+                objectFit: "contain",
               }}
             />
-          </Box> */}
+          </Box>
         </DrawerHeader>
         <List>
           {navItems.map((item, index) => {
@@ -365,10 +369,16 @@ export default function Sidebar({ onLogout }) {
         <Outlet />
         <Footer />
         {/* Password Update Modal */}
-        <PasswordUpdateMenuMount open={passwordModalOpen} setOpen={setPasswordModalOpen} />
+        <PasswordUpdateMenuMount
+          open={passwordModalOpen}
+          setOpen={setPasswordModalOpen}
+        />
         {/* Profile Update Modal - Only for Admin */}
         {user?.role === "admin" && (
-          <ProfileMenuMount open={profileModalOpen} setOpen={setProfileModalOpen} />
+          <ProfileMenuMount
+            open={profileModalOpen}
+            setOpen={setProfileModalOpen}
+          />
         )}
       </Main>
     </Box>

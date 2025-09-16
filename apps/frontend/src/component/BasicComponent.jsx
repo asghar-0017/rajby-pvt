@@ -151,7 +151,7 @@ export default function BasicTable() {
   // Debounce search input
   useEffect(() => {
     setIsTyping(true);
-    
+
     const timer = setTimeout(() => {
       setDebouncedSearch(search);
       setIsTyping(false);
@@ -166,7 +166,7 @@ export default function BasicTable() {
     } else {
       setLoading(true);
     }
-    
+
     try {
       if (!selectedTenant) {
         console.error("No Company selected");
@@ -245,7 +245,7 @@ export default function BasicTable() {
       if (debouncedSearch === undefined) {
         return;
       }
-      
+
       // Trigger API call for any changes
       getMyInvoices(true);
     }
@@ -873,6 +873,11 @@ export default function BasicTable() {
                 isSalesTaxWithheldManual,
                 isFurtherTaxManual,
                 isFedPayableManual,
+                advanceIncomeTax, // Remove from FBR API payload
+                dcDocId, // Remove from FBR API payload
+                dcDocDate, // Remove from FBR API payload
+                cartages, // Remove from FBR API payload
+                others, // Remove from FBR API payload
                 ...rest
               }) => {
                 // Special handling for uoM based on rate content
@@ -1721,13 +1726,13 @@ export default function BasicTable() {
                         sx={{
                           width: 16,
                           height: 16,
-                          borderRadius: '50%',
-                          border: '2px solid #ccc',
-                          borderTop: '2px solid #1976d2',
-                          animation: 'spin 1s linear infinite',
-                          '@keyframes spin': {
-                            '0%': { transform: 'rotate(0deg)' },
-                            '100%': { transform: 'rotate(360deg)' },
+                          borderRadius: "50%",
+                          border: "2px solid #ccc",
+                          borderTop: "2px solid #1976d2",
+                          animation: "spin 1s linear infinite",
+                          "@keyframes spin": {
+                            "0%": { transform: "rotate(0deg)" },
+                            "100%": { transform: "rotate(360deg)" },
                           },
                         }}
                       />
@@ -1802,8 +1807,8 @@ export default function BasicTable() {
                   setPage(1);
                 }}
                 slotProps={{
-                  textField: { 
-                    size: "small", 
+                  textField: {
+                    size: "small",
                     sx: { minWidth: 140 },
                     InputProps: {
                       endAdornment: searchLoading && (
@@ -1811,7 +1816,7 @@ export default function BasicTable() {
                           <CircularProgress size={16} />
                         </InputAdornment>
                       ),
-                    }
+                    },
                   },
                 }}
               />

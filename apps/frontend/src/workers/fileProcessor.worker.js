@@ -18,43 +18,51 @@ class FileProcessor {
    * @param {Array} expectedColumns - Expected column headers
    */
   processCSV(content, expectedColumns) {
-    const lines = content.split('\n').filter(line => line.trim());
-    
+    const lines = content.split("\n").filter((line) => line.trim());
+
     if (lines.length < 2) {
-      throw new Error('CSV file must have at least a header row and one data row');
+      throw new Error(
+        "CSV file must have at least a header row and one data row"
+      );
     }
 
     // Parse headers and normalize
-    const headers = this.parseCSVLine(lines[0]).map(h => this.normalizeHeader(h));
-    
+    const headers = this.parseCSVLine(lines[0]).map((h) =>
+      this.normalizeHeader(h)
+    );
+
     // Log missing headers but don't throw error - process whatever columns are available
-    const missingHeaders = expectedColumns.filter(col => !headers.includes(col));
+    const missingHeaders = expectedColumns.filter(
+      (col) => !headers.includes(col)
+    );
     if (missingHeaders.length > 0) {
-      console.warn(`Missing expected columns: ${missingHeaders.join(', ')}. Processing with available columns.`);
+      console.warn(
+        `Missing expected columns: ${missingHeaders.join(", ")}. Processing with available columns.`
+      );
     }
 
     const data = [];
     const totalLines = lines.length - 1; // Exclude header
-    
+
     for (let i = 1; i < lines.length; i++) {
       const line = lines[i].trim();
       if (!line) continue;
-      
+
       const values = this.parseCSVLine(line);
       const row = {};
-      
+
       headers.forEach((header, index) => {
-        row[header] = values[index] || '';
+        row[header] = values[index] || "";
       });
-      
+
       data.push(row);
-      
+
       // Report progress every 100 rows
       if (i % 100 === 0) {
         this.reportProgress((i / totalLines) * 100, `Processed ${i} rows`);
       }
     }
-    
+
     return data;
   }
 
@@ -65,48 +73,69 @@ class FileProcessor {
    */
   processExcel(jsonData, expectedColumns) {
     if (jsonData.length < 2) {
-      throw new Error('Excel file must have at least a header row and one data row');
+      throw new Error(
+        "Excel file must have at least a header row and one data row"
+      );
     }
-    
-    const headers = jsonData[0].map(h => this.normalizeHeader(h));
-    
+
+    const headers = jsonData[0].map((h) => this.normalizeHeader(h));
+
     // Log available headers for debugging
-    console.log('Available headers in Excel file:', headers);
-    console.log('Expected columns:', expectedColumns);
-    
+    console.log("Available headers in Excel file:", headers);
+    console.log("Expected columns:", expectedColumns);
+
+    // Check specifically for DC Doc fields
+    const dcDocHeaders = headers.filter((h) => h.includes("dcDoc"));
+    console.log("DC Doc related headers found:", dcDocHeaders);
+
+    // Debug: Check for any headers that might contain "DC" or "Doc"
+    const dcRelatedHeaders = headers.filter(
+      (h) =>
+        h.toLowerCase().includes("dc") ||
+        h.toLowerCase().includes("doc") ||
+        h.toLowerCase().includes("document")
+    );
+    console.log("All DC/Doc related headers found:", dcRelatedHeaders);
+
+    // Debug: Show raw headers before normalization
+    console.log("Raw headers from Excel (before normalization):", jsonData[0]);
+
     // Log missing headers but don't throw error - process whatever columns are available
-    const missingHeaders = expectedColumns.filter(col => !headers.includes(col));
+    const missingHeaders = expectedColumns.filter(
+      (col) => !headers.includes(col)
+    );
     if (missingHeaders.length > 0) {
-      console.warn(`Missing expected columns: ${missingHeaders.join(', ')}. Processing with available columns.`);
+      console.warn(
+        `Missing expected columns: ${missingHeaders.join(", ")}. Processing with available columns.`
+      );
     }
-    
+
     const data = [];
     const totalRows = jsonData.length - 1; // Exclude header
-    
+
     for (let i = 1; i < jsonData.length; i++) {
       const row = jsonData[i];
       if (!row || !Array.isArray(row)) continue; // Skip invalid rows
-      
+
       // Check if the row has any non-empty cells in the first few columns (key fields)
       const hasData = row
         .slice(0, 5)
         .some(
           (cell) =>
-            cell !== null &&
-            cell !== undefined &&
-            String(cell).trim() !== ""
+            cell !== null && cell !== undefined && String(cell).trim() !== ""
         );
-      
+
       if (!hasData) continue; // Skip rows with no meaningful data
-      
+
       const rowData = {};
       headers.forEach((header, index) => {
-        let value = row[index] !== null && row[index] !== undefined
-          ? String(row[index]).trim()
-          : '';
+        let value =
+          row[index] !== null && row[index] !== undefined
+            ? String(row[index]).trim()
+            : "";
         rowData[header] = value;
       });
-      
+
       // Log first few rows for debugging
       if (i <= 3) {
         console.log(`Excel Row ${i} data:`, {
@@ -117,13 +146,19 @@ class FileProcessor {
           quantity: rowData.item_quantity,
           unitPrice: rowData.item_unitPrice,
           buyerBusinessName: rowData.buyerBusinessName,
-          buyerNTNCNIC: rowData.buyerNTNCNIC
+          buyerNTNCNIC: rowData.buyerNTNCNIC,
+          dcDocId: rowData.item_dcDocId,
+          dcDocDate: rowData.item_dcDocDate,
         });
       }
-      
+
       // Additional check: exclude rows that are clearly not invoice data
-      const invoiceType = String(rowData.invoiceType || rowData.invoice_type || "").trim().toLowerCase();
-      
+      const invoiceType = String(
+        rowData.invoiceType || rowData.invoice_type || ""
+      )
+        .trim()
+        .toLowerCase();
+
       // Skip special rows - check for instruction patterns
       if (
         invoiceType.includes("total") ||
@@ -147,27 +182,29 @@ class FileProcessor {
       if (this.hasMeaningfulDataFlexible(rowData, headers, i - 1)) {
         data.push(rowData);
       }
-      
+
       // Report progress every 100 rows
       if (i % 100 === 0) {
         this.reportProgress((i / totalRows) * 100, `Processed ${i} rows`);
       }
     }
-    
-    console.log(`Processed ${data.length} meaningful rows from ${totalRows} total rows`);
-    
+
+    console.log(
+      `Processed ${data.length} meaningful rows from ${totalRows} total rows`
+    );
+
     // Debug: Log sample of processed data
     if (data.length > 0) {
-      console.log('🔍 Worker Debug: Sample processed row:', {
+      console.log("🔍 Worker Debug: Sample processed row:", {
         productName: data[0].item_productName,
         hsCode: data[0].item_hsCode,
         quantity: data[0].item_quantity,
         unitPrice: data[0].item_unitPrice,
         totalValues: data[0].item_totalValues,
-        buyerBusinessName: data[0].buyerBusinessName
+        buyerBusinessName: data[0].buyerBusinessName,
       });
     }
-    
+
     return data;
   }
 
@@ -177,12 +214,12 @@ class FileProcessor {
    */
   parseCSVLine(line) {
     const result = [];
-    let current = '';
+    let current = "";
     let inQuotes = false;
-    
+
     for (let i = 0; i < line.length; i++) {
       const char = line[i];
-      
+
       if (char === '"') {
         if (inQuotes && line[i + 1] === '"') {
           current += '"';
@@ -190,14 +227,14 @@ class FileProcessor {
         } else {
           inQuotes = !inQuotes;
         }
-      } else if (char === ',' && !inQuotes) {
+      } else if (char === "," && !inQuotes) {
         result.push(current.trim());
-        current = '';
+        current = "";
       } else {
         current += char;
       }
     }
-    
+
     result.push(current.trim());
     return result;
   }
@@ -208,7 +245,7 @@ class FileProcessor {
    */
   normalizeHeader(header) {
     const headerStr = String(header || "").trim();
-    
+
     // Map display headers (as shown in Excel) back to internal keys
     const displayToInternalHeaderMap = {
       "Invoice Type": "invoiceType",
@@ -220,10 +257,13 @@ class FileProcessor {
       "Buyer Province": "buyerProvince",
       "Buyer Address": "buyerAddress",
       "Buyer Registration Type": "buyerRegistrationType",
+      "Buyer Telephone No": "buyerTelephone",
       "Transaction Type": "transctypeId",
       Rate: "item_rate",
       "SRO Schedule No": "item_sroScheduleNo",
       "SRO Item No": "item_sroItemSerialNo",
+      "DC Doc Id": "item_dcDocId",
+      "DC Doc Date": "item_dcDocDate",
       "Sale Type": "item_saleType",
       "HS Code": "item_hsCode",
       "Unit Of Measurement": "item_uoM",
@@ -240,25 +280,28 @@ class FileProcessor {
       Discount: "item_discount",
       "Total Values": "item_totalValues",
     };
-    
+
     // First try exact match
     if (displayToInternalHeaderMap[headerStr]) {
       return displayToInternalHeaderMap[headerStr];
     }
-    
+
     // Try partial matches for truncated headers
     const partialMatches = {
       "Invoice Da": "invoiceDate",
-      "Invoice Re": "invoiceRefNo", 
+      "Invoice Re": "invoiceRefNo",
       "Company I": "companyInvoiceRefNo",
       "Buyer NTN": "buyerNTNCNIC",
       "Buyer Buis": "buyerBusinessName",
       "Buyer Prov": "buyerProvince",
       "Buyer Addı": "buyerAddress",
       "Buyer Regi": "buyerRegistrationType",
-      "Transactio": "transctypeId",
+      "Buyer Tele": "buyerTelephone",
+      Transactio: "transctypeId",
       "SRO Sched": "item_sroScheduleNo",
       "SRO Item": "item_sroItemSerialNo",
+      "DC Doc I": "item_dcDocId",
+      "DC Doc Da": "item_dcDocDate",
       "Product Na": "item_productName",
       "Product De": "item_productDescription",
       "Value Sale": "item_valueSalesExcludingST",
@@ -266,20 +309,20 @@ class FileProcessor {
       "Sales Tax": "item_salesTaxApplicable",
       "ST Withheld": "item_salesTaxWithheldAtSource",
       "FED Payab": "item_fedPayable",
-      "Total Valu": "item_totalValues"
+      "Total Valu": "item_totalValues",
     };
-    
+
     if (partialMatches[headerStr]) {
       return partialMatches[headerStr];
     }
-    
+
     // Fallback to normalized version
     return headerStr
       .toLowerCase()
       .trim()
-      .replace(/[^a-z0-9]/g, '_')
-      .replace(/_+/g, '_')
-      .replace(/^_|_$/g, '');
+      .replace(/[^a-z0-9]/g, "_")
+      .replace(/_+/g, "_")
+      .replace(/^_|_$/g, "");
   }
 
   /**
@@ -289,21 +332,39 @@ class FileProcessor {
    */
   hasMeaningfulData(row, rowIndex) {
     // Check for meaningful invoice-level data
-    const hasInvoiceData = 
-      (row.invoiceType && row.invoiceType.trim() !== "" && row.invoiceType !== "Standard") ||
+    const hasInvoiceData =
+      (row.invoiceType &&
+        row.invoiceType.trim() !== "" &&
+        row.invoiceType !== "Standard") ||
       (row.invoiceDate && row.invoiceDate.trim() !== "") ||
-      (row.companyInvoiceRefNo && row.companyInvoiceRefNo.trim() !== "" && row.companyInvoiceRefNo !== `row_${rowIndex + 1}`) ||
-      (row.buyerBusinessName && row.buyerBusinessName.trim() !== "" && row.buyerBusinessName !== "Unknown Buyer") ||
+      (row.companyInvoiceRefNo &&
+        row.companyInvoiceRefNo.trim() !== "" &&
+        row.companyInvoiceRefNo !== `row_${rowIndex + 1}`) ||
+      (row.buyerBusinessName &&
+        row.buyerBusinessName.trim() !== "" &&
+        row.buyerBusinessName !== "Unknown Buyer") ||
       (row.buyerNTNCNIC && row.buyerNTNCNIC.trim() !== "");
 
     // Check for meaningful item-level data
-    const hasItemData = 
+    const hasItemData =
       (row.item_productName && row.item_productName.trim() !== "") ||
       (row.item_hsCode && row.item_hsCode.trim() !== "") ||
-      (row.item_quantity && row.item_quantity !== "" && row.item_quantity !== "0" && row.item_quantity !== 0) ||
-      (row.item_unitPrice && row.item_unitPrice !== "" && row.item_unitPrice !== "0" && row.item_unitPrice !== 0) ||
-      (row.item_totalValues && row.item_totalValues !== "" && row.item_totalValues !== "0" && row.item_totalValues !== 0) ||
-      (row.item_valueSalesExcludingST && row.item_valueSalesExcludingST !== "" && row.item_valueSalesExcludingST !== "0" && row.item_valueSalesExcludingST !== 0);
+      (row.item_quantity &&
+        row.item_quantity !== "" &&
+        row.item_quantity !== "0" &&
+        row.item_quantity !== 0) ||
+      (row.item_unitPrice &&
+        row.item_unitPrice !== "" &&
+        row.item_unitPrice !== "0" &&
+        row.item_unitPrice !== 0) ||
+      (row.item_totalValues &&
+        row.item_totalValues !== "" &&
+        row.item_totalValues !== "0" &&
+        row.item_totalValues !== 0) ||
+      (row.item_valueSalesExcludingST &&
+        row.item_valueSalesExcludingST !== "" &&
+        row.item_valueSalesExcludingST !== "0" &&
+        row.item_valueSalesExcludingST !== 0);
 
     return hasInvoiceData || hasItemData;
   }
@@ -316,9 +377,14 @@ class FileProcessor {
    */
   hasMeaningfulDataFlexible(row, headers, rowIndex) {
     // Check if any cell has meaningful data (not empty, not just whitespace, not "0")
-    const hasAnyData = Object.values(row).some(value => {
+    const hasAnyData = Object.values(row).some((value) => {
       const strValue = String(value).trim();
-      return strValue !== "" && strValue !== "0" && strValue !== "null" && strValue !== "undefined";
+      return (
+        strValue !== "" &&
+        strValue !== "0" &&
+        strValue !== "null" &&
+        strValue !== "undefined"
+      );
     });
 
     // If no data at all, skip
@@ -328,13 +394,24 @@ class FileProcessor {
 
     // Check for instruction patterns in any field - if found, reject
     const instructionPatterns = [
-      'auto-calculates', 'enter ', 'use the', 'dropdown', 'validated', 'hardcoded', 'fallback',
-      'unit cost', 'value sales', 'sales tax', 'computed', 'computed as', 'divided by'
+      "auto-calculates",
+      "enter ",
+      "use the",
+      "dropdown",
+      "validated",
+      "hardcoded",
+      "fallback",
+      "unit cost",
+      "value sales",
+      "sales tax",
+      "computed",
+      "computed as",
+      "divided by",
     ];
-    
-    const hasInstructionPatterns = Object.values(row).some(value => {
+
+    const hasInstructionPatterns = Object.values(row).some((value) => {
       const strValue = String(value).toLowerCase();
-      return instructionPatterns.some(pattern => strValue.includes(pattern));
+      return instructionPatterns.some((pattern) => strValue.includes(pattern));
     });
 
     if (hasInstructionPatterns) {
@@ -342,7 +419,7 @@ class FileProcessor {
     }
 
     // Check for numbered list patterns (1., 2., a., b., etc.)
-    const hasNumberedListPattern = Object.values(row).some(value => {
+    const hasNumberedListPattern = Object.values(row).some((value) => {
       const strValue = String(value).trim();
       return /^\d+\.\s/.test(strValue) || /^[a-z]\.\s/i.test(strValue);
     });
@@ -352,25 +429,40 @@ class FileProcessor {
     }
 
     // Check for common invoice-related keywords in any field
-    const invoiceKeywords = ['invoice', 'bill', 'receipt', 'order', 'purchase', 'sale', 'product', 'item', 'quantity', 'price', 'amount', 'total'];
-    const hasInvoiceKeywords = Object.values(row).some(value => {
+    const invoiceKeywords = [
+      "invoice",
+      "bill",
+      "receipt",
+      "order",
+      "purchase",
+      "sale",
+      "product",
+      "item",
+      "quantity",
+      "price",
+      "amount",
+      "total",
+    ];
+    const hasInvoiceKeywords = Object.values(row).some((value) => {
       const strValue = String(value).toLowerCase();
-      return invoiceKeywords.some(keyword => strValue.includes(keyword));
+      return invoiceKeywords.some((keyword) => strValue.includes(keyword));
     });
 
     // Check for numeric values that might indicate quantities or prices
-    const hasNumericData = Object.values(row).some(value => {
+    const hasNumericData = Object.values(row).some((value) => {
       const strValue = String(value).trim();
       const numValue = parseFloat(strValue);
       return !isNaN(numValue) && numValue > 0;
     });
 
     // Check for date-like values
-    const hasDateData = Object.values(row).some(value => {
+    const hasDateData = Object.values(row).some((value) => {
       const strValue = String(value).trim();
       // Simple date pattern check
-      return /^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}$/.test(strValue) || 
-             /^\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}$/.test(strValue);
+      return (
+        /^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}$/.test(strValue) ||
+        /^\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}$/.test(strValue)
+      );
     });
 
     // Accept if it has any meaningful data and either invoice keywords, numeric data, or date data
@@ -385,49 +477,72 @@ class FileProcessor {
     const groupedInvoices = new Map();
     const errors = [];
     const warnings = [];
-    
+
     data.forEach((item, index) => {
       try {
         // Use any available identifier or create a unique one
         // Try different possible column names for invoice reference
-        const companyInvoiceRefNo = item.companyInvoiceRefNo?.trim() || 
-                                   item.company_invoice_ref_no?.trim() ||
-                                   item.invoice_ref_no?.trim() ||
-                                   item.internalInvoiceNo?.trim() || 
-                                   item.internal_invoice_no?.trim() ||
-                                   item.invoiceNumber?.trim() || 
-                                   item.invoice_number?.trim() ||
-                                   `row_${index + 1}`;
-        
+        const companyInvoiceRefNo =
+          item.companyInvoiceRefNo?.trim() ||
+          item.company_invoice_ref_no?.trim() ||
+          item.invoice_ref_no?.trim() ||
+          item.internalInvoiceNo?.trim() ||
+          item.internal_invoice_no?.trim() ||
+          item.invoiceNumber?.trim() ||
+          item.invoice_number?.trim() ||
+          `row_${index + 1}`;
+
         if (groupedInvoices.has(companyInvoiceRefNo)) {
           const existingInvoice = groupedInvoices.get(companyInvoiceRefNo);
-          
+
           // Add item to existing invoice
           existingInvoice.items.push(this.cleanItemData(item, index));
         } else {
           // Create new invoice group with whatever data is available
-          const buyerBusinessName = item.buyerBusinessName || item.buyer_business_name || item.buyer_buisness_name || '';
-          
+          const buyerBusinessName =
+            item.buyerBusinessName ||
+            item.buyer_business_name ||
+            item.buyer_buisness_name ||
+            "";
+
           // Debug logging for buyer business name
           if (index < 3) {
             console.log(`🔍 Worker Debug: Creating invoice ${index + 1}:`, {
               companyInvoiceRefNo,
               buyerBusinessName,
-              buyerNTNCNIC: item.buyerNTNCNIC || item.buyer_ntn_cnic || '',
-              availableFields: Object.keys(item).filter(key => key.toLowerCase().includes('buyer'))
+              buyerNTNCNIC: item.buyerNTNCNIC || item.buyer_ntn_cnic || "",
+              availableFields: Object.keys(item).filter((key) =>
+                key.toLowerCase().includes("buyer")
+              ),
             });
           }
-          
+
           groupedInvoices.set(companyInvoiceRefNo, {
-            invoiceType: item.invoiceType || item.invoice_type || 'Standard',
-            invoiceDate: item.invoiceDate || item.invoice_date || new Date().toISOString().split('T')[0],
+            invoiceType: item.invoiceType || item.invoice_type || "Standard",
+            invoiceDate:
+              item.invoiceDate ||
+              item.invoice_date ||
+              new Date().toISOString().split("T")[0],
             companyInvoiceRefNo: companyInvoiceRefNo,
-            internalInvoiceNo: item.internalInvoiceNo || item.internal_invoice_no || item.invoiceNumber || item.invoice_number || `INT-${index + 1}`,
+            internalInvoiceNo:
+              item.internalInvoiceNo ||
+              item.internal_invoice_no ||
+              item.invoiceNumber ||
+              item.invoice_number ||
+              `INT-${index + 1}`,
             buyerBusinessName: buyerBusinessName,
-            buyerNTNCNIC: item.buyerNTNCNIC || item.buyer_ntn_cnic || '',
-            buyerProvince: item.buyerProvince || item.buyer_province || '',
-            buyerAddress: item.buyerAddress || item.buyer_address || '',
-            buyerRegistrationType: item.buyerRegistrationType || item.buyer_registration_type || 'Individual',
+            buyerNTNCNIC: item.buyerNTNCNIC || item.buyer_ntn_cnic || "",
+            buyerProvince: item.buyerProvince || item.buyer_province || "",
+            buyerAddress: item.buyerAddress || item.buyer_address || "",
+            buyerRegistrationType:
+              item.buyerRegistrationType ||
+              item.buyer_registration_type ||
+              "Individual",
+            buyerTelephone:
+              item.buyerTelephone ||
+              item.buyer_telephone_no ||
+              item.buyer_telephone ||
+              "",
             items: [this.cleanItemData(item, index)],
           });
         }
@@ -438,28 +553,30 @@ class FileProcessor {
         });
       }
     });
-    
+
     const finalInvoices = Array.from(groupedInvoices.values());
-    
+
     // Debug: Log final invoice data
     if (finalInvoices.length > 0) {
-      console.log('🔍 Worker Debug: Final invoice data:', {
+      console.log("🔍 Worker Debug: Final invoice data:", {
         totalInvoices: finalInvoices.length,
         sampleInvoice: {
           companyInvoiceRefNo: finalInvoices[0].companyInvoiceRefNo,
           buyerBusinessName: finalInvoices[0].buyerBusinessName,
           itemsCount: finalInvoices[0].items?.length || 0,
-          sampleItem: finalInvoices[0].items?.[0] ? {
-            item_productName: finalInvoices[0].items[0].item_productName,
-            item_hsCode: finalInvoices[0].items[0].item_hsCode,
-            item_quantity: finalInvoices[0].items[0].item_quantity,
-            item_unitPrice: finalInvoices[0].items[0].item_unitPrice,
-            item_totalValues: finalInvoices[0].items[0].item_totalValues
-          } : null
-        }
+          sampleItem: finalInvoices[0].items?.[0]
+            ? {
+                item_productName: finalInvoices[0].items[0].item_productName,
+                item_hsCode: finalInvoices[0].items[0].item_hsCode,
+                item_quantity: finalInvoices[0].items[0].item_quantity,
+                item_unitPrice: finalInvoices[0].items[0].item_unitPrice,
+                item_totalValues: finalInvoices[0].items[0].item_totalValues,
+              }
+            : null,
+        },
       });
     }
-    
+
     return {
       invoices: finalInvoices,
       errors,
@@ -476,8 +593,11 @@ class FileProcessor {
       return "";
 
     const stringValue = String(value).trim();
-    
-    console.log("🔍 Worker cleanHsCode input:", stringValue.substring(0, 100) + (stringValue.length > 100 ? "..." : ""));
+
+    console.log(
+      "🔍 Worker cleanHsCode input:",
+      stringValue.substring(0, 100) + (stringValue.length > 100 ? "..." : "")
+    );
 
     // If it contains " - ", extract the part before the first " - "
     if (stringValue.includes(" - ")) {
@@ -499,64 +619,147 @@ class FileProcessor {
    * @param {number} index - Row index
    */
   cleanItemData(item, index) {
-    const cleaned = { ...item };
-    
+    // Debug: Log incoming item data for cartages and others
+    if (index < 3) {
+      console.log(`🔍 Worker Debug: Processing item ${index + 1}:`, {
+        item_cartages: item.item_cartages,
+        item_others: item.item_others,
+        cartages: item.cartages,
+        others: item.others,
+        allKeys: Object.keys(item).filter(
+          (key) => key.includes("cartages") || key.includes("others")
+        ),
+      });
+    }
+
+    // Create item object with only item-specific fields (exclude buyer and invoice fields)
+    const cleaned = {
+      // Product/item fields
+      productName: item.productName || item.item_productName || item.name || "",
+      name: item.name || item.item_productName || item.productName || "",
+      hsCode: item.hsCode || item.item_hsCode || "",
+      productDescription:
+        item.productDescription || item.item_productDescription || "",
+      rate: item.rate || item.item_rate || 0,
+      uoM: item.uoM || item.item_uoM || "",
+      quantity: item.quantity || item.item_quantity || 0,
+      unitPrice: item.unitPrice || item.item_unitPrice || 0,
+      totalValues: item.totalValues || item.item_totalValues || 0,
+      valueSalesExcludingST:
+        item.valueSalesExcludingST || item.item_valueSalesExcludingST || 0,
+      fixedNotifiedValueOrRetailPrice:
+        item.fixedNotifiedValueOrRetailPrice ||
+        item.item_fixedNotifiedValueOrRetailPrice ||
+        0,
+      salesTaxApplicable:
+        item.salesTaxApplicable || item.item_salesTaxApplicable || 0,
+      extraTax: item.extraTax || item.item_extraTax || 0,
+      furtherTax: item.furtherTax || item.item_furtherTax || 0,
+      sroScheduleNo: item.sroScheduleNo || item.item_sroScheduleNo || "",
+      fedPayable: item.fedPayable || item.item_fedPayable || 0,
+      discount: item.discount || item.item_discount || 0,
+      cartages: item.item_cartages || item.cartages || 0,
+      others: item.item_others || item.others || 0,
+      saleType: item.saleType || item.item_saleType || "",
+      sroItemSerialNo: item.sroItemSerialNo || item.item_sroItemSerialNo || "",
+      // DC Doc fields
+      dcDocId: item.dcDocId || item.item_dcDocId || "",
+      dcDocDate: item.dcDocDate || item.item_dcDocDate || "",
+      // Item fields with item_ prefix
+      item_rate: item.item_rate || 0,
+      item_sroScheduleNo: item.item_sroScheduleNo || "",
+      item_sroItemSerialNo: item.item_sroItemSerialNo || "",
+      item_saleType: item.item_saleType || "",
+      item_hsCode: item.item_hsCode || "",
+      item_uoM: item.item_uoM || "",
+      item_productName: item.item_productName || "",
+      item_productDescription: item.item_productDescription || "",
+      item_valueSalesExcludingST: item.item_valueSalesExcludingST || 0,
+      item_quantity: item.item_quantity || 0,
+      item_unitPrice: item.item_unitPrice || 0,
+      item_salesTaxApplicable: item.item_salesTaxApplicable || 0,
+      item_salesTaxWithheldAtSource: item.item_salesTaxWithheldAtSource || 0,
+      item_extraTax: item.item_extraTax || 0,
+      item_furtherTax: item.item_furtherTax || 0,
+      item_fedPayable: item.item_fedPayable || 0,
+      item_discount: item.item_discount || 0,
+      item_cartages: item.item_cartages || item.cartages || 0,
+      item_others: item.item_others || item.others || 0,
+      item_totalValues: item.item_totalValues || 0,
+      item_dcDocId: item.item_dcDocId || "",
+      item_dcDocDate: item.item_dcDocDate || "",
+      item_fixedNotifiedValueOrRetailPrice:
+        item.item_fixedNotifiedValueOrRetailPrice || 0,
+      // Transaction field
+      transctypeId: item.transctypeId || "",
+      // Row tracking
+      _row: index + 1,
+    };
+
     // Convert numeric fields - handle various field name variations
     const numericFields = [
-      'quantity', 'unitPrice', 'totalValues', 'valueSalesExcludingST',
-      'fixedNotifiedValueOrRetailPrice', 'salesTaxApplicable', 'extraTax',
-      'furtherTax', 'fedPayable', 'discount',
+      "quantity",
+      "unitPrice",
+      "totalValues",
+      "valueSalesExcludingST",
+      "fixedNotifiedValueOrRetailPrice",
+      "salesTaxApplicable",
+      "extraTax",
+      "furtherTax",
+      "fedPayable",
+      "discount",
       // Alternative field names
-      'item_quantity', 'item_unitPrice', 'item_totalValues', 'item_valueSalesExcludingST',
-      'item_salesTaxApplicable', 'item_extraTax', 'item_furtherTax', 'item_fedPayable', 'item_discount'
+      "item_quantity",
+      "item_unitPrice",
+      "item_totalValues",
+      "item_valueSalesExcludingST",
+      "item_salesTaxApplicable",
+      "item_extraTax",
+      "item_furtherTax",
+      "item_fedPayable",
+      "item_discount",
     ];
-    
-    numericFields.forEach(field => {
-      if (cleaned[field] !== undefined && cleaned[field] !== null && cleaned[field] !== '') {
+
+    numericFields.forEach((field) => {
+      if (
+        cleaned[field] !== undefined &&
+        cleaned[field] !== null &&
+        cleaned[field] !== ""
+      ) {
         const num = parseFloat(cleaned[field]);
         cleaned[field] = isNaN(num) ? 0 : num;
       } else {
         cleaned[field] = 0;
       }
     });
-    
-    // Map alternative field names to standard names AND preserve original names for backend
-    const fieldMappings = {
-      'item_productName': 'name',
-      'item_hsCode': 'hsCode',
-      'item_productDescription': 'productDescription',
-      'item_quantity': 'quantity',
-      'item_unitPrice': 'unitPrice',
-      'item_totalValues': 'totalValues',
-      'item_valueSalesExcludingST': 'valueSalesExcludingST',
-      'item_salesTaxApplicable': 'salesTaxApplicable',
-      'item_extraTax': 'extraTax',
-      'item_furtherTax': 'furtherTax',
-      'item_fedPayable': 'fedPayable',
-      'item_discount': 'discount',
-      'item_uoM': 'uoM',
-      'item_rate': 'rate'
-    };
-    
-    // Create both mapped and original field names for backend compatibility
-    Object.entries(fieldMappings).forEach(([oldField, newField]) => {
-      if (cleaned[oldField] !== undefined) {
-        let value = cleaned[oldField];
-        
-        // Clean HS code to extract only the numeric part
-        if (oldField === 'item_hsCode') {
-          value = this.cleanHsCode(value);
-        }
-        
-        cleaned[newField] = value;
-        // Also keep the original field name for backend validation
-        cleaned[oldField] = value;
+
+    // Clean HS code for both standard and alternative field names
+    if (cleaned.hsCode) {
+      cleaned.hsCode = this.cleanHsCode(cleaned.hsCode);
+    }
+    if (cleaned.item_hsCode) {
+      cleaned.item_hsCode = this.cleanHsCode(cleaned.item_hsCode);
+    }
+
+    // Clean transctypeId to extract only the ID part
+    if (cleaned.transctypeId) {
+      const stringValue = String(cleaned.transctypeId).trim();
+      if (stringValue.includes(" - ")) {
+        const parts = stringValue.split(" - ");
+        cleaned.transctypeId = parts[0].trim();
       }
-    });
-    
-    // Add row tracking
-    cleaned._row = index + 1;
-    
+    }
+
+    // Debug: Log cleaned data for cartages and others
+    if (index < 3) {
+      console.log(`🔍 Worker Debug: Cleaned item ${index + 1}:`, {
+        cartages: cleaned.cartages,
+        others: cleaned.others,
+        item_cartages: cleaned.item_cartages,
+        item_others: cleaned.item_others,
+      });
+    }
+
     return cleaned;
   }
 
@@ -569,9 +772,9 @@ class FileProcessor {
     if (this.progressCallback) {
       this.progressCallback(percentage, message);
     }
-    
+
     self.postMessage({
-      type: 'progress',
+      type: "progress",
       percentage,
       message,
     });
@@ -583,31 +786,31 @@ class FileProcessor {
    */
   async process(data) {
     if (this.isProcessing) {
-      throw new Error('Already processing a file');
+      throw new Error("Already processing a file");
     }
-    
+
     this.isProcessing = true;
-    
+
     try {
-      this.reportProgress(0, 'Starting file processing...');
-      
+      this.reportProgress(0, "Starting file processing...");
+
       let parsedData;
-      
-             if (data.type === 'csv') {
-         this.reportProgress(10, 'Parsing CSV file...');
-         parsedData = this.processCSV(data.content, data.expectedColumns);
-       } else if (data.type === 'excel') {
-         this.reportProgress(10, 'Processing Excel data...');
-         parsedData = this.processExcel(data.jsonData, data.expectedColumns);
-       } else {
-         throw new Error('Unsupported file type');
-       }
-      
-      this.reportProgress(70, 'Grouping invoices...');
+
+      if (data.type === "csv") {
+        this.reportProgress(10, "Parsing CSV file...");
+        parsedData = this.processCSV(data.content, data.expectedColumns);
+      } else if (data.type === "excel") {
+        this.reportProgress(10, "Processing Excel data...");
+        parsedData = this.processExcel(data.jsonData, data.expectedColumns);
+      } else {
+        throw new Error("Unsupported file type");
+      }
+
+      this.reportProgress(70, "Grouping invoices...");
       const result = this.groupInvoices(parsedData);
-      
-      this.reportProgress(100, 'Processing complete!');
-      
+
+      this.reportProgress(100, "Processing complete!");
+
       return {
         success: true,
         data: result,
@@ -631,29 +834,29 @@ class FileProcessor {
 const processor = new FileProcessor();
 
 // Handle messages from main thread
-self.onmessage = async function(e) {
+self.onmessage = async function (e) {
   const { type, data } = e.data;
-  
+
   switch (type) {
-    case 'process':
+    case "process":
       try {
         const result = await processor.process(data);
         self.postMessage({
-          type: 'result',
+          type: "result",
           data: result,
         });
       } catch (error) {
         self.postMessage({
-          type: 'error',
+          type: "error",
           error: error.message,
         });
       }
       break;
-      
-    case 'cancel':
+
+    case "cancel":
       processor.isProcessing = false;
       self.postMessage({
-        type: 'cancelled',
+        type: "cancelled",
       });
       break;
   }

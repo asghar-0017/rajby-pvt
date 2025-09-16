@@ -40,6 +40,11 @@ const Tenant = masterSequelize.define(
       allowNull: true,
       field: "seller_address",
     },
+    seller_telephone_no: {
+      type: DataTypes.STRING(20),
+      allowNull: true,
+      field: "seller_telephone_no",
+    },
     database_name: {
       type: DataTypes.STRING(100),
       allowNull: false,

@@ -21,10 +21,6 @@ export const createProductModel = (sequelize) => {
         type: DataTypes.STRING(50),
         allowNull: true,
       },
-      uom: {
-        type: DataTypes.STRING(50),
-        allowNull: true,
-      },
       // Creator tracking
       created_by_user_id: {
         type: DataTypes.INTEGER,
@@ -38,7 +34,6 @@ export const createProductModel = (sequelize) => {
         type: DataTypes.STRING(255),
         allowNull: true,
       },
-      
     },
     {
       tableName: "products",
