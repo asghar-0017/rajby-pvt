@@ -48006,7 +48006,7 @@ const P_ = (e) => {
   },
   Zn = {
     apiKey: "https://gw.fbr.gov.pk",
-    apiKeyLocal: "https://rajbytextileind.inplsoftwares.online/api",
+    apiKeyLocal: "https://rajbytextilepvt.inplsoftwares.online/api",
     get sandBoxTestToken() {
       const e = jh.getSandboxToken();
       return (
@@ -48041,7 +48041,7 @@ const P_ = (e) => {
     },
   },
   Rt = pn.create({
-    baseURL: "https://rajbytextileind.inplsoftwares.online/api",
+    baseURL: "https://rajbytextilepvt.inplsoftwares.online/api",
   });
 Rt.interceptors.request.use(
   (e) => {
@@ -53902,7 +53902,7 @@ const $h = new Xbe(),
           try {
             (P(!0), R(""));
             const V = await fetch(
-              "https://rajbytextileind.inplsoftwares.online/api/buyer-check",
+              "https://rajbytextilepvt.inplsoftwares.online/api/buyer-check",
               {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
