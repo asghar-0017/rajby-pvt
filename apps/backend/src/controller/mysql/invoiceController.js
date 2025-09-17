@@ -1918,7 +1918,13 @@ export const printInvoice = async (req, res) => {
     if (plainInvoice.items && plainInvoice.items.length > 0) {
       itemsTableRows = plainInvoice.items
         .map(
-          (item) => `
+          (item) => {
+            // Calculate unit price and amount
+            const unitPrice = parseFloat(item.unitPrice || item.rate || 0);
+            const quantity = parseFloat(item.quantity || 0);
+            const calculatedAmount = unitPrice * quantity;
+            
+            return `
         <tr>
           <td>${item.dcDocId || "N/A"}</td>
           <td>${item.dcDocDate ? formatDate(item.dcDocDate) : "N/A"}</td>
@@ -1927,22 +1933,20 @@ export const printInvoice = async (req, res) => {
           <td>${item.hsCode || "N/A"}</td>
           <td class="text-right">${item.quantity || "N/A"}</td>
           <td>${item.uoM || item.billOfLadingUoM || "N/A"}</td>
-          <td class="text-right">${item.rate || item.unitPrice || "N/A"}</td>
-          <td class="text-right">${item.valueSalesExcludingST || item.totalValues || item.total_amount || "N/A"}</td>
+          <td class="text-right">${unitPrice.toFixed(2)}</td>
+          <td class="text-right">${calculatedAmount.toFixed(2)}</td>
         </tr>
-      `
+      `;
+          }
         )
         .join("");
 
       // Add total row
       const totalAmount = plainInvoice.items.reduce((total, item) => {
-        const amount = parseFloat(
-          item.valueSalesExcludingST ||
-            item.totalValues ||
-            item.total_amount ||
-            0
-        );
-        return total + (isNaN(amount) ? 0 : amount);
+        const unitPrice = parseFloat(item.unitPrice || item.rate || 0);
+        const quantity = parseFloat(item.quantity || 0);
+        const calculatedAmount = unitPrice * quantity;
+        return total + (isNaN(calculatedAmount) ? 0 : calculatedAmount);
       }, 0);
 
       itemsTableRows += `
@@ -2138,6 +2142,21 @@ export const printInvoice = async (req, res) => {
           : "0"
       )
       .replace(
+        /\{\{salesTaxRate\}\}/g,
+        plainInvoice.items && plainInvoice.items.length > 0
+          ? (() => {
+              // Get the rate from the first item, or default to 18%
+              const firstItem = plainInvoice.items[0];
+              if (firstItem.rate) {
+                // Extract percentage from rate string (e.g., "18%" -> "18")
+                const rateMatch = firstItem.rate.toString().match(/(\d+(?:\.\d+)?)/);
+                return rateMatch ? rateMatch[1] : "18";
+              }
+              return "18"; // Default to 18% if no rate found
+            })()
+          : "18"
+      )
+      .replace(
         /\{\{totalCartage\}\}/g,
         plainInvoice.items && plainInvoice.items.length > 0
           ? plainInvoice.items
@@ -2202,13 +2221,10 @@ export const printInvoice = async (req, res) => {
         plainInvoice.items && plainInvoice.items.length > 0
           ? (() => {
               const totalAmount = plainInvoice.items.reduce((total, item) => {
-                const amount = parseFloat(
-                  item.valueSalesExcludingST ||
-                    item.totalValues ||
-                    item.total_amount ||
-                    0
-                );
-                return total + (isNaN(amount) ? 0 : amount);
+                const unitPrice = parseFloat(item.unitPrice || item.rate || 0);
+                const quantity = parseFloat(item.quantity || 0);
+                const calculatedAmount = unitPrice * quantity;
+                return total + (isNaN(calculatedAmount) ? 0 : calculatedAmount);
               }, 0);
 
               const totalSalesTax = plainInvoice.items.reduce((total, item) => {

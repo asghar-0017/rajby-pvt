@@ -383,7 +383,7 @@
               <th>HS Code</th>
               <th>Quantity</th>
               <th>Unit</th>
-              <th>Rate</th>
+              <th>Unit Price</th>
               <th>Amount</th>
             </tr>
           </thead>
@@ -396,6 +396,10 @@
       <!-- Grand Total Section -->
       <div class="grand-total-container">
         <table class="grand-total-table">
+          <tr>
+            <td class="grand-total-label">Sales Tax %</td>
+            <td class="grand-total-value">{{salesTaxRate}}.00%</td>
+          </tr>
           <tr>
             <td class="grand-total-label">Sales Tax Amount</td>
             <td class="grand-total-value">{{totalSalesTax}}</td>
