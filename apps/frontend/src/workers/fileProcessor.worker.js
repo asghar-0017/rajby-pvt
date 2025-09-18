@@ -80,6 +80,13 @@ class FileProcessor {
       console.warn(`Missing expected columns: ${missingHeaders.join(', ')}. Processing with available columns.`);
     }
     
+    // Create a mapping of available headers to their original names for data processing
+    const headerMapping = {};
+    jsonData[0].forEach((originalHeader, index) => {
+      const normalizedHeader = headers[index];
+      headerMapping[normalizedHeader] = originalHeader;
+    });
+    
     const data = [];
     const totalRows = jsonData.length - 1; // Exclude header
     
@@ -144,7 +151,24 @@ class FileProcessor {
       }
 
       // More flexible meaningful data check that works with any column structure
-      if (this.hasMeaningfulDataFlexible(rowData, headers, i - 1)) {
+      const isMeaningful = this.hasMeaningfulDataFlexible(rowData, headers, i - 1);
+      
+      // Debug logging for first few rows
+      if (i <= 5) {
+        console.log(`Row ${i} meaningful data check:`, {
+          isMeaningful,
+          hasData: Object.values(rowData).some(v => String(v).trim() !== ""),
+          sampleData: {
+            invoiceType: rowData.invoiceType,
+            companyInvoiceRefNo: rowData.companyInvoiceRefNo,
+            buyerBusinessName: rowData.buyerBusinessName,
+            item_productName: rowData.item_productName
+          },
+          allData: rowData
+        });
+      }
+      
+      if (isMeaningful) {
         data.push(rowData);
       }
       
@@ -239,6 +263,43 @@ class FileProcessor {
       "FED Payable": "item_fedPayable",
       Discount: "item_discount",
       "Total Values": "item_totalValues",
+      // Additional mappings for common variations
+      "dn_invoice_ref_no": "invoiceRefNo",
+      "invoice_ref_no": "invoiceRefNo",
+      "invoice_ref_number": "invoiceRefNo",
+      "invoice_number": "invoiceRefNo",
+      "internal_invoice_no": "companyInvoiceRefNo",
+      "internal_invoice_number": "companyInvoiceRefNo",
+      "buyer_business_name": "buyerBusinessName",
+      "buyer_buisness_name": "buyerBusinessName",
+      "buyer_ntn_cnic": "buyerNTNCNIC",
+      "buyer_ntn": "buyerNTNCNIC",
+      "buyer_province": "buyerProvince",
+      "buyer_address": "buyerAddress",
+      "buyer_registration_type": "buyerRegistrationType",
+      "transaction_type": "transctypeId",
+      "transctype_id": "transctypeId",
+      "product_name": "item_productName",
+      "product_description": "item_productDescription",
+      "hs_code": "item_hsCode",
+      "hscode": "item_hsCode",
+      "quantity": "item_quantity",
+      "unit_price": "item_unitPrice",
+      "unit_cost": "item_unitPrice",
+      "total_values": "item_totalValues",
+      "value_sales_excluding_st": "item_valueSalesExcludingST",
+      "sales_tax_applicable": "item_salesTaxApplicable",
+      "st_withheld_at_source": "item_salesTaxWithheldAtSource",
+      "extra_tax": "item_extraTax",
+      "further_tax": "item_furtherTax",
+      "fed_payable": "item_fedPayable",
+      "discount": "item_discount",
+      "unit_of_measurement": "item_uoM",
+      "uom": "item_uoM",
+      "rate": "item_rate",
+      "sro_schedule_no": "item_sroScheduleNo",
+      "sro_item_serial_no": "item_sroItemSerialNo",
+      "sale_type": "item_saleType",
     };
     
     // First try exact match
@@ -323,21 +384,43 @@ class FileProcessor {
 
     // If no data at all, skip
     if (!hasAnyData) {
+      console.log(`Row ${rowIndex + 1}: No data found`);
       return false;
     }
 
     // Check for instruction patterns in any field - if found, reject
+    // Made more specific to avoid false positives with legitimate invoice data
     const instructionPatterns = [
       'auto-calculates', 'enter ', 'use the', 'dropdown', 'validated', 'hardcoded', 'fallback',
-      'unit cost', 'value sales', 'sales tax', 'computed', 'computed as', 'divided by'
+      'computed as', 'divided by', 'instruction', 'note:', 'tip:', 'help:', 'example:'
     ];
     
-    const hasInstructionPatterns = Object.values(row).some(value => {
-      const strValue = String(value).toLowerCase();
-      return instructionPatterns.some(pattern => strValue.includes(pattern));
+    const hasInstructionPatterns = Object.entries(row).some(([key, value]) => {
+      const strValue = String(value).toLowerCase().trim();
+      // Only check for patterns at the beginning of the field or as complete phrases
+      const matchesPattern = instructionPatterns.some(pattern => {
+        return strValue.startsWith(pattern) || 
+               strValue.includes(` ${pattern}`) || 
+               strValue.includes(`${pattern} `);
+      });
+      
+      if (matchesPattern) {
+        console.log(`Row ${rowIndex + 1}: Field '${key}' contains instruction pattern:`, {
+          value: String(value),
+          lowerValue: strValue,
+          matchedPattern: instructionPatterns.find(pattern => 
+            strValue.startsWith(pattern) || 
+            strValue.includes(` ${pattern}`) || 
+            strValue.includes(`${pattern} `)
+          )
+        });
+      }
+      
+      return matchesPattern;
     });
 
     if (hasInstructionPatterns) {
+      console.log(`Row ${rowIndex + 1}: Contains instruction patterns - REJECTING`);
       return false;
     }
 
@@ -348,33 +431,14 @@ class FileProcessor {
     });
 
     if (hasNumberedListPattern) {
+      console.log(`Row ${rowIndex + 1}: Contains numbered list patterns`);
       return false;
     }
 
-    // Check for common invoice-related keywords in any field
-    const invoiceKeywords = ['invoice', 'bill', 'receipt', 'order', 'purchase', 'sale', 'product', 'item', 'quantity', 'price', 'amount', 'total'];
-    const hasInvoiceKeywords = Object.values(row).some(value => {
-      const strValue = String(value).toLowerCase();
-      return invoiceKeywords.some(keyword => strValue.includes(keyword));
-    });
-
-    // Check for numeric values that might indicate quantities or prices
-    const hasNumericData = Object.values(row).some(value => {
-      const strValue = String(value).trim();
-      const numValue = parseFloat(strValue);
-      return !isNaN(numValue) && numValue > 0;
-    });
-
-    // Check for date-like values
-    const hasDateData = Object.values(row).some(value => {
-      const strValue = String(value).trim();
-      // Simple date pattern check
-      return /^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}$/.test(strValue) || 
-             /^\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}$/.test(strValue);
-    });
-
-    // Accept if it has any meaningful data and either invoice keywords, numeric data, or date data
-    return hasAnyData && (hasInvoiceKeywords || hasNumericData || hasDateData);
+    // More lenient check - accept if it has any meaningful data
+    // This is much more permissive and should catch most valid invoice rows
+    console.log(`Row ${rowIndex + 1}: Accepting as meaningful data`);
+    return hasAnyData;
   }
 
   /**
@@ -393,6 +457,7 @@ class FileProcessor {
         const companyInvoiceRefNo = item.companyInvoiceRefNo?.trim() || 
                                    item.company_invoice_ref_no?.trim() ||
                                    item.invoice_ref_no?.trim() ||
+                                   item.dn_invoice_ref_no?.trim() ||
                                    item.internalInvoiceNo?.trim() || 
                                    item.internal_invoice_no?.trim() ||
                                    item.invoiceNumber?.trim() || 

@@ -255,6 +255,43 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     "FED Payable": "item_fedPayable",
     Discount: "item_discount",
     "Total Values": "item_totalValues",
+    // Additional mappings for common variations
+    "dn_invoice_ref_no": "invoiceRefNo",
+    "invoice_ref_no": "invoiceRefNo",
+    "invoice_ref_number": "invoiceRefNo",
+    "invoice_number": "invoiceRefNo",
+    "internal_invoice_no": "companyInvoiceRefNo",
+    "internal_invoice_number": "companyInvoiceRefNo",
+    "buyer_business_name": "buyerBusinessName",
+    "buyer_buisness_name": "buyerBusinessName",
+    "buyer_ntn_cnic": "buyerNTNCNIC",
+    "buyer_ntn": "buyerNTNCNIC",
+    "buyer_province": "buyerProvince",
+    "buyer_address": "buyerAddress",
+    "buyer_registration_type": "buyerRegistrationType",
+    "transaction_type": "transctypeId",
+    "transctype_id": "transctypeId",
+    "product_name": "item_productName",
+    "product_description": "item_productDescription",
+    "hs_code": "item_hsCode",
+    "hscode": "item_hsCode",
+    "quantity": "item_quantity",
+    "unit_price": "item_unitPrice",
+    "unit_cost": "item_unitPrice",
+    "total_values": "item_totalValues",
+    "value_sales_excluding_st": "item_valueSalesExcludingST",
+    "sales_tax_applicable": "item_salesTaxApplicable",
+    "st_withheld_at_source": "item_salesTaxWithheldAtSource",
+    "extra_tax": "item_extraTax",
+    "further_tax": "item_furtherTax",
+    "fed_payable": "item_fedPayable",
+    "discount": "item_discount",
+    "unit_of_measurement": "item_uoM",
+    "uom": "item_uoM",
+    "rate": "item_rate",
+    "sro_schedule_no": "item_sroScheduleNo",
+    "sro_item_serial_no": "item_sroItemSerialNo",
+    "sale_type": "item_saleType",
   };
 
   const normalizeHeader = (h) => {
@@ -1024,6 +1061,14 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
 
       // Check all invoices for existing ones - no limit
       const limitedData = cleanedData; // Check all invoices
+
+      // Skip API call if no data to check
+      if (!limitedData || limitedData.length === 0) {
+        console.log("No data to check for existing invoices, skipping API call");
+        setExistingInvoices([]);
+        setNewInvoices([]);
+        return;
+      }
 
       const response = await api.post(
         `/tenant/${selectedTenant.tenant_id}/invoices/check-existing`,
