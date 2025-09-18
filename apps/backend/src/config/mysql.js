@@ -8,7 +8,7 @@ export const masterConfig = {
   host: process.env.MYSQL_HOST,
   port: process.env.MYSQL_PORT,
   username: process.env.MYSQL_USER,
-  password: process.env.MYSQL_PASSWORD || 'tYteX#$976exPqz908**dda',
+  password: process.env.MYSQL_PASSWORD || 'Jsab43#%87dgDJ49bf^9b',
   database: process.env.MYSQL_MASTER_DB,
   dialect: "mysql",
   logging: process.env.NODE_ENV === "development" ? console.log : false,
