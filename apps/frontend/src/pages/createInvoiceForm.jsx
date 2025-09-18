@@ -59,6 +59,7 @@ import OptimizedHSCodeSelector from "../component/OptimizedHSCodeSelector";
 import ProductModal from "../component/ProductModal";
 import hsCodeCache from "../utils/hsCodeCache";
 import Swal from "sweetalert2";
+import { toast } from "react-toastify";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState, useRef } from "react";
@@ -1587,19 +1588,50 @@ export default function CreateInvoice() {
       });
       setIsProductModalOpen(false);
 
-      Swal.fire({
-        icon: "success",
-        title: "Product Added",
-        text: "Product has been added successfully.",
-        timer: 2000,
-        showConfirmButton: false,
+      toast.success("Product has been added successfully.", {
+        autoClose: 2000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
       });
     } catch (e) {
       console.error("Error saving product:", e);
-      Swal.fire({
-        icon: "error",
-        title: "Error",
-        text: "Failed to save product. Please try again.",
+      
+      let errorMessage = "Failed to save product. Please try again.";
+      
+      if (e.response) {
+        const { status, data } = e.response;
+        
+        if (status === 400) {
+          if (data.message && data.message.includes("HS Code is required")) {
+            errorMessage = "HS Code is required for the product.";
+          } else if (data.message && data.message.includes("name is required")) {
+            errorMessage = "Product name is required.";
+          } else {
+            errorMessage = data.message || "Invalid data provided. Please check all fields.";
+          }
+        } else if (status === 409) {
+          if (data.message && data.message.includes("HS Code")) {
+            errorMessage = data.message;
+          } else {
+            errorMessage = "A product with this information already exists.";
+          }
+        } else if (status === 500) {
+          errorMessage = "Server error occurred. Please try again later.";
+        } else {
+          errorMessage = data.message || "An error occurred while saving the product.";
+        }
+      } else if (e.message) {
+        errorMessage = e.message;
+      }
+      
+      toast.error(errorMessage, {
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
       });
     }
   };

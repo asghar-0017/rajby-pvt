@@ -52,11 +52,10 @@ export default function BuyerTable({
   });
 
   // Pagination logic
-  const totalPages = Math.ceil(filteredBuyers.length / rowsPerPage);
-  const paginatedBuyers = filteredBuyers.slice(
-    (page - 1) * rowsPerPage,
-    page * rowsPerPage
-  );
+  const totalPages = rowsPerPage === "All" ? 1 : Math.ceil(filteredBuyers.length / rowsPerPage);
+  const paginatedBuyers = rowsPerPage === "All" 
+    ? filteredBuyers 
+    : filteredBuyers.slice((page - 1) * rowsPerPage, page * rowsPerPage);
 
   useEffect(() => {
     setPage(1);
@@ -296,10 +295,17 @@ export default function BuyerTable({
               label="Rows per page"
               size="small"
               value={rowsPerPage}
-              onChange={(e) => setRowsPerPage(Number(e.target.value))}
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value === "All") {
+                  setRowsPerPage("All");
+                } else {
+                  setRowsPerPage(Number(value));
+                }
+              }}
               sx={{ minWidth: 120 }}
             >
-              {[5, 10, 20, 50].map((num) => (
+              {[5, 10, 20, 50, "All"].map((num) => (
                 <MenuItem key={num} value={num}>
                   {num}
                 </MenuItem>
@@ -519,20 +525,23 @@ export default function BuyerTable({
                 }}
               >
                 <Typography variant="body2" color="text.secondary">
-                  Showing {(page - 1) * rowsPerPage + 1} to{" "}
-                  {Math.min(page * rowsPerPage, filteredBuyers.length)} of{" "}
-                  {filteredBuyers.length} buyers
+                  {rowsPerPage === "All" 
+                    ? `Showing all ${filteredBuyers.length} buyers`
+                    : `Showing ${(page - 1) * rowsPerPage + 1} to ${Math.min(page * rowsPerPage, filteredBuyers.length)} of ${filteredBuyers.length} buyers`
+                  }
                 </Typography>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <CustomPagination
-                    count={totalPages}
-                    page={page}
-                    onChange={(_, value) => setPage(value)}
-                    showFirstButton
-                    showLastButton
-                    size="small"
-                  />
-                </Box>
+                {rowsPerPage !== "All" && (
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <CustomPagination
+                      count={totalPages}
+                      page={page}
+                      onChange={(_, value) => setPage(value)}
+                      showFirstButton
+                      showLastButton
+                      size="small"
+                    />
+                  </Box>
+                )}
               </Box>
             </>
           )}

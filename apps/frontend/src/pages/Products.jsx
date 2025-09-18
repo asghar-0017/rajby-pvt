@@ -12,6 +12,7 @@ import ProductModal from "../component/ProductModal";
 import ProductUploader from "../component/ProductUploader";
 import { api } from "../API/Api";
 import Swal from "sweetalert2";
+import { toast } from "react-toastify";
 
 const Products = () => {
   const { selectedTenant } = useTenantSelection();
@@ -75,21 +76,23 @@ const Products = () => {
 
         if (response.data.success) {
           setProducts(products.filter((p) => p.id !== productId));
-          Swal.fire({
-            icon: "success",
-            title: "Product Deleted",
-            text: "Product has been deleted successfully.",
-            timer: 2000,
-            showConfirmButton: false,
+          toast.success("Product has been deleted successfully.", {
+            autoClose: 2000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: true,
           });
         }
       }
     } catch (error) {
       console.error("Error deleting product:", error);
-      Swal.fire({
-        icon: "error",
-        title: "Error",
-        text: "Failed to delete product. Please try again.",
+      toast.error("Failed to delete product. Please try again.", {
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
       });
     } finally {
       setLoading(false);
@@ -119,12 +122,12 @@ const Products = () => {
           setEditingProduct(null);
           setIsProductModalOpen(false);
 
-          Swal.fire({
-            icon: "success",
-            title: "Product Updated",
-            text: "Product has been updated successfully.",
-            timer: 2000,
-            showConfirmButton: false,
+          toast.success("Product has been updated successfully.", {
+            autoClose: 2000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: true,
           });
         }
       } else {
@@ -143,21 +146,52 @@ const Products = () => {
           setProducts([...products, response.data.data]);
           setIsProductModalOpen(false);
 
-          Swal.fire({
-            icon: "success",
-            title: "Product Added",
-            text: "Product has been added successfully.",
-            timer: 2000,
-            showConfirmButton: false,
+          toast.success("Product has been added successfully.", {
+            autoClose: 2000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: true,
           });
         }
       }
     } catch (error) {
       console.error("Error saving product:", error);
-      Swal.fire({
-        icon: "error",
-        title: "Error",
-        text: "Failed to save product. Please try again.",
+      
+      let errorMessage = "Failed to save product. Please try again.";
+      
+      if (error.response) {
+        const { status, data } = error.response;
+        
+        if (status === 400) {
+          if (data.message && data.message.includes("HS Code is required")) {
+            errorMessage = "HS Code is required for the product.";
+          } else if (data.message && data.message.includes("name is required")) {
+            errorMessage = "Product name is required.";
+          } else {
+            errorMessage = data.message || "Invalid data provided. Please check all fields.";
+          }
+        } else if (status === 409) {
+          if (data.message && data.message.includes("HS Code")) {
+            errorMessage = data.message;
+          } else {
+            errorMessage = "A product with this information already exists.";
+          }
+        } else if (status === 500) {
+          errorMessage = "Server error occurred. Please try again later.";
+        } else {
+          errorMessage = data.message || "An error occurred while saving the product.";
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      toast.error(errorMessage, {
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
       });
     }
   };
@@ -179,7 +213,66 @@ const Products = () => {
     try {
       setLoading(true);
 
-      // Create products one by one since we don't have a bulk endpoint
+      // Use the bulk endpoint for better performance and detailed results
+      const response = await api.post(
+        `/tenant/${selectedTenant.tenant_id}/products/bulk`,
+        {
+          products: productsData.map(product => ({
+            name: product.productName || product.name,
+            description: product.productDescription || product.description,
+            hsCode: product.hsCode,
+            uom: product.uom,
+          }))
+        }
+      );
+
+      if (response.data.success) {
+        const { summary, createdProducts, errors, performance } = response.data.data;
+        
+        // Update the products list with successfully created products
+        if (createdProducts && createdProducts.length > 0) {
+          setProducts((prev) => [...prev, ...createdProducts]);
+        }
+
+        // Show appropriate toast messages based on results
+        if (summary.failed > 0) {
+          toast.warning(`${summary.successful} products uploaded, ${summary.failed} failed.`, {
+            autoClose: 5000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: true,
+          });
+        } else {
+          toast.success(`${summary.successful} products have been uploaded successfully.`, {
+            autoClose: 3000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: true,
+          });
+        }
+
+        // Return detailed results for the ProductUploader to display
+        return {
+          data: {
+            data: {
+              summary,
+              errors: errors || [],
+              performance,
+              createdProducts: createdProducts || [],
+            },
+          },
+        };
+      } else {
+        throw new Error(response.data.message || "Bulk upload failed");
+      }
+    } catch (error) {
+      console.error("Error uploading products:", error);
+      
+      // Fallback to individual uploads if bulk endpoint fails
+      console.log("Bulk upload failed, falling back to individual uploads...");
+      
       const createdProducts = [];
       const errors = [];
 
@@ -188,8 +281,8 @@ const Products = () => {
           const response = await api.post(
             `/tenant/${selectedTenant.tenant_id}/products`,
             {
-              name: product.name,
-              description: product.description,
+              name: product.productName || product.name,
+              description: product.productDescription || product.description,
               hsCode: product.hsCode,
               uom: product.uom,
             }
@@ -199,16 +292,16 @@ const Products = () => {
             createdProducts.push(response.data.data);
           } else {
             errors.push({
-              product: product.name,
+              product: product.productName || product.name,
               error: response.data.message || "Failed to create product",
             });
           }
-        } catch (error) {
+        } catch (individualError) {
           errors.push({
-            product: product.name,
+            product: product.productName || product.name,
             error:
-              error.response?.data?.message ||
-              error.message ||
+              individualError.response?.data?.message ||
+              individualError.message ||
               "Error creating product",
           });
         }
@@ -216,28 +309,6 @@ const Products = () => {
 
       if (createdProducts.length > 0) {
         setProducts((prev) => [...prev, ...createdProducts]);
-
-        if (errors.length === 0) {
-          Swal.fire({
-            icon: "success",
-            title: "Products Uploaded",
-            text: `${createdProducts.length} products have been uploaded successfully.`,
-            timer: 2000,
-            showConfirmButton: false,
-          });
-        } else {
-          Swal.fire({
-            icon: "warning",
-            title: "Partial Success",
-            text: `${createdProducts.length} products uploaded, ${errors.length} failed.`,
-          });
-        }
-      } else if (errors.length > 0) {
-        Swal.fire({
-          icon: "error",
-          title: "Upload Failed",
-          text: "No products were uploaded. Please check the errors and try again.",
-        });
       }
 
       return {
@@ -248,12 +319,10 @@ const Products = () => {
               failed: errors.length,
             },
             errors: errors,
+            createdProducts: createdProducts,
           },
         },
       };
-    } catch (error) {
-      console.error("Error uploading products:", error);
-      throw error;
     } finally {
       setLoading(false);
     }

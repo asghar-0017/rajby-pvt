@@ -70,6 +70,8 @@ export default function BasicTable() {
   const [goToPage, setGoToPage] = useState("");
   const [totalPages, setTotalPages] = useState(1);
   const [totalRecords, setTotalRecords] = useState(0);
+  const [sortBy, setSortBy] = useState("companyInvoiceRefNo");
+  const [sortOrder, setSortOrder] = useState("ASC");
   const theme = useTheme();
   const { selectedTenant } = useTenantSelection();
   const navigate = useNavigate();
@@ -87,6 +89,18 @@ export default function BasicTable() {
       return false;
     }
   })();
+
+  // Helper function to handle column sorting
+  const handleSort = (column) => {
+    if (sortBy === column) {
+      // Toggle sort order if same column
+      setSortOrder(sortOrder === "ASC" ? "DESC" : "ASC");
+    } else {
+      // Set new column and default to ASC
+      setSortBy(column);
+      setSortOrder("ASC");
+    }
+  };
 
   // Helper function to format date to dd-mm-yyyy (timezone-safe)
   const formatDate = (dateString) => {
@@ -160,6 +174,13 @@ export default function BasicTable() {
     return () => clearTimeout(timer);
   }, [search]);
 
+  // Trigger API call when sorting changes
+  useEffect(() => {
+    if (selectedTenant) {
+      getMyInvoices();
+    }
+  }, [sortBy, sortOrder]);
+
   const getMyInvoices = async (isSearchOperation = false) => {
     if (isSearchOperation) {
       setSearchLoading(true);
@@ -181,7 +202,11 @@ export default function BasicTable() {
       // Build query parameters for server-side pagination and filtering
       const params = new URLSearchParams();
       params.append("page", page.toString());
-      params.append("limit", rowsPerPage.toString());
+      if (rowsPerPage === "All") {
+        params.append("limit", "999999"); // Large number to get all records
+      } else {
+        params.append("limit", rowsPerPage.toString());
+      }
 
       if (debouncedSearch.trim()) {
         params.append("search", debouncedSearch.trim());
@@ -199,6 +224,11 @@ export default function BasicTable() {
         params.append("start_date", dayjs(invoiceDate).format("YYYY-MM-DD"));
         params.append("end_date", dayjs(invoiceDate).format("YYYY-MM-DD"));
       }
+
+      // Add sorting parameters
+      params.append("sort_by", sortBy);
+      params.append("sort_order", sortOrder);
+
 
       const response = await api.get(
         `/tenant/${selectedTenant.tenant_id}/invoices?${params.toString()}`
@@ -1702,7 +1732,7 @@ export default function BasicTable() {
             <TextField
               variant="outlined"
               size="small"
-              placeholder="Search by Invoice # or Buyer NTN"
+                placeholder="Search by Invoice #, Company Invoice #, or Buyer NTN"
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
@@ -1822,7 +1852,12 @@ export default function BasicTable() {
               size="small"
               value={rowsPerPage}
               onChange={(e) => {
-                setRowsPerPage(Number(e.target.value));
+                const value = e.target.value;
+                if (value === "All") {
+                  setRowsPerPage("All");
+                } else {
+                  setRowsPerPage(Number(value));
+                }
                 setPage(1);
               }}
               InputProps={{
@@ -1834,7 +1869,7 @@ export default function BasicTable() {
               }}
               sx={{ minWidth: 120 }}
             >
-              {[5, 10, 20, 50].map((num) => (
+              {[5, 10, 20, 50, "All"].map((num) => (
                 <MenuItem key={num} value={num}>
                   {num}
                 </MenuItem>
@@ -1915,6 +1950,7 @@ export default function BasicTable() {
                         "S.No",
                         "System ID",
                         "Invoice Number",
+                        "Company Invoice #",
                         "Invoice Date",
                         "Invoice Type",
                         "Buyer",
@@ -1929,6 +1965,7 @@ export default function BasicTable() {
                             heading === "S.No" ||
                             heading === "System ID" ||
                             heading === "Invoice Number" ||
+                            heading === "Company Invoice #" ||
                             heading === "Invoice Date"
                               ? "left"
                               : "center"
@@ -1937,9 +1974,21 @@ export default function BasicTable() {
                             fontWeight: "bold",
                             fontSize: 13,
                             letterSpacing: 0.3,
+                            cursor: heading === "Company Invoice #" ? "pointer" : "default",
+                            "&:hover": heading === "Company Invoice #" ? {
+                              backgroundColor: "#f5f5f5",
+                            } : {},
                           }}
+                          onClick={heading === "Company Invoice #" ? () => handleSort("companyInvoiceRefNo") : undefined}
                         >
-                          {heading}
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                            {heading}
+                            {heading === "Company Invoice #" && (
+                              <Box sx={{ display: "flex", flexDirection: "column", fontSize: "10px" }}>
+                                {sortBy === "companyInvoiceRefNo" ? (sortOrder === "ASC" ? "↑" : "↓") : ""}
+                              </Box>
+                            )}
+                          </Box>
                         </TableCell>
                       ))}
                     </TableRow>
@@ -2042,6 +2091,13 @@ export default function BasicTable() {
                               </Button>
                             </Tooltip>
                           </Box>
+                        </TableCell>
+                        <TableCell
+                          component="th"
+                          scope="row"
+                          sx={{ fontWeight: 500 }}
+                        >
+                          {row.companyInvoiceRefNo || "N/A"}
                         </TableCell>
                         <TableCell
                           component="th"
@@ -2231,20 +2287,23 @@ export default function BasicTable() {
                 }}
               >
                 <Typography variant="body2" color="text.secondary">
-                  Showing {(page - 1) * rowsPerPage + 1} to{" "}
-                  {Math.min(page * rowsPerPage, totalRecords)} of {totalRecords}{" "}
-                  invoices
+                  {rowsPerPage === "All" 
+                    ? `Showing all ${totalRecords} invoices`
+                    : `Showing ${(page - 1) * rowsPerPage + 1} to ${Math.min(page * rowsPerPage, totalRecords)} of ${totalRecords} invoices`
+                  }
                 </Typography>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <CustomPagination
-                    count={totalPages}
-                    page={page}
-                    onChange={(_, value) => setPage(value)}
-                    showFirstButton
-                    showLastButton
-                    size="small"
-                  />
-                </Box>
+                {rowsPerPage !== "All" && (
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <CustomPagination
+                      count={totalPages}
+                      page={page}
+                      onChange={(_, value) => setPage(value)}
+                      showFirstButton
+                      showLastButton
+                      size="small"
+                    />
+                  </Box>
+                )}
               </Box>
             </>
           )}

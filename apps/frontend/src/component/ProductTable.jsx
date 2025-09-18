@@ -50,11 +50,10 @@ export default function ProductTable({
   });
 
   // Pagination logic
-  const totalPages = Math.ceil(filteredProducts.length / rowsPerPage);
-  const paginatedProducts = filteredProducts.slice(
-    (page - 1) * rowsPerPage,
-    page * rowsPerPage
-  );
+  const totalPages = rowsPerPage === "All" ? 1 : Math.ceil(filteredProducts.length / rowsPerPage);
+  const paginatedProducts = rowsPerPage === "All" 
+    ? filteredProducts 
+    : filteredProducts.slice((page - 1) * rowsPerPage, page * rowsPerPage);
 
   useEffect(() => {
     setPage(1);
@@ -290,14 +289,21 @@ export default function ProductTable({
           label="Rows per page"
           size="small"
           value={rowsPerPage}
-          onChange={(e) => setRowsPerPage(Number(e.target.value))}
+          onChange={(e) => {
+            const value = e.target.value;
+            if (value === "All") {
+              setRowsPerPage("All");
+            } else {
+              setRowsPerPage(Number(value));
+            }
+          }}
           sx={{ minWidth: 120 }}
         >
-          {[5, 10, 20, 50].map((num) => (
-            <MenuItem key={num} value={num}>
-              {num}
-            </MenuItem>
-          ))}
+              {[5, 10, 20, 50, "All"].map((num) => (
+                <MenuItem key={num} value={num}>
+                  {num}
+                </MenuItem>
+              ))}
         </TextField>
       </Box>
 
@@ -503,20 +509,23 @@ export default function ProductTable({
             }}
           >
             <Typography variant="body2" color="text.secondary">
-              Showing {(page - 1) * rowsPerPage + 1} to{" "}
-              {Math.min(page * rowsPerPage, filteredProducts.length)} of{" "}
-              {filteredProducts.length} products
+              {rowsPerPage === "All" 
+                ? `Showing all ${filteredProducts.length} products`
+                : `Showing ${(page - 1) * rowsPerPage + 1} to ${Math.min(page * rowsPerPage, filteredProducts.length)} of ${filteredProducts.length} products`
+              }
             </Typography>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <CustomPagination
-                count={totalPages}
-                page={page}
-                onChange={(_, value) => setPage(value)}
-                showFirstButton
-                showLastButton
-                size="small"
-              />
-            </Box>
+            {rowsPerPage !== "All" && (
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <CustomPagination
+                  count={totalPages}
+                  page={page}
+                  onChange={(_, value) => setPage(value)}
+                  showFirstButton
+                  showLastButton
+                  size="small"
+                />
+              </Box>
+            )}
           </Box>
         </>
       )}

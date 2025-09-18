@@ -66,6 +66,8 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [performanceMetrics, setPerformanceMetrics] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [uploadResults, setUploadResults] = useState(null);
+  const [showResults, setShowResults] = useState(false);
   const fileInputRef = useRef(null);
 
   // Internal keys for product data
@@ -614,9 +616,6 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         }
       }
 
-      // Note: Products can have the same name OR same HS code, but not both
-      // This allows for more flexible product management
-
       // HS Code format validation (now more flexible for user input)
       if (row.hsCode && row.hsCode.trim() !== "") {
         const hsCodeStr = String(row.hsCode).trim();
@@ -628,6 +627,14 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         }
         if (hsCodeStr.length < 2 || hsCodeStr.length > 20) {
           rowErrors.push("HS Code should be between 2-20 characters");
+        }
+
+        // Check for duplicate HS Code within the same file
+        const duplicateIndex = validData.findIndex(
+          (item) => item.hsCode && item.hsCode.trim() === hsCodeStr
+        );
+        if (duplicateIndex !== -1) {
+          rowErrors.push("Duplicate HS Code found in file");
         }
       }
 
@@ -737,6 +744,8 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     // Show progress bar immediately
     setUploading(true);
     setUploadProgress(0);
+    setUploadResults(null);
+    setShowResults(false);
 
     console.log(
       `Starting ultra-fast bulk product upload for ${newProducts.length} products...`
@@ -776,6 +785,50 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
           console.log(`  - Total Backend: ${performance.totalTime}ms`);
         }
 
+        // Store detailed results for display
+        const detailedResults = {
+          summary,
+          errors: errors || [],
+          performance,
+          successfulProducts: [],
+          failedProducts: [],
+        };
+
+        // Process successful products - get actual product data from the upload
+        if (summary.successful > 0) {
+          // Map successful products from the uploaded data
+          const successfulProducts = productsToUpload.slice(0, summary.successful);
+          detailedResults.successfulProducts = successfulProducts.map((product, index) => ({
+            row: index + 1,
+            productName: product.productName || product.name || `Product ${index + 1}`,
+            hsCode: product.hsCode || '',
+            uom: product.uom || '',
+            status: 'success'
+          }));
+        }
+
+        // Process failed products with detailed error information
+        if (summary.failed > 0 && errors) {
+          detailedResults.failedProducts = errors.map((error, index) => {
+            // Find the actual product data from the original upload
+            const originalProduct = productsToUpload.find((p, idx) => idx + 1 === error.row) || 
+                                   productsToUpload[error.row - 1] || 
+                                   productsToUpload[index];
+            
+            return {
+              row: error.row || index + 1,
+              productName: originalProduct?.productName || originalProduct?.name || error.product || `Product ${error.row || index + 1}`,
+              hsCode: originalProduct?.hsCode || '',
+              uom: originalProduct?.uom || '',
+              error: error.error || error.errors?.join(', ') || 'Unknown error',
+              status: 'failed'
+            };
+          });
+        }
+
+        setUploadResults(detailedResults);
+        setShowResults(true);
+
         if (summary.failed > 0) {
           toast.warning(
             `Upload completed with issues: ${summary.successful} products added successfully, ${summary.failed} products failed.`,
@@ -790,12 +843,27 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
           toast.success(`Successfully uploaded ${summary.successful} products`);
         }
       } else {
+        // Fallback for when detailed results are not available
+        const fallbackResults = {
+          summary: { successful: productsToUpload.length, failed: 0 },
+          errors: [],
+          performance: null,
+          successfulProducts: productsToUpload.map((product, index) => ({
+            row: index + 1,
+            productName: product.productName || product.name || `Product ${index + 1}`,
+            status: 'success'
+          })),
+          failedProducts: [],
+        };
+        setUploadResults(fallbackResults);
+        setShowResults(true);
         toast.success(
           `Successfully uploaded ${productsToUpload.length} products`
         );
       }
 
-      handleClose();
+      // Don't close immediately, let user see results
+      // handleClose();
     } catch (error) {
       console.error("Upload error:", error);
       toast.error("Error uploading products. Please try again.");
@@ -816,6 +884,8 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     setUploadProgress(0);
     setPerformanceMetrics(null);
     setIsProcessing(false);
+    setUploadResults(null);
+    setShowResults(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -1148,6 +1218,156 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
                 All selected products already exist in the system. Please modify
                 the file to include at least one new product to enable upload.
               </Alert>
+            )}
+          </Box>
+        )}
+
+        {/* Upload Results Section */}
+        {uploadResults && showResults && (
+          <Box sx={{ mt: 3 }}>
+            <Box
+              display="flex"
+              alignItems="center"
+              justifyContent="space-between"
+              sx={{ mb: 2 }}
+            >
+              <Typography variant="h6">
+                Upload Results
+              </Typography>
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={() => setShowResults(!showResults)}
+                startIcon={showResults ? <Visibility /> : <Visibility />}
+              >
+                {showResults ? "Hide Results" : "Show Results"}
+              </Button>
+            </Box>
+
+            {showResults && (
+              <Box>
+                {/* Summary Cards */}
+                <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap' }}>
+                  <Paper sx={{ 
+                    p: 3, 
+                    minWidth: 150, 
+                    textAlign: 'center', 
+                    bgcolor: 'success.main', 
+                    color: 'white',
+                    borderRadius: 2,
+                    boxShadow: 2
+                  }}>
+                    <Typography variant="h3" color="inherit" sx={{ fontWeight: 'bold' }}>
+                      {uploadResults.summary.successful}
+                    </Typography>
+                    <Typography variant="h6" color="inherit" sx={{ mt: 1 }}>
+                      Successful
+                    </Typography>
+                  </Paper>
+                  {uploadResults.summary.failed > 0 && (
+                    <Paper sx={{ 
+                      p: 3, 
+                      minWidth: 150, 
+                      textAlign: 'center', 
+                      bgcolor: 'error.main', 
+                      color: 'white',
+                      borderRadius: 2,
+                      boxShadow: 2
+                    }}>
+                      <Typography variant="h3" color="inherit" sx={{ fontWeight: 'bold' }}>
+                        {uploadResults.summary.failed}
+                      </Typography>
+                      <Typography variant="h6" color="inherit" sx={{ mt: 1 }}>
+                        Failed
+                      </Typography>
+                    </Paper>
+                  )}
+                </Box>
+
+                {/* Detailed Results Table */}
+                <TableContainer component={Paper} sx={{ maxHeight: 400, borderRadius: 2, boxShadow: 2 }}>
+                  <Table size="small" stickyHeader>
+                    <TableHead>
+                      <TableRow sx={{ bgcolor: 'primary.main' }}>
+                        <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Row</TableCell>
+                        <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Product Name</TableCell>
+                        <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>HS Code</TableCell>
+                        <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>UOM</TableCell>
+                        <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Status</TableCell>
+                        <TableCell sx={{ color: 'white', fontWeight: 'bold', bgcolor: 'black' }}>Error Details</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {/* Successful Products */}
+                      {uploadResults.successfulProducts.map((product, index) => (
+                        <TableRow 
+                          key={`success-${index}`} 
+                          sx={{ 
+                            bgcolor: 'success.light',
+                            '&:hover': { bgcolor: 'success.main', color: 'white' },
+                            borderLeft: '4px solid #4caf50'
+                          }}
+                        >
+                          <TableCell sx={{ fontWeight: 'bold' }}>{product.row}</TableCell>
+                          <TableCell sx={{ fontWeight: 'medium' }}>{product.productName}</TableCell>
+                          <TableCell sx={{ fontFamily: 'monospace', bgcolor: 'rgba(76, 175, 80, 0.1)' }}>
+                            {product.hsCode}
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 'medium' }}>{product.uom}</TableCell>
+                          <TableCell>
+                            <Chip
+                              icon={<CheckCircle />}
+                              label="Success"
+                              color="success"
+                              size="small"
+                              sx={{ fontWeight: 'bold' }}
+                            />
+                          </TableCell>
+                          <TableCell sx={{ bgcolor: 'black' }}>
+                            <Typography variant="body2" color="white" sx={{ fontStyle: 'italic' }}>
+                              ✓ Uploaded successfully
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      
+                      {/* Failed Products */}
+                      {uploadResults.failedProducts.map((product, index) => (
+                        <TableRow 
+                          key={`failed-${index}`} 
+                          sx={{ 
+                            bgcolor: 'error.light',
+                            '&:hover': { bgcolor: 'error.main', color: 'white' },
+                            borderLeft: '4px solid #f44336'
+                          }}
+                        >
+                          <TableCell sx={{ fontWeight: 'bold' }}>{product.row}</TableCell>
+                          <TableCell sx={{ fontWeight: 'medium' }}>{product.productName}</TableCell>
+                          <TableCell sx={{ fontFamily: 'monospace', bgcolor: 'rgba(244, 67, 54, 0.1)' }}>
+                            {product.hsCode}
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 'medium' }}>{product.uom}</TableCell>
+                          <TableCell>
+                            <Chip
+                              icon={<Error />}
+                              label="Failed"
+                              color="error"
+                              size="small"
+                              sx={{ fontWeight: 'bold' }}
+                            />
+                          </TableCell>
+                          <TableCell sx={{ bgcolor: 'black' }}>
+                            <Typography variant="body2" color="white" sx={{ fontWeight: 'medium' }}>
+                              {product.error}
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+
+              </Box>
             )}
           </Box>
         )}

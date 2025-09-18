@@ -87,24 +87,28 @@ class StreamingUploadService {
 
       // Calculate final results
       const totalTime = Date.now() - upload.startTime;
-      const successfulInvoices = result.created?.length || 0;
+      const successfulInvoices = result.created?.length || result.summary?.successful || 0;
+      const failedInvoices = result.summary?.failed || (totalInvoices - successfulInvoices);
+      const detailedErrors = result.errors || [];
 
       const finalResult = {
         uploadId,
         success: true,
         totalInvoices,
         successfulInvoices,
-        failedInvoices: totalInvoices - successfulInvoices,
+        failedInvoices,
         totalChunks: 1,
         completedChunks: 1,
-        errors: upload.errors,
-        warnings: upload.warnings,
+        errors: detailedErrors, // Use detailed errors from API response
+        warnings: result.warnings || upload.warnings,
         totalTime,
-        performance: {
+        performance: result.performance || {
           invoicesPerSecond: Math.round((successfulInvoices / totalTime) * 1000),
           averageTimePerInvoice: Math.round(totalTime / totalInvoices),
         },
         results: [result],
+        summary: result.summary, // Include summary for detailed results
+        created: result.created, // Include created invoices
       };
 
       // Final progress update
@@ -161,7 +165,7 @@ class StreamingUploadService {
         throw new Error(result.message || 'Upload failed');
       }
 
-      return result.data;
+      return result.data; // This should already be the data field from the API response
     } catch (error) {
       console.error('Chunk upload error:', error);
       throw error;

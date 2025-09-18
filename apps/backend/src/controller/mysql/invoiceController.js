@@ -1285,12 +1285,14 @@ export const getAllInvoices = async (req, res) => {
       end_date,
       sale_type,
       status,
+      sort_by = "companyInvoiceRefNo",
+      sort_order = "ASC",
     } = req.query;
 
     // Ensure numeric pagination params
     const pageNumber = parseInt(page, 10) || 1;
     const limitNumber = parseInt(limit, 10) || 10;
-    const offset = (pageNumber - 1) * limitNumber;
+    const offset = limitNumber >= 999999 ? 0 : (pageNumber - 1) * limitNumber;
 
     const whereClause = {};
 
@@ -1312,6 +1314,12 @@ export const getAllInvoices = async (req, res) => {
 
         {
           fbr_invoice_number: {
+            [req.tenantDb.Sequelize.Op.like]: `%${search}%`,
+          },
+        },
+
+        {
+          companyInvoiceRefNo: {
             [req.tenantDb.Sequelize.Op.like]: `%${search}%`,
           },
         },
@@ -1369,6 +1377,7 @@ export const getAllInvoices = async (req, res) => {
       };
     }
 
+
     const { count, rows } = await Invoice.findAndCountAll({
       where: whereClause,
 
@@ -1383,11 +1392,13 @@ export const getAllInvoices = async (req, res) => {
       // Fix incorrect counts and pagination when using includes
       distinct: true,
 
-      limit: limitNumber,
+      ...(limitNumber < 999999 && { limit: limitNumber }),
+      ...(limitNumber < 999999 && { offset: offset }),
 
-      offset: offset,
-
-      order: [["created_at", "DESC"]],
+      order: [
+        [sort_by, sort_order.toUpperCase()],
+        ['created_at', 'DESC'] // Secondary sort for consistent ordering
+      ],
     });
 
     // Transform the data to match frontend expectations
@@ -1487,10 +1498,10 @@ export const getAllInvoices = async (req, res) => {
         invoices: transformedInvoices,
 
         pagination: {
-          current_page: pageNumber,
-          total_pages: Math.ceil(count / limitNumber),
+          current_page: limitNumber >= 999999 ? 1 : pageNumber,
+          total_pages: limitNumber >= 999999 ? 1 : Math.ceil(count / limitNumber),
           total_records: count,
-          records_per_page: limitNumber,
+          records_per_page: limitNumber >= 999999 ? count : limitNumber,
         },
       },
     });
