@@ -421,7 +421,7 @@ export default function ProductTable({
                       scope="row"
                       sx={{ fontWeight: 700, fontSize: 13 }}
                     >
-                      {(page - 1) * rowsPerPage + index + 1}
+                      {rowsPerPage === "All" ? index + 1 : (page - 1) * rowsPerPage + index + 1}
                     </TableCell>
                     <TableCell
                       component="th"

@@ -2560,7 +2560,11 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
           onClick={handleUpload}
           variant="contained"
           disabled={
-            !file || previewData.length === 0 || uploading || checkingExisting
+            !file || 
+            previewData.length === 0 || 
+            uploading || 
+            checkingExisting ||
+            (uploadResults && uploadResults.summary && uploadResults.summary.successful > 0)
           }
           startIcon={
             uploading ? <CircularProgress size={20} /> : <FileUpload />
@@ -2568,6 +2572,8 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         >
           {uploading
             ? "Uploading..."
+            : (uploadResults && uploadResults.summary && uploadResults.summary.successful > 0)
+            ? `Uploaded ${uploadResults.summary.successful} Invoices Successfully`
             : (() => {
                 // Count unique invoices after grouping by companyInvoiceRefNo
                 const uniqueInvoices = new Set();

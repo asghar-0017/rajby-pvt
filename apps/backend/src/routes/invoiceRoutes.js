@@ -83,3 +83,4 @@ export default router;
 // 👇 Export the public route separately
 export const publicInvoiceRoutes = express.Router();
 publicInvoiceRoutes.get("/print-invoice/:id", invoiceController.printInvoice);
+publicInvoiceRoutes.post("/bulk-print-invoices", invoiceController.bulkPrintInvoices);

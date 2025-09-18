@@ -6474,3 +6474,226 @@ IF($${dscColLetter}${r}="",0,VALUE($${dscColLetter}${r})))`,
     });
   }
 };
+
+export const bulkPrintInvoices = async (req, res) => {
+  try {
+    const { invoiceNumbers, tenantId } = req.body;
+    
+    if (!invoiceNumbers || !Array.isArray(invoiceNumbers) || invoiceNumbers.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Invoice numbers array is required" 
+      });
+    }
+
+    if (!tenantId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Tenant ID is required" 
+      });
+    }
+
+    // Get tenant database connection
+    const tenantDb = await TenantDatabaseService.getTenantDatabase(tenantId);
+    if (!tenantDb) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "Tenant not found" 
+      });
+    }
+
+    const { Invoice, InvoiceItem } = tenantDb.models;
+
+    // Find all invoices in the tenant database
+    const invoices = [];
+
+    for (const invoiceNumber of invoiceNumbers) {
+      const invoice = await Invoice.findOne({
+        where: { invoice_number: invoiceNumber },
+        include: [{ model: InvoiceItem, as: "InvoiceItems" }],
+      });
+
+      if (invoice) {
+        invoices.push(invoice);
+      }
+    }
+
+    if (invoices.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "No invoices found" 
+      });
+    }
+
+    // Base64 encode logos
+    const fbrLogoBase64 = fs
+      .readFileSync(path.join(process.cwd(), "public", "fbr_logo.png"))
+      .toString("base64");
+
+    const companyLogoBase64 = fs
+      .readFileSync(path.join(process.cwd(), "public", "fbr-logo-1.png"))
+      .toString("base64");
+
+    const pakistanGumLogoBase64 = fs
+      .readFileSync(
+        path.join(process.cwd(), "public", "images", "Pakprogressive.png")
+      )
+      .toString("base64");
+
+    // Prepare paths
+    const pdfFileName = `bulk_invoices_${Date.now()}.pdf`;
+    const invoiceDir = path.join(process.cwd(), "public", "invoices");
+    const pdfPath = path.join(invoiceDir, pdfFileName);
+
+    // Ensure output directory exists
+    if (!fs.existsSync(invoiceDir)) {
+      fs.mkdirSync(invoiceDir, { recursive: true });
+    }
+
+    // Get tenant information for seller details
+    const tenant = await Tenant.findOne({ where: { tenant_id: tenantId } });
+    if (!tenant) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "Tenant not found" 
+      });
+    }
+
+    // Format date helper function
+    const formatDate = (dateString) => {
+      if (!dateString) return "N/A";
+      try {
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return "N/A";
+        const day = String(date.getDate()).padStart(2, "0");
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const year = date.getFullYear();
+        return `${day}-${month}-${year}`;
+      } catch (error) {
+        return "N/A";
+      }
+    };
+
+    // Generate QR codes for each invoice and process data like single print
+    const invoicesWithQR = await Promise.all(
+      invoices.map(async (invoice) => {
+        const qrData = await QRCode.toDataURL(invoice.invoice_number, {
+          errorCorrectionLevel: "M",
+          width: 96,
+        });
+
+        const plainInvoice = invoice.get({ plain: true });
+        plainInvoice.items = plainInvoice.InvoiceItems || [];
+
+        // Debug: Log invoice data for verification
+        console.log(`🔍 Bulk Print Debug - Invoice ${invoice.invoice_number}:`, {
+          invoiceId: plainInvoice.id,
+          invoiceNumber: plainInvoice.invoice_number,
+          status: plainInvoice.status,
+          companyInvoiceRefNo: plainInvoice.companyInvoiceRefNo,
+          itemsCount: plainInvoice.items ? plainInvoice.items.length : 0,
+          firstItem: plainInvoice.items && plainInvoice.items.length > 0 ? {
+            hsCode: plainInvoice.items[0].hsCode,
+            productDescription: plainInvoice.items[0].productDescription,
+            quantity: plainInvoice.items[0].quantity,
+            unitPrice: plainInvoice.items[0].unitPrice,
+            valueSalesExcludingST: plainInvoice.items[0].valueSalesExcludingST,
+            salesTaxApplicable: plainInvoice.items[0].salesTaxApplicable,
+            totalValues: plainInvoice.items[0].totalValues
+          } : null
+        });
+
+        // Format the invoice date
+        plainInvoice.invoiceDate = formatDate(plainInvoice.invoiceDate);
+
+        // Use tenant context for seller details (same as single print)
+        plainInvoice.sellerBusinessName = tenant.sellerBusinessName || tenant.seller_business_name || plainInvoice.sellerBusinessName;
+        plainInvoice.sellerAddress = tenant.sellerAddress || tenant.seller_address || plainInvoice.sellerAddress;
+        plainInvoice.sellerProvince = tenant.sellerProvince || tenant.seller_province || plainInvoice.sellerProvince;
+        plainInvoice.sellerFullNTN = tenant.sellerFullNTN || tenant.seller_full_ntn || plainInvoice.sellerFullNTN;
+        plainInvoice.sellerCity = tenant.sellerCity || tenant.seller_city || plainInvoice.sellerCity;
+        plainInvoice.seller_full_ntn = tenant.sellerFullNTN || tenant.seller_full_ntn || plainInvoice.seller_full_ntn;
+
+        return {
+          ...plainInvoice,
+          qrData,
+        };
+      })
+    );
+
+    // Render EJS HTML for bulk invoices
+    const html = await ejs.renderFile(
+      path.join(process.cwd(), "src", "views", "bulkInvoiceTemplate.ejs"),
+      {
+        invoices: invoicesWithQR,
+        fbrLogoBase64,
+        companyLogoBase64,
+        pakistanGumLogoBase64,
+        convertToWords: (amount) => {
+          if (!amount || isNaN(amount)) return "Zero Rupees Only";
+
+          const rupees = Math.floor(amount);
+          const paisa = Math.round((amount - rupees) * 100);
+
+          let result = "";
+
+          if (rupees > 0) {
+            const rupeesWords = toWords(rupees);
+            result =
+              rupeesWords.replace(/,/g, "").charAt(0).toUpperCase() +
+              rupeesWords.replace(/,/g, "").slice(1) +
+              " Rupees";
+          }
+
+          if (paisa > 0) {
+            if (result) result += " and ";
+            const paisaWords = toWords(paisa);
+            result +=
+              paisaWords.replace(/,/g, "").charAt(0).toLowerCase() +
+              paisaWords.replace(/,/g, "").slice(1) +
+              " Paisa";
+          }
+
+          if (!result) result = "Zero Rupees";
+          result += " Only";
+
+          return result;
+        },
+      }
+    );
+
+    // Generate PDF using Puppeteer
+    const browser = await puppeteer.launch({
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    });
+
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: "networkidle0" });
+    await page.pdf({ 
+      path: pdfPath, 
+      format: "A4", 
+      printBackground: true,
+      margin: {
+        top: '20px',
+        right: '20px',
+        bottom: '20px',
+        left: '20px'
+      }
+    });
+
+    await browser.close();
+
+    // Stream PDF to browser
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename=${pdfFileName}`);
+    fs.createReadStream(pdfPath).pipe(res);
+
+  } catch (error) {
+    console.error("Bulk PDF generation failed:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error generating bulk invoice PDF",
+      error: error.message,
+    });
+  }
+};

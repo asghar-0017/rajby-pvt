@@ -25,6 +25,7 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 import PrintIcon from "@mui/icons-material/Print";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
+
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 
@@ -70,8 +71,8 @@ export default function BasicTable() {
   const [goToPage, setGoToPage] = useState("");
   const [totalPages, setTotalPages] = useState(1);
   const [totalRecords, setTotalRecords] = useState(0);
-  const [sortBy, setSortBy] = useState("companyInvoiceRefNo");
-  const [sortOrder, setSortOrder] = useState("ASC");
+  const [sortBy, setSortBy] = useState("created_at");
+  const [sortOrder, setSortOrder] = useState("DESC");
   const theme = useTheme();
   const { selectedTenant } = useTenantSelection();
   const navigate = useNavigate();
@@ -847,6 +848,72 @@ export default function BasicTable() {
       setSaveValidateLoading(false);
     }
   };
+  const handleBulkPrint = async () => {
+    try {
+      if (!selectedTenant) {
+        toast.error("No Company selected");
+        return;
+      }
+
+      if (selectedInvoices.size === 0) {
+        toast.error("Please select at least one invoice to print");
+        return;
+      }
+
+      // Get the auth token
+      const token =
+        localStorage.getItem("tenantToken") || localStorage.getItem("token");
+      if (!token) {
+        toast.error("Authentication token not found");
+        return;
+      }
+
+      // Get selected invoice details
+      const selectedInvoiceDetails = filteredInvoices.filter((invoice) =>
+        selectedInvoices.has(invoice._id || invoice.id)
+      );
+
+      console.log(`🖨️ Bulk Print: Generating single PDF with ${selectedInvoiceDetails.length} invoices`);
+      console.log("Selected invoices:", selectedInvoiceDetails.map(inv => inv.invoiceNumber));
+
+      // Show loading message
+      toast.info(`Generating PDF with ${selectedInvoiceDetails.length} invoice(s)...`, {
+        autoClose: 3000
+      });
+
+      // Call bulk print API
+      const response = await api.post('/bulk-print-invoices', {
+        invoiceNumbers: selectedInvoiceDetails.map(inv => inv.invoiceNumber),
+        tenantId: selectedTenant?.tenant_id
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        responseType: 'blob' // Important for PDF download
+      });
+
+      // Create blob and download
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `bulk_invoices_${Date.now()}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      toast.success(`PDF generated with ${selectedInvoiceDetails.length} invoice(s)`);
+      
+      // Clear selection after printing
+      setSelectedInvoices(new Set());
+      setSelectMode(false);
+    } catch (error) {
+      console.error("Error generating bulk PDF:", error);
+      toast.error("Error generating PDF. Please try again.");
+    }
+  };
 
   // Handle Submit for selected invoices
   const handleSubmit = async () => {
@@ -878,6 +945,7 @@ export default function BasicTable() {
       const selectedInvoiceDetails = filteredInvoices.filter((invoice) =>
         selectedInvoices.has(invoice._id || invoice.id)
       );
+      
 
       // Process each selected invoice
       const results = [];
@@ -1618,6 +1686,43 @@ export default function BasicTable() {
                             </span>
                           </Tooltip>
                           <Tooltip
+                            title="Print Selected Invoices as PDF"
+                            placement="top"
+                            arrow
+                          >
+                            <span>
+                              <Button
+                                onClick={handleBulkPrint}
+                                variant="outlined"
+                                color="info"
+                                size="small"
+                                startIcon={<PrintIcon />}
+                                sx={{
+                                  borderRadius: 1.5,
+                                  fontWeight: 600,
+                                  px: 1.5,
+                                  py: 0.3,
+                                  fontSize: 11,
+                                  letterSpacing: 0.3,
+                                  boxShadow: 1,
+                                  transition: "all 0.2s",
+                                  minWidth: "auto",
+                                  bgcolor: "white",
+                                  color: "#1976d2",
+                                  borderColor: "#1976d2",
+                                  "&:hover": {
+                                    background: "#1976d2",
+                                    color: "white",
+                                    boxShadow: 2,
+                                    borderColor: "#1976d2",
+                                  },
+                                }}
+                              >
+                                Print Selected
+                              </Button>
+                            </span>
+                          </Tooltip>
+                          <Tooltip
                             title={
                               hasPostedInvoices
                                 ? "You have selected posted invoices. Unselect them to proceed."
@@ -1974,18 +2079,24 @@ export default function BasicTable() {
                             fontWeight: "bold",
                             fontSize: 13,
                             letterSpacing: 0.3,
-                            cursor: heading === "Company Invoice #" ? "pointer" : "default",
-                            "&:hover": heading === "Company Invoice #" ? {
+                            cursor: (heading === "Company Invoice #" || heading === "Invoice Date") ? "pointer" : "default",
+                            "&:hover": (heading === "Company Invoice #" || heading === "Invoice Date") ? {
                               backgroundColor: "#f5f5f5",
                             } : {},
                           }}
-                          onClick={heading === "Company Invoice #" ? () => handleSort("companyInvoiceRefNo") : undefined}
+                          onClick={heading === "Company Invoice #" ? () => handleSort("companyInvoiceRefNo") : 
+                                  heading === "Invoice Date" ? () => handleSort("created_at") : undefined}
                         >
                           <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                             {heading}
                             {heading === "Company Invoice #" && (
                               <Box sx={{ display: "flex", flexDirection: "column", fontSize: "10px" }}>
                                 {sortBy === "companyInvoiceRefNo" ? (sortOrder === "ASC" ? "↑" : "↓") : ""}
+                              </Box>
+                            )}
+                            {heading === "Invoice Date" && (
+                              <Box sx={{ display: "flex", flexDirection: "column", fontSize: "10px" }}>
+                                {sortBy === "created_at" ? (sortOrder === "ASC" ? "↑" : "↓") : ""}
                               </Box>
                             )}
                           </Box>
@@ -2030,7 +2141,7 @@ export default function BasicTable() {
                             color: "#666",
                           }}
                         >
-                          {(page - 1) * rowsPerPage + index + 1}
+                          {rowsPerPage === "All" ? index + 1 : (page - 1) * rowsPerPage + index + 1}
                         </TableCell>
                         <TableCell
                           component="th"
