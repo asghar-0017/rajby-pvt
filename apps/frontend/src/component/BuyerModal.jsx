@@ -331,7 +331,7 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
       setBuyerRegistrationHint("");
 
       const response = await fetch(
-        "https://farazpack.inplsoftwares.online/api/buyer-check",
+        "https://alqadircorp.inplsoftwares.online/api/buyer-check",
         {
           method: "POST",
           headers: {

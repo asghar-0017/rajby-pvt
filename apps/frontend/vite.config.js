@@ -17,7 +17,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "https://farazpack.inplsoftwares.online",
+        target: "https://alqadircorp.inplsoftwares.online",
         changeOrigin: true,
         secure: false,
       },
