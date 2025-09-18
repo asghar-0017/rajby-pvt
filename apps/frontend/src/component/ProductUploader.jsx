@@ -629,13 +629,7 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
           rowErrors.push("HS Code should be between 2-20 characters");
         }
 
-        // Check for duplicate HS Code within the same file
-        const duplicateIndex = validData.findIndex(
-          (item) => item.hsCode && item.hsCode.trim() === hsCodeStr
-        );
-        if (duplicateIndex !== -1) {
-          rowErrors.push("Duplicate HS Code found in file");
-        }
+        // Note: HS code duplicates are now allowed as per business requirements
       }
 
       if (rowErrors.length > 0) {
@@ -985,8 +979,8 @@ const ProductUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
             Upload a CSV or Excel file with the following columns: Product Name,
             Product Description, HS Code, Unit Of Measurement.
             <br />
-            <strong>Note:</strong> Products with duplicate names AND HS codes
-            will be skipped during upload.
+            <strong>Note:</strong> Products with duplicate names
+            will be skipped during upload. HS code duplicates are allowed.
             <br />
             <strong>Tip:</strong> If you encounter issues with Excel files, try
             converting them to CSV format for better compatibility.

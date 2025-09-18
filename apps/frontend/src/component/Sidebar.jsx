@@ -39,11 +39,14 @@ import {
   Menu,
   MenuItem,
   ListItemAvatar,
+  Collapse,
 } from "@mui/material";
 import { useAuth } from "../Context/AuthProvider";
 import { useTenantSelection } from "../Context/TenantSelectionProvider";
 import { FaBusinessTime } from "react-icons/fa6";
 import { FaUsers } from "react-icons/fa";
+import { FaChartBar } from "react-icons/fa";
+import { ExpandLess, ExpandMore } from "@mui/icons-material";
 import Footer from "./Footer";
 import PasswordUpdateMenuMount from "./PasswordUpdateMenuMount";
 import ProfileMenuMount from "./ProfileMenuMount";
@@ -122,7 +125,14 @@ export default function Sidebar({ onLogout }) {
     { name: "Invoice List", href: "/your-invoices", icon: <BsFileTextFill /> },
     { name: "Buyers", href: "/buyers", icon: <FaWallet /> },
     { name: "Products", href: "/products", icon: <InboxIcon /> },
-
+    { 
+      name: "Reports", 
+      icon: <FaChartBar />, 
+      hasSubmenu: true,
+      submenu: [
+        { name: "Sales Report", href: "/sales-report", icon: <FaChartBar /> }
+      ]
+    },
     { name: "logout" },
   ];
 
@@ -160,12 +170,17 @@ export default function Sidebar({ onLogout }) {
   const [anchorEl, setAnchorEl] = React.useState(null);
   const [passwordModalOpen, setPasswordModalOpen] = React.useState(false);
   const [profileModalOpen, setProfileModalOpen] = React.useState(false);
+  const [reportsOpen, setReportsOpen] = React.useState(false);
 
   const handleMenuOpen = (event) => {
     setAnchorEl(event.currentTarget);
   };
 
   const handleMenuClose = () => setAnchorEl(null);
+
+  const handleReportsToggle = () => {
+    setReportsOpen(!reportsOpen);
+  };
 
   const handleOpenPasswordModal = () => {
     setPasswordModalOpen(true);
@@ -262,6 +277,7 @@ export default function Sidebar({ onLogout }) {
         <List>
           {navItems.map((item, index) => {
             const isLogout = item.name.toLowerCase() === "logout";
+            const hasSubmenu = item.hasSubmenu;
 
             return isLogout ? (
               <ListItem key={item.name} disablePadding onClick={onLogout}>
@@ -296,6 +312,110 @@ export default function Sidebar({ onLogout }) {
                   />
                 </ListItemButton>
               </ListItem>
+            ) : hasSubmenu ? (
+              <React.Fragment key={item.name}>
+                <ListItem disablePadding>
+                  <ListItemButton
+                    onClick={handleReportsToggle}
+                    sx={{
+                      borderRadius: "8px",
+                      margin: "4px 8px",
+                      backgroundColor: "transparent",
+                      "&:hover": {
+                        backgroundColor: "#2A69B0",
+                        "& .MuiListItemIcon-root": {
+                          color: "white",
+                        },
+                        "& .MuiTypography-root": {
+                          color: "white",
+                        },
+                      },
+                    }}
+                  >
+                    <ListItemIcon sx={{ color: "black" }}>
+                      {item.icon ? (
+                        React.cloneElement(item.icon, {
+                          style: { fontSize: 24 },
+                        })
+                      ) : (
+                        <InboxIcon sx={{ fontSize: 24 }} />
+                      )}
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={item.name}
+                      sx={{
+                        "& .MuiTypography-root": {
+                          color: "black",
+                          fontWeight: 700,
+                          fontFamily: '"Kumbh Sans", sans-serif !important',
+                        },
+                      }}
+                      style={{ fontFamily: '"Kumbh Sans", sans-serif' }}
+                    />
+                    {reportsOpen ? <ExpandLess /> : <ExpandMore />}
+                  </ListItemButton>
+                </ListItem>
+                <Collapse in={reportsOpen} timeout="auto" unmountOnExit>
+                  <List component="div" disablePadding>
+                    {item.submenu.map((subItem) => (
+                      <NavLink
+                        key={subItem.name}
+                        to={subItem.href}
+                        style={{ textDecoration: "none", color: "inherit" }}
+                      >
+                        <ListItem disablePadding>
+                          <ListItemButton
+                            sx={{
+                              borderRadius: "8px",
+                              margin: "4px 8px 4px 32px",
+                              backgroundColor:
+                                location.pathname === subItem.href
+                                  ? "#2A69B0"
+                                  : "transparent",
+                              "&:hover": {
+                                backgroundColor: "#2A69B0",
+                                "& .MuiListItemIcon-root": {
+                                  color: "white",
+                                },
+                                "& .MuiTypography-root": {
+                                  color: "white",
+                                },
+                              },
+                            }}
+                          >
+                            <ListItemIcon
+                              sx={{
+                                color:
+                                  location.pathname === subItem.href ? "white" : "black",
+                              }}
+                            >
+                              {subItem.icon ? (
+                                React.cloneElement(subItem.icon, {
+                                  style: { fontSize: 20 },
+                                })
+                              ) : (
+                                <InboxIcon sx={{ fontSize: 20 }} />
+                              )}
+                            </ListItemIcon>
+                            <ListItemText
+                              primary={subItem.name}
+                              sx={{
+                                "& .MuiTypography-root": {
+                                  color:
+                                    location.pathname === subItem.href ? "white" : "black",
+                                  fontWeight: 700,
+                                  fontFamily: '"Kumbh Sans", sans-serif !important',
+                                },
+                              }}
+                              style={{ fontFamily: '"Kumbh Sans", sans-serif' }}
+                            />
+                          </ListItemButton>
+                        </ListItem>
+                      </NavLink>
+                    ))}
+                  </List>
+                </Collapse>
+              </React.Fragment>
             ) : (
               <NavLink
                 key={item.name}

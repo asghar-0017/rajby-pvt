@@ -71,19 +71,7 @@ export const createProduct = async (req, res) => {
         .status(400)
         .json({ success: false, message: "HS Code is required" });
 
-    // Check if product with same HS Code already exists
-    if (hsCode) {
-      const existingProduct = await Product.findOne({
-        where: { hsCode: hsCode.trim() },
-      });
-
-      if (existingProduct) {
-        return res.status(409).json({
-          success: false,
-          message: `Product with HS Code "${hsCode}" already exists. Please use a different HS Code or update the existing product.`,
-        });
-      }
-    }
+    // Note: HS code duplicates are now allowed as per business requirements
 
     const product = await Product.create({
       name,
@@ -103,7 +91,7 @@ export const createProduct = async (req, res) => {
     if (err.name === "SequelizeUniqueConstraintError") {
       return res.status(409).json({
         success: false,
-        message: "Product with this HS Code already exists",
+        message: "Database constraint error occurred",
       });
     }
     
@@ -218,26 +206,20 @@ export const checkExistingProducts = async (req, res) => {
 
     // ULTRA-OPTIMIZATION: Batch database query instead of individual queries
     const names = [...new Set(productIdentifiers.map((p) => p.name))];
-    const hsCodes = [...new Set(productIdentifiers.map((p) => p.hsCode))];
 
-    // Single optimized query to get all existing products
+    // Single optimized query to get all existing products by name only
     const existingProductsFromDB = await Product.findAll({
       where: {
-        [Op.or]: [
-          { name: { [Op.in]: names } },
-          { hsCode: { [Op.in]: hsCodes } },
-        ],
+        name: { [Op.in]: names },
       },
       attributes: ["id", "name", "hsCode", "description", "uom"],
     });
 
-    // Create lookup maps for O(1) performance
+    // Create lookup map for O(1) performance
     const existingByName = new Map();
-    const existingByHsCode = new Map();
 
     existingProductsFromDB.forEach((product) => {
       existingByName.set(product.name, product);
-      existingByHsCode.set(product.hsCode, product);
     });
 
     // ULTRA-OPTIMIZATION: In-memory processing instead of database queries
@@ -245,17 +227,12 @@ export const checkExistingProducts = async (req, res) => {
     const newProducts = [];
 
     for (const identifier of productIdentifiers) {
-      // BUSINESS LOGIC: Product is duplicate only if BOTH name AND HS code match
-      // This allows products to have the same name OR same HS code, but not both
+      // BUSINESS LOGIC: Product is duplicate only if name matches
+      // HS code duplicates are now allowed as per business requirements
       const existingByNameMatch = existingByName.get(identifier.name);
-      const existingByHsCodeMatch = existingByHsCode.get(identifier.hsCode);
 
-      // Check if BOTH name AND HS code match an existing product
-      if (
-        existingByNameMatch &&
-        existingByHsCodeMatch &&
-        existingByNameMatch.hsCode === identifier.hsCode
-      ) {
+      // Check if name matches an existing product
+      if (existingByNameMatch) {
         existingProducts.push({
           productData: identifier, // Keep consistent structure
           existingProduct: existingByNameMatch,
@@ -369,30 +346,29 @@ export const bulkCreateProducts = async (req, res) => {
     // Phase 2: Batch duplicate checking (single query instead of individual queries)
     const duplicateStart = process.hrtime.bigint();
     const names = [...new Set(validProducts.map((p) => p.name))];
-    const hsCodes = [...new Set(validProducts.map((p) => p.hsCode))];
 
     const existingProducts = await Product.findAll({
       where: {
-        hsCode: { [Op.in]: hsCodes },
+        name: { [Op.in]: names },
       },
-      attributes: ["hsCode"],
+      attributes: ["name"],
     });
 
     // Create lookup map for O(1) performance
-    const existingByHsCode = new Set(existingProducts.map((p) => p.hsCode));
+    const existingByName = new Set(existingProducts.map((p) => p.name));
 
     const duplicateErrors = [];
     const uniqueProducts = [];
 
     validProducts.forEach((product) => {
-      // BUSINESS LOGIC: Product is duplicate if HS code already exists
-      // This prevents duplicate HS codes as requested
-      const isDuplicate = existingByHsCode.has(product.hsCode);
+      // BUSINESS LOGIC: Product is duplicate only if name already exists
+      // HS code duplicates are now allowed as per business requirements
+      const isDuplicate = existingByName.has(product.name);
 
       if (isDuplicate) {
         duplicateErrors.push({
           row: product._row,
-          error: `Product with HS Code "${product.hsCode}" already exists. Please use a different HS Code.`,
+          error: `Product with name "${product.name}" already exists. Please use a different name.`,
         });
       } else {
         uniqueProducts.push(product);

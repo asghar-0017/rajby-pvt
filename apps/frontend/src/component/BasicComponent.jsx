@@ -1587,6 +1587,7 @@ export default function BasicTable() {
                 {selectMode ? "Cancel" : "Select"}
               </Button>
 
+
               <Button
                 variant="outlined"
                 color="primary"
@@ -2438,6 +2439,7 @@ export default function BasicTable() {
             onUpload={handleBulkUpload}
             selectedTenant={selectedTenant}
           />
+
         </Box>
       )}
     </>

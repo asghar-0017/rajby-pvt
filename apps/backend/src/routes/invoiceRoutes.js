@@ -40,6 +40,7 @@ router.get(
   invoiceController.downloadInvoiceTemplateExcel
 );
 
+
 // Place specific routes before dynamic ones to avoid shadowing
 router.get("/invoices/:id", invoiceController.getInvoiceById);
 router.put("/invoices/:id", invoiceController.updateInvoice);

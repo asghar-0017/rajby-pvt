@@ -8,6 +8,8 @@ import ejs from "ejs";
 
 import puppeteer from "puppeteer";
 
+import { Sequelize, Op } from "sequelize";
+
 import PerformanceOptimizationService from "../../service/PerformanceOptimizationService.js";
 import DatabaseOptimizationService from "../../service/DatabaseOptimizationService.js";
 import MemoryManagementService from "../../service/MemoryManagementService.js";
@@ -6697,3 +6699,4 @@ export const bulkPrintInvoices = async (req, res) => {
     });
   }
 };
+
