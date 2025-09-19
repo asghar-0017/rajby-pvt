@@ -55,6 +55,51 @@ export const listProducts = async (req, res) => {
   }
 };
 
+// Get all products without pagination (for dropdowns)
+export const getAllProductsWithoutPagination = async (req, res) => {
+  try {
+    console.log('🔍 Products API called with search:', req.query.search);
+    console.log('🔍 Tenant models available:', Object.keys(req.tenantModels));
+    
+    const { Product } = req.tenantModels;
+    const { search } = req.query;
+
+    console.log('🔍 Product model:', Product ? 'Found' : 'Not found');
+
+    const whereClause = {};
+
+    // Add search functionality
+    if (search) {
+      whereClause[req.tenantDb.Sequelize.Op.or] = [
+        { name: { [req.tenantDb.Sequelize.Op.like]: `%${search}%` } },
+        { description: { [req.tenantDb.Sequelize.Op.like]: `%${search}%` } },
+        { hsCode: { [req.tenantDb.Sequelize.Op.like]: `%${search}%` } },
+        { uom: { [req.tenantDb.Sequelize.Op.like]: `%${search}%` } },
+      ];
+    }
+
+    console.log('🔍 Where clause for products:', whereClause);
+
+    const products = await Product.findAll({
+      where: whereClause,
+      order: [["name", "ASC"]],
+    });
+
+    console.log('🔍 Found products:', products.length);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        products: products,
+        total_records: products.length,
+      },
+    });
+  } catch (err) {
+    console.error('🔍 Error in getAllProductsWithoutPagination:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 export const createProduct = async (req, res) => {
   try {
     const { Product } = req.tenantModels;

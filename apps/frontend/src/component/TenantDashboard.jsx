@@ -57,8 +57,8 @@ const TenantDashboard = () => {
   // Table pagination for dashboard recent invoices
   const [tablePage, setTablePage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [fromDate, setFromDate] = useState(dayjs().subtract(11, 'month').startOf('month'));
-  const [toDate, setToDate] = useState(dayjs().endOf('month'));
+  const [fromDate, setFromDate] = useState(dayjs().startOf('month'));
+  const [toDate, setToDate] = useState(dayjs());
 
   // Helper function to get status color
   const getStatusColor = (status) => {

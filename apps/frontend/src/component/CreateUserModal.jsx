@@ -22,10 +22,13 @@ import {
   OutlinedInput,
   Checkbox,
   ListItemText,
+  InputAdornment,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import EditIcon from "@mui/icons-material/Edit";
+import Visibility from "@mui/icons-material/Visibility";
+import VisibilityOff from "@mui/icons-material/VisibilityOff";
 import { useTenantSelection } from "../Context/TenantSelectionProvider";
 
 const CreateUserModal = ({
@@ -200,6 +203,14 @@ const CreateUserModal = ({
     }
   };
 
+  const handleTogglePasswordVisibility = () => {
+    setShowPassword((prev) => !prev);
+  };
+
+  const handleToggleConfirmPasswordVisibility = () => {
+    setShowConfirmPassword((prev) => !prev);
+  };
+
   const handleCompanyChange = (event) => {
     const value = event.target.value;
     setFormData((prev) => ({ ...prev, assignedCompanies: value }));
@@ -346,6 +357,19 @@ const CreateUserModal = ({
                   error={!!errors.password}
                   helperText={errors.password}
                   required={!isEditMode}
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton
+                          aria-label="toggle password visibility"
+                          onClick={handleTogglePasswordVisibility}
+                          edge="end"
+                        >
+                          {showPassword ? <VisibilityOff /> : <Visibility />}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  }}
                 />
                 {formData.password && (
                   <TextField
@@ -359,6 +383,19 @@ const CreateUserModal = ({
                     error={!!errors.confirmPassword}
                     helperText={errors.confirmPassword}
                     required
+                    InputProps={{
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton
+                            aria-label="toggle confirm password visibility"
+                            onClick={handleToggleConfirmPasswordVisibility}
+                            edge="end"
+                          >
+                            {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    }}
                   />
                 )}
               </Stack>

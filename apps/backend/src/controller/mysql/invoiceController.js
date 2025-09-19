@@ -1287,6 +1287,9 @@ export const getAllInvoices = async (req, res) => {
       end_date,
       sale_type,
       status,
+      buyer_id,
+      buyer_ids,
+      product_ids,
       sort_by = "companyInvoiceRefNo",
       sort_order = "ASC",
     } = req.query;
@@ -1299,13 +1302,19 @@ export const getAllInvoices = async (req, res) => {
     const whereClause = {};
 
     // Restrict invoice visibility for regular users to only their own
+    console.log('User filtering - userType:', req.userType, 'user:', req.user);
     if (req.userType === "user" && req.user?.role !== "admin") {
       const creatorId = req.user?.userId || req.user?.id;
+      console.log('Regular user - creatorId:', creatorId, 'email:', req.user?.email);
       if (creatorId) {
         whereClause.created_by_user_id = creatorId;
+        console.log('Filtering by created_by_user_id:', creatorId);
       } else if (req.user?.email) {
         whereClause.created_by_email = req.user.email;
+        console.log('Filtering by created_by_email:', req.user.email);
       }
+    } else {
+      console.log('Admin user or no user restrictions applied');
     }
 
     // Add search functionality
@@ -1352,6 +1361,205 @@ export const getAllInvoices = async (req, res) => {
       whereClause.status = status;
     }
 
+    // Add buyer filter - filter by buyer NTN/CNIC
+    if (buyer_id || buyer_ids) {
+      try {
+        let buyerIds = [];
+        if (buyer_ids) {
+          buyerIds = buyer_ids.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+        } else if (buyer_id) {
+          buyerIds = [parseInt(buyer_id)].filter(id => !isNaN(id));
+        }
+        console.log('Filtering by buyer_ids:', buyerIds);
+        
+        // First get the buyers' NTN/CNIC from the buyer IDs
+        const { Buyer } = req.tenantModels;
+        const buyers = await Buyer.findAll({
+          where: {
+            id: {
+              [req.tenantDb.Sequelize.Op.in]: buyerIds
+            }
+          }
+        });
+        
+        console.log('Found buyers:', buyers.map(buyer => ({
+          id: buyer.id,
+          buyerBusinessName: buyer.buyerBusinessName,
+          buyerNTNCNIC: buyer.buyerNTNCNIC
+        })));
+        
+        if (buyers.length > 0) {
+          const buyerNTNCNICs = buyers
+            .filter(buyer => buyer.buyerNTNCNIC)
+            .map(buyer => buyer.buyerNTNCNIC);
+          
+          console.log('Buyer NTN/CNICs found:', buyerNTNCNICs);
+          
+          if (buyerNTNCNICs.length > 0) {
+            whereClause.buyerNTNCNIC = {
+              [req.tenantDb.Sequelize.Op.in]: buyerNTNCNICs
+            };
+            console.log('Filtering invoices by buyerNTNCNICs:', buyerNTNCNICs);
+          } else {
+            console.log('No valid NTN/CNIC found for buyers, returning empty results');
+            whereClause.id = -1; // This will return no results
+          }
+        } else {
+          console.log('No buyers found for IDs:', buyerIds, 'returning empty results');
+          whereClause.id = -1; // This will return no results
+        }
+      } catch (error) {
+        console.error('Error fetching buyers for filter:', error);
+        // If there's an error, return empty results
+        whereClause.id = -1; // This will return no results
+      }
+    }
+
+        // Add product filter - use subquery approach to avoid WHERE clause issues
+        if (product_ids) {
+          try {
+            const productIds = product_ids.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+            console.log('Filtering by product_ids:', productIds);
+            
+            if (productIds.length > 0) {
+              // First get the product names/HS codes from the product IDs
+              const { Product } = req.tenantModels;
+              const products = await Product.findAll({
+                where: {
+                  id: {
+                    [req.tenantDb.Sequelize.Op.in]: productIds
+                  }
+                }
+              });
+              
+              console.log('Found products for filter:', products.map(p => ({ id: p.id, name: p.name, hsCode: p.hsCode })));
+              
+              if (products.length > 0) {
+                const productNames = products.map(p => p.name).filter(Boolean);
+                const productHsCodes = products.map(p => p.hsCode).filter(Boolean);
+                
+                console.log('Product names found:', productNames);
+                console.log('Product HS codes found:', productHsCodes);
+                
+                // Use a different approach - get invoice IDs that have matching products first
+                if (productNames.length > 0 || productHsCodes.length > 0) {
+                  try {
+                    // First, find all invoice IDs that have items matching our products
+                    const { InvoiceItem } = req.tenantModels;
+                    
+                    // Debug: Check if we can find any invoice items at all
+                    const totalItems = await InvoiceItem.count();
+                    console.log('Total invoice items in database:', totalItems);
+                    
+                    // Debug: Check a sample item to see what columns exist
+                    const sampleItem = await InvoiceItem.findOne({
+                      attributes: ['id', 'invoice_id', 'name', 'hsCode', 'productDescription']
+                    });
+                    console.log('Sample invoice item:', sampleItem ? sampleItem.toJSON() : 'No items found');
+                    
+                    // Debug: Try to find items with the specific HS code we're looking for
+                    const testHsCode = productHsCodes[0];
+                    if (testHsCode) {
+                      try {
+                        const testItems = await InvoiceItem.findAll({
+                          where: {
+                            hsCode: testHsCode
+                          },
+                          limit: 5
+                        });
+                        console.log(`Test items with HS code ${testHsCode}:`, testItems.map(item => ({
+                          id: item.id,
+                          invoice_id: item.invoice_id,
+                          name: item.name,
+                          hsCode: item.hsCode,
+                          productDescription: item.productDescription
+                        })));
+                      } catch (error) {
+                        console.log(`Error searching for HS code ${testHsCode}:`, error.message);
+                        
+                        // Try with raw SQL to see what columns exist
+                        try {
+                          const [results] = await req.tenantDb.query('DESCRIBE invoice_items');
+                          console.log('Available columns in invoice_items:', results.map(col => col.Field));
+                        } catch (descError) {
+                          console.log('Error describing table:', descError.message);
+                        }
+                      }
+                    }
+                    
+                    const invoiceItemConditions = [];
+                    
+                    if (productNames.length > 0) {
+                      invoiceItemConditions.push({
+                        [req.tenantDb.Sequelize.Op.or]: [
+                          {
+                            name: {
+                              [req.tenantDb.Sequelize.Op.in]: productNames
+                            }
+                          },
+                          {
+                            productDescription: {
+                              [req.tenantDb.Sequelize.Op.in]: productNames
+                            }
+                          }
+                        ]
+                      });
+                    }
+                    
+                    if (productHsCodes.length > 0) {
+                      invoiceItemConditions.push({
+                        hsCode: {
+                          [req.tenantDb.Sequelize.Op.in]: productHsCodes
+                        }
+                      });
+                    }
+                    
+                    console.log('Searching for invoice items with conditions:', invoiceItemConditions);
+                    console.log('Product names we are searching for:', productNames);
+                    console.log('HS codes we are searching for:', productHsCodes);
+                    
+                    const matchingItems = await InvoiceItem.findAll({
+                      where: {
+                        [req.tenantDb.Sequelize.Op.or]: invoiceItemConditions
+                      },
+                      attributes: ['invoice_id'],
+                      group: ['invoice_id']
+                    });
+                    
+                    const matchingInvoiceIds = matchingItems.map(item => item.invoice_id);
+                    console.log('Found matching invoice IDs:', matchingInvoiceIds);
+                    
+                    if (matchingInvoiceIds.length > 0) {
+                      whereClause.id = {
+                        [req.tenantDb.Sequelize.Op.in]: matchingInvoiceIds
+                      };
+                      console.log('Filtering invoices by matching invoice IDs');
+                    } else {
+                      console.log('No matching invoice items found, returning empty results');
+                      whereClause.id = -1; // This will return no results
+                    }
+                  } catch (error) {
+                    console.error('Error finding matching invoice items:', error);
+                    whereClause.id = -1; // This will return no results
+                  }
+                } else {
+                  console.log('No valid product names or HS codes found, returning empty results');
+                  whereClause.id = -1; // This will return no results
+                }
+              } else {
+                console.log('No products found for IDs:', productIds, 'returning empty results');
+                whereClause.id = -1; // This will return no results
+              }
+            } else {
+              console.log('No valid product IDs found, returning empty results');
+              whereClause.id = -1; // This will return no results
+            }
+          } catch (error) {
+            console.error('Error processing product filter:', error);
+            whereClause.id = -1; // This will return no results
+          }
+        }
+
     // Removed default filter to show all invoices (draft, saved, validated, posted, etc.)
 
     // Add date range filter
@@ -1375,11 +1583,57 @@ export const getAllInvoices = async (req, res) => {
       
       // Filter by invoiceDate (the actual invoice date) instead of created_at
       whereClause.invoiceDate = {
-        [req.tenantDb.Sequelize.Op.between]: [start_date, end_date],
+        [req.tenantDb.Sequelize.Op.between]: [startDate, endDate],
       };
     }
 
 
+    console.log('Final whereClause:', JSON.stringify(whereClause, null, 2));
+    
+    // Debug: Check total invoices in database
+    const totalInvoices = await Invoice.count();
+    console.log('Total invoices in database:', totalInvoices);
+    
+    // Debug: Check invoices without any filters
+    const sampleInvoices = await Invoice.findAll({
+      limit: 5,
+      attributes: ['id', 'invoiceDate', 'buyerNTNCNIC', 'buyerBusinessName', 'created_by_user_id', 'created_by_email'],
+      order: [['created_at', 'DESC']]
+    });
+    console.log('Sample invoices in database:', sampleInvoices.map(inv => ({
+      id: inv.id,
+      invoiceDate: inv.invoiceDate,
+      buyerNTNCNIC: inv.buyerNTNCNIC,
+      buyerBusinessName: inv.buyerBusinessName,
+      created_by_user_id: inv.created_by_user_id,
+      created_by_email: inv.created_by_email
+    })));
+    
+    // Debug: Check invoices in date range without buyer filter
+    if (start_date && end_date) {
+      const startDate = new Date(start_date);
+      const endDate = new Date(end_date);
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(23, 59, 59, 999);
+      
+      const dateRangeInvoices = await Invoice.findAll({
+        where: {
+          invoiceDate: {
+            [req.tenantDb.Sequelize.Op.between]: [startDate, endDate]
+          }
+        },
+        limit: 5,
+        attributes: ['id', 'invoiceDate', 'buyerNTNCNIC', 'buyerBusinessName'],
+        order: [['created_at', 'DESC']]
+      });
+      console.log('Invoices in date range (no buyer filter):', dateRangeInvoices.map(inv => ({
+        id: inv.id,
+        invoiceDate: inv.invoiceDate,
+        buyerNTNCNIC: inv.buyerNTNCNIC,
+        buyerBusinessName: inv.buyerBusinessName
+      })));
+    }
+    
     const { count, rows } = await Invoice.findAndCountAll({
       where: whereClause,
 
@@ -1493,6 +1747,32 @@ export const getAllInvoices = async (req, res) => {
       };
     });
 
+    console.log('Query results - count:', count, 'invoices found');
+    console.log('Sample invoice buyerNTNCNIC values:', 
+      transformedInvoices.slice(0, 3).map(inv => ({
+        id: inv.id,
+        buyerNTNCNIC: inv.buyerNTNCNIC,
+        buyerBusinessName: inv.buyerBusinessName
+      }))
+    );
+    
+    // Debug: Check if there are any invoices with the buyer NTN/CNIC values
+    if (whereClause.buyerNTNCNIC && whereClause.buyerNTNCNIC[req.tenantDb.Sequelize.Op.in]) {
+      const matchingInvoices = await Invoice.findAll({
+        where: {
+          buyerNTNCNIC: whereClause.buyerNTNCNIC[req.tenantDb.Sequelize.Op.in]
+        },
+        attributes: ['id', 'buyerNTNCNIC', 'buyerBusinessName', 'invoiceDate'],
+        limit: 5
+      });
+      console.log('Invoices matching buyer NTN/CNIC filter:', matchingInvoices.map(inv => ({
+        id: inv.id,
+        buyerNTNCNIC: inv.buyerNTNCNIC,
+        buyerBusinessName: inv.buyerBusinessName,
+        invoiceDate: inv.invoiceDate
+      })));
+    }
+    
     res.status(200).json({
       success: true,
 

@@ -130,7 +130,7 @@ export default function Sidebar({ onLogout }) {
       icon: <FaChartBar />, 
       hasSubmenu: true,
       submenu: [
-        { name: "Sales Report", href: "/sales-report", icon: <FaChartBar /> }
+        { name: "Sales Tax Summary", href: "/sales-report", icon: <FaChartBar /> }
       ]
     },
     { name: "logout" },
@@ -403,8 +403,12 @@ export default function Sidebar({ onLogout }) {
                                 "& .MuiTypography-root": {
                                   color:
                                     location.pathname === subItem.href ? "white" : "black",
-                                  fontWeight: 700,
+                                  fontWeight: 600,
                                   fontFamily: '"Kumbh Sans", sans-serif !important',
+                                  fontSize: '0.75rem',
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
                                 },
                               }}
                               style={{ fontFamily: '"Kumbh Sans", sans-serif' }}
