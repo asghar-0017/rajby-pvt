@@ -297,7 +297,7 @@ export default function BasicTable() {
         return;
       }
 
-      const link = `${apiKey}/print-invoice/${invoice.invoiceNumber}`;
+      const link = `${apiKey}/print-invoice/${invoice.invoiceNumber}?tenantId=${selectedTenant.tenant_id}`;
 
       window.open(link, "_blank");
     } catch (error) {
@@ -771,10 +771,19 @@ export default function BasicTable() {
             );
 
             if (saveResponse.status === 201) {
+              const fbrValidation = saveResponse.data.data.fbrValidation;
+              let message = `Invoice ${invoice.invoiceNumber} saved successfully`;
+              
+              if (fbrValidation && fbrValidation.success) {
+                message += " and validated with FBR";
+              } else if (fbrValidation && !fbrValidation.success) {
+                message += ` (FBR validation skipped: ${fbrValidation.reason})`;
+              }
+              
               results.push({
                 invoiceNumber: invoice.invoiceNumber,
                 status: "success",
-                message: `Invoice ${invoice.invoiceNumber} saved and validated successfully`,
+                message: message,
               });
             } else {
               results.push({
@@ -809,10 +818,26 @@ export default function BasicTable() {
       const failed = results.filter((r) => r.status === "error");
 
       if (failed.length === 0) {
+        const fbrValidatedCount = successful.filter(r => r.message.includes("validated with FBR")).length;
+        const fbrSkippedCount = successful.filter(r => r.message.includes("FBR validation skipped")).length;
+        
+        let title = "All Invoices Saved Successfully!";
+        let text = `${successful.length} invoices have been saved`;
+        
+        if (fbrValidatedCount > 0 && fbrSkippedCount === 0) {
+          title = "All Invoices Saved and Validated with FBR!";
+          text += " and validated with FBR";
+        } else if (fbrValidatedCount > 0 && fbrSkippedCount > 0) {
+          title = "All Invoices Saved Successfully!";
+          text += ` (${fbrValidatedCount} validated with FBR, ${fbrSkippedCount} FBR validation skipped)`;
+        } else if (fbrSkippedCount > 0) {
+          text += " (FBR validation skipped)";
+        }
+        
         Swal.fire({
           icon: "success",
-          title: "All Invoices Saved and Validated Successfully!",
-          text: `${successful.length} invoices have been saved and validated.`,
+          title: title,
+          text: text,
           confirmButtonColor: "#28a745",
         });
         setIsSubmitVisible(true);
@@ -827,10 +852,19 @@ export default function BasicTable() {
           confirmButtonColor: "#d33",
         });
       } else {
+        const fbrValidatedCount = successful.filter(r => r.message.includes("validated with FBR")).length;
+        const fbrSkippedCount = successful.filter(r => r.message.includes("FBR validation skipped")).length;
+        
+        let text = `${successful.length} invoices saved successfully. ${failed.length} invoices failed.`;
+        
+        if (fbrValidatedCount > 0 || fbrSkippedCount > 0) {
+          text += ` (${fbrValidatedCount} validated with FBR, ${fbrSkippedCount} FBR validation skipped)`;
+        }
+        
         Swal.fire({
           icon: "warning",
           title: "Partial Success",
-          text: `${successful.length} invoices saved and validated successfully. ${failed.length} invoices failed.`,
+          text: text,
           confirmButtonColor: "#ff9800",
         });
         setIsSubmitVisible(true);

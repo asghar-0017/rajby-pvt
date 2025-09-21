@@ -19,6 +19,7 @@ import {
   CardContent,
   Divider,
   Autocomplete,
+  MenuItem,
 } from '@mui/material';
 import {
   DatePicker,
@@ -52,6 +53,16 @@ const SalesReport = () => {
   const [products, setProducts] = useState([]);
   const [productSearch, setProductSearch] = useState('');
   const [loadingProducts, setLoadingProducts] = useState(false);
+  
+  // Status filter state
+  const [selectedStatus, setSelectedStatus] = useState('All');
+  const statusOptions = [
+    { value: 'All', label: 'All Status' },
+    { value: 'draft', label: 'Draft' },
+    { value: 'saved', label: 'Saved' },
+    { value: 'posted', label: 'Posted' },
+    { value: 'validated', label: 'Validated' }
+  ];
 
   // Fetch buyers for the dropdown
   const fetchBuyers = async (searchTerm = '') => {
@@ -149,7 +160,7 @@ const SalesReport = () => {
             end_date: endDate.format('YYYY-MM-DD'),
             limit: 1000, // Get all invoices in the date range
             include_details: true, // Include complete invoice details
-            status: 'All', // Get all statuses
+            status: selectedStatus, // Use selected status filter
       };
 
       // Add buyer filter if selected
@@ -871,6 +882,41 @@ const SalesReport = () => {
                   />
                 </Box>
             
+            {/* Select Status - Single selection */}
+            <Box sx={{ 
+              flex: { xs: '1', sm: '0 0 150px', md: '0 0 180px' }, 
+              minWidth: { xs: '100%', sm: '120px', md: '150px' },
+              width: { xs: '100%', sm: 'auto' }
+            }}>
+              <TextField
+                select
+                fullWidth
+                label="Select Status"
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value)}
+                variant="outlined"
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 1,
+                    backgroundColor: '#ffffff',
+                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#1976d2',
+                    },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                      borderColor: '#1976d2',
+                      borderWidth: 2,
+                    },
+                  },
+                }}
+              >
+                {statusOptions.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Box>
+            
             {/* Buttons Row */}
             <Box sx={{ 
               display: 'flex', 
@@ -1106,6 +1152,55 @@ const SalesReport = () => {
                 </Box>
               </Box>
             </Box>
+          )}
+
+          {/* Status Filter Display */}
+          {selectedStatus && selectedStatus !== 'All' && (
+            <Box sx={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: 2, 
+              p: 2, 
+              backgroundColor: '#f8f9fa', 
+              borderRadius: 1, 
+              border: '1px solid #dee2e6',
+              mb: 2
+            }}>
+              <Box sx={{ 
+                fontSize: '1.2rem', 
+                color: '#6c757d',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 32,
+                height: 32,
+                backgroundColor: '#e9ecef',
+                borderRadius: '50%'
+              }}>
+                📋
+              </Box>
+              <Box sx={{ flex: 1 }}>
+                <Typography variant="h6" sx={{ color: '#495057', fontWeight: '600', mb: 1 }}>
+                  Filtered by Status
+                </Typography>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                  <Chip
+                    label={statusOptions.find(opt => opt.value === selectedStatus)?.label || selectedStatus}
+                    size="small"
+                    sx={{
+                      backgroundColor: '#e9ecef',
+                      color: '#495057',
+                      border: '1px solid #dee2e6',
+                      '& .MuiChip-deleteIcon': {
+                        color: '#6c757d',
+                      },
+                    }}
+                    onDelete={() => setSelectedStatus('All')}
+                  />
+                </Box>
+              </Box>
+            </Box>
+          )}
           </CardContent>
         </Card>
       )}

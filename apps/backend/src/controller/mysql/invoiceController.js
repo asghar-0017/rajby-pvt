@@ -70,25 +70,22 @@ const generateSystemInvoiceId = async (Invoice) => {
 
 const generateShortInvoiceId = async (Invoice, prefix) => {
   try {
-    // Get the highest existing invoice ID with this prefix for this tenant
-
+    // Use a more robust approach to handle concurrent requests
+    // First, try to get the current max number
     const lastInvoice = await Invoice.findOne({
       where: {
         invoice_number: {
           [Invoice.sequelize.Sequelize.Op.like]: `${prefix}_%`,
         },
       },
-
       order: [["invoice_number", "DESC"]],
-
       attributes: ["invoice_number"],
     });
 
     let nextNumber = 1;
 
     if (lastInvoice && lastInvoice.invoice_number) {
-      // Extract the number from the last invoice ID (e.g., "DRAFT_123456" -> 123456)
-
+      // Extract the number from the last invoice ID (e.g., "SAVED_000011" -> 11)
       const match = lastInvoice.invoice_number.match(
         new RegExp(`${prefix}_(\\d+)`)
       );
@@ -98,17 +95,31 @@ const generateShortInvoiceId = async (Invoice, prefix) => {
       }
     }
 
-    // Format as DRAFT_000001, DRAFT_000002, etc. or SAVED_000001, SAVED_000002, etc.
+    // Generate the new invoice ID with 6-digit padding
+    const newInvoiceId = `${prefix}_${nextNumber.toString().padStart(6, "0")}`;
 
-    return `${prefix}_${nextNumber.toString().padStart(6, "0")}`;
+    // Check if this ID already exists (race condition protection)
+    const existingInvoice = await Invoice.findOne({
+      where: {
+        invoice_number: newInvoiceId,
+      },
+      attributes: ["id"],
+    });
+
+    if (existingInvoice) {
+      // If it exists, increment and try again
+      nextNumber += 1;
+      const retryInvoiceId = `${prefix}_${nextNumber.toString().padStart(6, "0")}`;
+      return retryInvoiceId;
+    }
+
+    return newInvoiceId;
   } catch (error) {
     console.error(`Error generating short ${prefix} invoice ID:`, error);
 
-    // Fallback to random 6-digit number if there's an error
-
-    const randomNum = Math.floor(Math.random() * 900000) + 100000; // 100000 to 999999
-
-    return `${prefix}_${randomNum}`;
+    // Fallback to timestamp-based ID if database query fails
+    const timestamp = Date.now().toString().slice(-6);
+    return `${prefix}_${timestamp}`;
   }
 };
 
@@ -681,7 +692,7 @@ export const saveInvoice = async (req, res) => {
 
             transctypeId,
 
-            status: "draft",
+            status: "saved",
 
             fbr_invoice_number: null,
           },
@@ -749,7 +760,7 @@ export const saveInvoice = async (req, res) => {
 
             transctypeId,
 
-            status: "draft",
+            status: "saved",
 
             fbr_invoice_number: null,
             created_by_user_id: req.user?.userId || req.user?.id || null,
@@ -949,7 +960,7 @@ export const saveAndValidateInvoice = async (req, res) => {
     } = req.body;
 
     // Generate a temporary invoice number for saved invoice
-
+    // Use a more robust approach to handle concurrent requests
     const tempInvoiceNumber = await generateShortInvoiceId(Invoice, "SAVED");
 
     // Validate the data first (basic validation)
@@ -1000,7 +1011,69 @@ export const saveAndValidateInvoice = async (req, res) => {
       });
     }
 
-    // Save as draft (validated) - upsert behavior like saveInvoice
+    // FBR Validation before saving
+    let fbrValidationResult = null;
+    
+    if (req.tenant?.sandboxProductionToken) {
+      try {
+        console.log("🔍 Starting FBR validation for invoice...");
+        
+        // Import FBR validation function
+        const { validateInvoiceData } = await import("../../service/FBRService.js");
+        
+        // Prepare invoice data for FBR validation
+        const fbrInvoiceData = {
+          invoiceType,
+          invoiceDate,
+          sellerNTNCNIC,
+          sellerFullNTN,
+          sellerBusinessName,
+          sellerProvince,
+          sellerAddress,
+          sellerCity,
+          buyerNTNCNIC,
+          buyerBusinessName,
+          buyerProvince,
+          buyerAddress,
+          buyerRegistrationType,
+          invoiceRefNo,
+          companyInvoiceRefNo,
+          internal_invoice_no: internalInvoiceNo,
+          transctypeId,
+          items: items.map(item => ({
+            productName: item.name || item.productName,
+            hsCode: item.hsCode,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            valueSalesExcludingST: item.valueSalesExcludingST,
+            salesTaxApplicable: item.salesTaxApplicable,
+            salesTaxWithheldAtSource: item.salesTaxWithheldAtSource,
+            totalValues: item.totalValues,
+            sroScheduleNo: item.sroScheduleNo,
+            sroItemSerialNo: item.sroItemSerialNo
+          }))
+        };
+
+        fbrValidationResult = await validateInvoiceData(
+          fbrInvoiceData,
+          "sandbox",
+          req.tenant.sandboxProductionToken
+        );
+        
+        console.log("✅ FBR validation successful");
+      } catch (fbrError) {
+        console.error("❌ FBR validation failed:", fbrError);
+        return res.status(400).json({
+          success: false,
+          message: "FBR validation failed",
+          error: fbrError.response?.data || fbrError.message,
+        });
+      }
+    } else {
+      console.log("⚠️ Skipping FBR validation - no tenant FBR credentials available");
+    }
+
+    // Save as saved (validated with FBR) - upsert behavior like saveInvoice
 
     const result = await req.tenantDb.transaction(async (t) => {
       let invoice = null;
@@ -1012,8 +1085,8 @@ export const saveAndValidateInvoice = async (req, res) => {
           throw new Error("Invoice not found");
         }
 
-        if (invoice.status !== "draft") {
-          throw new Error("Only draft invoices can be updated");
+        if (invoice.status !== "draft" && invoice.status !== "saved") {
+          throw new Error("Only draft or saved invoices can be updated");
         }
 
         await invoice.update(
@@ -1054,7 +1127,7 @@ export const saveAndValidateInvoice = async (req, res) => {
 
             transctypeId,
 
-            status: "draft",
+            status: "saved",
 
             fbr_invoice_number: null,
             created_by_user_id: req.userType === "user" ? (req.user.userId || req.user.id) : null,
@@ -1120,7 +1193,7 @@ export const saveAndValidateInvoice = async (req, res) => {
 
             transctypeId,
 
-            status: "draft",
+            status: "saved",
 
             fbr_invoice_number: null,
             created_by_user_id: req.user?.userId || req.user?.id || null,
@@ -1248,7 +1321,7 @@ export const saveAndValidateInvoice = async (req, res) => {
     res.status(201).json({
       success: true,
 
-      message: "Invoice validated and saved as draft successfully",
+      message: fbrValidationResult ? "Invoice validated with FBR and saved successfully" : "Invoice saved successfully (FBR validation skipped)",
 
       data: {
         invoice_id: result.id,
@@ -1258,6 +1331,13 @@ export const saveAndValidateInvoice = async (req, res) => {
         system_invoice_id: result.system_invoice_id,
 
         status: result.status,
+        fbrValidation: fbrValidationResult ? {
+          success: true,
+          result: fbrValidationResult
+        } : {
+          success: false,
+          reason: "No FBR token or credentials available"
+        }
       },
     });
   } catch (error) {
@@ -1432,14 +1512,67 @@ export const getAllInvoices = async (req, res) => {
                 }
               });
               
-              console.log('Found products for filter:', products.map(p => ({ id: p.id, name: p.name, hsCode: p.hsCode })));
+              console.log('🔍 Found products for filter:', products.map(p => ({ id: p.id, name: p.name, hsCode: p.hsCode })));
               
               if (products.length > 0) {
                 const productNames = products.map(p => p.name).filter(Boolean);
                 const productHsCodes = products.map(p => p.hsCode).filter(Boolean);
                 
-                console.log('Product names found:', productNames);
-                console.log('Product HS codes found:', productHsCodes);
+                console.log('🔍 Product names found:', productNames);
+                console.log('🔍 Product HS codes found:', productHsCodes);
+                
+                // Debug: Let's also check what invoice items exist for these HS codes
+                if (productHsCodes.length > 0) {
+                  try {
+                    const { InvoiceItem } = req.tenantModels;
+                    
+                    // First, let's see all invoice items in the date range
+                    const allItemsInDateRange = await InvoiceItem.findAll({
+                      include: [{
+                        model: req.tenantModels.Invoice,
+                        where: {
+                          invoiceDate: {
+                            [req.tenantDb.Sequelize.Op.between]: [
+                              new Date(start_date + 'T00:00:00.000Z'),
+                              new Date(end_date + 'T23:59:59.999Z')
+                            ]
+                          }
+                        },
+                        attributes: ['id', 'invoiceDate']
+                      }],
+                      attributes: ['id', 'invoice_id', 'name', 'hsCode', 'productDescription'],
+                      limit: 20
+                    });
+                    console.log('🔍 All invoice items in date range:', allItemsInDateRange.map(item => ({
+                      id: item.id,
+                      invoice_id: item.invoice_id,
+                      name: item.name,
+                      hsCode: item.hsCode,
+                      productDescription: item.productDescription,
+                      invoice_date: item.Invoice?.invoiceDate
+                    })));
+                    
+                    // Now check for specific HS codes
+                    const sampleItems = await InvoiceItem.findAll({
+                      where: {
+                        hsCode: {
+                          [req.tenantDb.Sequelize.Op.in]: productHsCodes
+                        }
+                      },
+                      attributes: ['id', 'invoice_id', 'name', 'hsCode', 'productDescription'],
+                      limit: 10
+                    });
+                    console.log('🔍 Sample invoice items with matching HS codes:', sampleItems.map(item => ({
+                      id: item.id,
+                      invoice_id: item.invoice_id,
+                      name: item.name,
+                      hsCode: item.hsCode,
+                      productDescription: item.productDescription
+                    })));
+                  } catch (error) {
+                    console.log('🔍 Error checking sample items:', error.message);
+                  }
+                }
                 
                 // Use a different approach - get invoice IDs that have matching products first
                 if (productNames.length > 0 || productHsCodes.length > 0) {
@@ -1489,53 +1622,213 @@ export const getAllInvoices = async (req, res) => {
                     
                     const invoiceItemConditions = [];
                     
+                    // Prioritize exact product name matching first
                     if (productNames.length > 0) {
-                      invoiceItemConditions.push({
-                        [req.tenantDb.Sequelize.Op.or]: [
-                          {
-                            name: {
-                              [req.tenantDb.Sequelize.Op.in]: productNames
-                            }
-                          },
-                          {
-                            productDescription: {
-                              [req.tenantDb.Sequelize.Op.in]: productNames
-                            }
-                          }
-                        ]
-                      });
-                    }
-                    
-                    if (productHsCodes.length > 0) {
-                      invoiceItemConditions.push({
-                        hsCode: {
-                          [req.tenantDb.Sequelize.Op.in]: productHsCodes
+                      // Use exact matching for product names first
+                      const nameConditions = [];
+                      productNames.forEach(productName => {
+                        // Clean the product name for better matching
+                        const cleanProductName = productName.trim();
+                        if (cleanProductName) {
+                          nameConditions.push({
+                            [req.tenantDb.Sequelize.Op.or]: [
+                              {
+                                name: {
+                                  [req.tenantDb.Sequelize.Op.eq]: cleanProductName
+                                }
+                              },
+                              {
+                                productDescription: {
+                                  [req.tenantDb.Sequelize.Op.eq]: cleanProductName
+                                }
+                              }
+                            ]
+                          });
                         }
                       });
+                      
+                      invoiceItemConditions.push({
+                        [req.tenantDb.Sequelize.Op.or]: nameConditions
+                      });
                     }
                     
-                    console.log('Searching for invoice items with conditions:', invoiceItemConditions);
-                    console.log('Product names we are searching for:', productNames);
-                    console.log('HS codes we are searching for:', productHsCodes);
+                    // Add HS code matching as secondary criteria (only if no exact name matches)
+                    if (productHsCodes.length > 0 && productNames.length === 0) {
+                      // Use partial matching for HS codes only if no product names specified
+                      const hsCodeConditions = [];
+                      productHsCodes.forEach(hsCode => {
+                        // Clean the HS code for better matching
+                        const cleanHsCode = hsCode.trim();
+                        if (cleanHsCode) {
+                          hsCodeConditions.push({
+                            hsCode: {
+                              [req.tenantDb.Sequelize.Op.like]: `%${cleanHsCode}%`
+                            }
+                          });
+                        }
+                      });
+                      
+                      invoiceItemConditions.push({
+                        [req.tenantDb.Sequelize.Op.or]: hsCodeConditions
+                      });
+                    }
                     
-                    const matchingItems = await InvoiceItem.findAll({
-                      where: {
-                        [req.tenantDb.Sequelize.Op.or]: invoiceItemConditions
-                      },
-                      attributes: ['invoice_id'],
-                      group: ['invoice_id']
-                    });
+                    console.log('🔍 Product Filter Debug Info:');
+                    console.log('🔍 Product names we are searching for:', productNames);
+                    console.log('🔍 HS codes we are searching for:', productHsCodes);
+                    console.log('🔍 Invoice item search conditions:', JSON.stringify(invoiceItemConditions, null, 2));
+                    
+                    // Debug: Show what products were selected from the frontend
+                    console.log('🔍 Selected products from frontend:', products.map(p => ({ 
+                      id: p.id, 
+                      name: p.name, 
+                      hsCode: p.hsCode 
+                    })));
+                    
+                    // Try to find matching items with the conditions
+                    let matchingItems = [];
+                    
+                    if (invoiceItemConditions.length > 0) {
+                      matchingItems = await InvoiceItem.findAll({
+                        where: {
+                          [req.tenantDb.Sequelize.Op.or]: invoiceItemConditions
+                        },
+                        attributes: ['invoice_id', 'name', 'hsCode', 'productDescription'],
+                        group: ['invoice_id', 'name', 'hsCode', 'productDescription']
+                      });
+                    }
+                    
+                    console.log('🔍 Initial matching items found:', matchingItems.length);
+                    
+                    // If no items found with exact name search, try word boundary matching
+                    if (matchingItems.length === 0 && productNames.length > 0) {
+                      console.log('🔍 No items found with exact name search, trying word boundary matching...');
+                      
+                      const nameConditions = [];
+                      productNames.forEach(productName => {
+                        const cleanProductName = productName.trim();
+                        if (cleanProductName) {
+                          // Use word boundary matching to avoid partial matches
+                          nameConditions.push({
+                            [req.tenantDb.Sequelize.Op.or]: [
+                              {
+                                name: {
+                                  [req.tenantDb.Sequelize.Op.regexp]: `\\b${cleanProductName}\\b`
+                                }
+                              },
+                              {
+                                productDescription: {
+                                  [req.tenantDb.Sequelize.Op.regexp]: `\\b${cleanProductName}\\b`
+                                }
+                              }
+                            ]
+                          });
+                        }
+                      });
+                      
+                      if (nameConditions.length > 0) {
+                        try {
+                          matchingItems = await InvoiceItem.findAll({
+                            where: {
+                              [req.tenantDb.Sequelize.Op.or]: nameConditions
+                            },
+                            attributes: ['invoice_id', 'name', 'hsCode', 'productDescription'],
+                            group: ['invoice_id', 'name', 'hsCode', 'productDescription']
+                          });
+                          console.log('🔍 Word boundary search found:', matchingItems.length, 'items');
+                        } catch (error) {
+                          console.log('🔍 Word boundary search failed, trying partial matching as fallback...');
+                          // Fallback to partial matching if regex fails
+                          const partialConditions = [];
+                          productNames.forEach(productName => {
+                            const cleanProductName = productName.trim();
+                            if (cleanProductName) {
+                              partialConditions.push({
+                                [req.tenantDb.Sequelize.Op.or]: [
+                                  {
+                                    name: {
+                                      [req.tenantDb.Sequelize.Op.like]: `%${cleanProductName}%`
+                                    }
+                                  },
+                                  {
+                                    productDescription: {
+                                      [req.tenantDb.Sequelize.Op.like]: `%${cleanProductName}%`
+                                    }
+                                  }
+                                ]
+                              });
+                            }
+                          });
+                          
+                          if (partialConditions.length > 0) {
+                            matchingItems = await InvoiceItem.findAll({
+                              where: {
+                                [req.tenantDb.Sequelize.Op.or]: partialConditions
+                              },
+                              attributes: ['invoice_id', 'name', 'hsCode', 'productDescription'],
+                              group: ['invoice_id', 'name', 'hsCode', 'productDescription']
+                            });
+                            console.log('🔍 Partial name search found:', matchingItems.length, 'items');
+                          }
+                        }
+                      }
+                    }
+                    
+                    // Only try HS code search if no product names were specified
+                    if (matchingItems.length === 0 && productHsCodes.length > 0 && productNames.length === 0) {
+                      console.log('🔍 No product names specified, trying HS code only search...');
+                      
+                      const hsCodeConditions = [];
+                      productHsCodes.forEach(hsCode => {
+                        const cleanHsCode = hsCode.trim();
+                        if (cleanHsCode) {
+                          hsCodeConditions.push({
+                            hsCode: {
+                              [req.tenantDb.Sequelize.Op.eq]: cleanHsCode
+                            }
+                          });
+                        }
+                      });
+                      
+                      if (hsCodeConditions.length > 0) {
+                        matchingItems = await InvoiceItem.findAll({
+                          where: {
+                            [req.tenantDb.Sequelize.Op.or]: hsCodeConditions
+                          },
+                          attributes: ['invoice_id', 'name', 'hsCode', 'productDescription'],
+                          group: ['invoice_id', 'name', 'hsCode', 'productDescription']
+                        });
+                        console.log('🔍 HS code only search found:', matchingItems.length, 'items');
+                      }
+                    }
+                    
+                    console.log('🔍 Final matching items found:', matchingItems.length);
+                    console.log('🔍 Sample matching items:', matchingItems.slice(0, 5).map(item => ({
+                      invoice_id: item.invoice_id,
+                      name: item.name,
+                      hsCode: item.hsCode,
+                      productDescription: item.productDescription
+                    })));
+                    
+                    // Debug: Show all matching items to understand what's being returned
+                    console.log('🔍 All matching items details:', matchingItems.map(item => ({
+                      invoice_id: item.invoice_id,
+                      name: item.name,
+                      hsCode: item.hsCode,
+                      productDescription: item.productDescription,
+                      matches_search: productNames.includes(item.name) || productNames.includes(item.productDescription)
+                    })));
                     
                     const matchingInvoiceIds = matchingItems.map(item => item.invoice_id);
-                    console.log('Found matching invoice IDs:', matchingInvoiceIds);
+                    console.log('🔍 Found matching invoice IDs:', matchingInvoiceIds);
                     
                     if (matchingInvoiceIds.length > 0) {
                       whereClause.id = {
                         [req.tenantDb.Sequelize.Op.in]: matchingInvoiceIds
                       };
-                      console.log('Filtering invoices by matching invoice IDs');
+                      console.log('🔍 Filtering invoices by matching invoice IDs:', matchingInvoiceIds.length, 'invoices');
                     } else {
-                      console.log('No matching invoice items found, returning empty results');
+                      console.log('🔍 No matching invoice items found, returning empty results');
                       whereClause.id = -1; // This will return no results
                     }
                   } catch (error) {
@@ -1588,11 +1881,24 @@ export const getAllInvoices = async (req, res) => {
     }
 
 
-    console.log('Final whereClause:', JSON.stringify(whereClause, null, 2));
+    console.log('🔍 Final whereClause:', JSON.stringify(whereClause, null, 2));
     
     // Debug: Check total invoices in database
     const totalInvoices = await Invoice.count();
-    console.log('Total invoices in database:', totalInvoices);
+    console.log('🔍 Total invoices in database:', totalInvoices);
+    
+    // Debug: Check invoices without any filters to see what we have
+    const allInvoices = await Invoice.findAll({
+      limit: 5,
+      attributes: ['id', 'invoiceDate', 'buyerBusinessName', 'status'],
+      order: [['created_at', 'DESC']]
+    });
+    console.log('🔍 Sample invoices in database:', allInvoices.map(inv => ({
+      id: inv.id,
+      invoiceDate: inv.invoiceDate,
+      buyerBusinessName: inv.buyerBusinessName,
+      status: inv.status
+    })));
     
     // Debug: Check invoices without any filters
     const sampleInvoices = await Invoice.findAll({

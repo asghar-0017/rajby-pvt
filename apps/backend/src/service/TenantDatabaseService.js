@@ -240,17 +240,6 @@ class TenantDatabaseService {
       Invoice.hasMany(InvoiceItem, { foreignKey: "invoice_id" });
       InvoiceItem.belongsTo(Invoice, { foreignKey: "invoice_id" });
 
-      // Ensure schema is up to date (adds new columns on first access)
-      try {
-        await sequelize.sync({ alter: true });
-      } catch (syncError) {
-        console.error(
-          `Schema sync failed for tenant ${tenant.tenant_id} (${databaseName}):`,
-          syncError
-        );
-        // Continue without throwing to avoid blocking, but columns may be missing until restart
-      }
-
       // Store connection and models
       this.tenantConnections.set(databaseName, sequelize);
       this.tenantModels.set(databaseName, {
