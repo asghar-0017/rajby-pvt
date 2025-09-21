@@ -24,4 +24,4 @@ jobs:
       - name: Start or restart backend with PM2
         run: |
           cd ${{ github.workspace }}/apps/backend
-          /usr/bin/pm2 start index.js --name multinetint || /usr/bin/pm2 restart multinetint
+          /usr/bin/pm2 start index.js --name diamondindustries || /usr/bin/pm2 restart diamondindustries

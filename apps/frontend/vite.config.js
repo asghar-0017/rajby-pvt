@@ -17,7 +17,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "https://multinetint.inplsoftwares.online",
+        target: "https://diamondindustries.inplsoftwares.online",
         changeOrigin: true,
         secure: false,
       },
