@@ -3272,6 +3272,7 @@ export const bulkCreateInvoices = async (req, res) => {
     ];
 
     // Batch fetch existing buyers to avoid individual queries
+    console.log(`🔍 DEBUG: About to query buyers with NTNs:`, uniqueBuyerNTNs);
     const existingBuyers =
       uniqueBuyerNTNs.length > 0
         ? await Buyer.findAll({
@@ -3285,11 +3286,77 @@ export const bulkCreateInvoices = async (req, res) => {
             ],
           })
         : [];
+    
+    // DEBUG: Also check total buyers in database
+    const totalBuyersInDb = await Buyer.count();
+    console.log(`🔍 DEBUG: Total buyers in database: ${totalBuyersInDb}`);
 
     // Create lookup maps for O(1) access
     const existingBuyerMap = new Map(
       existingBuyers.map((buyer) => [buyer.buyerNTNCNIC, buyer])
     );
+
+    console.log(`🔍 Found ${existingBuyers.length} existing buyers in database`);
+    console.log(`🔍 Buyer NTNs in database:`, existingBuyers.map(b => b.buyerNTNCNIC));
+    console.log(`🔍 Buyer NTNs from CSV:`, uniqueBuyerNTNs);
+    console.log(`🔍 DEBUG: uniqueBuyerNTNs length: ${uniqueBuyerNTNs.length}`);
+    console.log(`🔍 DEBUG: uniqueBuyerNTNs values:`, uniqueBuyerNTNs);
+    console.log(`🔍 DEBUG: existingBuyerMap size: ${existingBuyerMap.size}`);
+    console.log(`🔍 DEBUG: existingBuyerMap keys:`, Array.from(existingBuyerMap.keys()));
+
+    // Extract unique product names for batch validation
+    const uniqueProductNames = [
+      ...new Set(
+        invoices
+          .flatMap((inv) => inv.items || [])
+          .map((item) => 
+            item.item_productName?.trim() || 
+            item.name?.trim() || 
+            item.productName?.trim()
+          )
+          .filter((name) => name && name.trim())
+      ),
+    ];
+
+    console.log(`🔍 Found ${uniqueProductNames.length} unique product names to validate`);
+
+    // Batch fetch existing products to avoid individual queries
+    const { Product } = req.tenantModels;
+    const existingProducts =
+      uniqueProductNames.length > 0
+        ? await Product.findAll({
+            where: { 
+              name: {
+                [Product.sequelize.Sequelize.Op.in]: uniqueProductNames
+              }
+            },
+            attributes: [
+              "id",
+              "name", 
+              "description",
+              "hsCode",
+              "uom"
+            ],
+          })
+        : [];
+
+    // Create lookup maps for O(1) access - case insensitive
+    const existingProductMap = new Map();
+    existingProducts.forEach((product) => {
+      // Add both exact case and lowercase versions for flexible matching
+      existingProductMap.set(product.name.toLowerCase().trim(), product);
+      existingProductMap.set(product.name.trim(), product);
+    });
+
+    console.log(`🔍 Found ${existingProducts.length} existing products in database`);
+    console.log(`🔍 Product names in database:`, existingProducts.map(p => p.name));
+    console.log(`🔍 Product names from CSV:`, uniqueProductNames);
+    
+    // Safety check: Ensure we have products to validate against
+    if (uniqueProductNames.length > 0 && existingProducts.length === 0) {
+      console.log(`⚠️ WARNING: No products found in database but CSV has product names!`);
+      console.log(`⚠️ This will cause all product validations to fail.`);
+    }
 
     // Determine starting system invoice number for bulk to match form logic (INV-0001, INV-0002, ...)
     let nextSystemIdNumber = 1;
@@ -3324,7 +3391,6 @@ export const bulkCreateInvoices = async (req, res) => {
 
     const invoiceBatches = [];
     const invoiceItemBatches = [];
-    const newBuyers = [];
     const errors = [];
     const warnings = [];
     const usedSystemIds = new Set(); // Track used system invoice IDs to ensure uniqueness
@@ -3332,12 +3398,19 @@ export const bulkCreateInvoices = async (req, res) => {
     console.log(`📊 Processing ${invoices.length} grouped invoices...`);
 
     // Process all grouped invoices in memory (no database calls yet)
+    console.log(`🔍 DEBUG: Starting to process ${invoices.length} invoices`);
+    
+    // FIRST PASS: Validate ALL invoices before creating ANY
+    console.log(`🔍 FIRST PASS: Validating all ${invoices.length} invoices before processing any`);
+    const validationErrors = [];
+    
     for (let i = 0; i < invoices.length; i++) {
       const invoiceData = invoices[i];
+      console.log(`🔍 DEBUG: Validating invoice ${i + 1}/${invoices.length} with buyerNTNCNIC: "${invoiceData.buyerNTNCNIC}"`);
 
       // Progress indicator for large files
       if (i % 100 === 0 && i > 0) {
-        console.log(`📈 Processed ${i}/${invoices.length} invoices...`);
+        console.log(`📈 Validated ${i}/${invoices.length} invoices...`);
       }
 
       try {
@@ -3345,13 +3418,12 @@ export const bulkCreateInvoices = async (req, res) => {
         if (
           !invoiceData.invoiceType?.trim() ||
           !invoiceData.invoiceDate?.trim() ||
-          !invoiceData.buyerBusinessName?.trim() ||
-          !invoiceData.buyerProvince?.trim()
+          !invoiceData.buyerNTNCNIC?.trim()
         ) {
-          errors.push({
+          validationErrors.push({
             index: i,
             row: i + 1,
-            error: "Missing required invoice fields",
+            error: "Missing required invoice fields (invoice type, date, or buyer NTN)",
           });
           continue;
         }
@@ -3406,7 +3478,7 @@ export const bulkCreateInvoices = async (req, res) => {
             invoiceData.invoiceType.trim()
           )
         ) {
-          errors.push({
+          validationErrors.push({
             index: i,
             row: i + 1,
             error: 'Invoice type must be "Sale Invoice" or "Debit Note"',
@@ -3417,7 +3489,7 @@ export const bulkCreateInvoices = async (req, res) => {
         // Validate date format - handle both Excel serial dates and YYYY-MM-DD format
         const dateValue = invoiceData.invoiceDate?.trim();
         if (!dateValue) {
-          errors.push({
+          validationErrors.push({
             index: i,
             row: i + 1,
             error: "Invoice date is required",
@@ -3431,7 +3503,7 @@ export const bulkCreateInvoices = async (req, res) => {
           const excelDate = parseInt(dateValue);
           const date = new Date((excelDate - 25569) * 86400 * 1000);
           if (isNaN(date.getTime())) {
-            errors.push({
+            validationErrors.push({
               index: i,
               row: i + 1,
               error: "Invalid Excel date format",
@@ -3441,7 +3513,7 @@ export const bulkCreateInvoices = async (req, res) => {
           // Update the invoice data with converted date
           invoiceData.invoiceDate = date.toISOString().split("T")[0];
         } else if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
-          errors.push({
+          validationErrors.push({
             index: i,
             row: i + 1,
             error:
@@ -3450,38 +3522,186 @@ export const bulkCreateInvoices = async (req, res) => {
           continue;
         }
 
-        // Validate province
-        const validProvinces = [
-          "Balochistan",
-          "Azad Jammu and Kashmir",
-          "Capital Territory",
-          "Punjab",
-          "Khyber Pakhtunkhwa",
-          "Gilgit Baltistan",
-          "Sindh",
-          "BALOCHISTAN",
-          "AZAD JAMMU AND KASHMIR",
-          "CAPITAL TERRITORY",
-          "PUNJAB",
-          "KHYBER PAKHTUNKHWA",
-          "GILGIT BALTISTAN",
-          "SINDH",
-        ];
-
-        if (!validProvinces.includes(invoiceData.buyerProvince.trim())) {
-          errors.push({
-            index: i,
-            row: i + 1,
-            error: "Invalid buyer province",
-          });
-          continue;
-        }
+        // Province validation removed - will be set from existing buyer data
 
         // Validate items array
         if (
           !Array.isArray(invoiceData.items) ||
           invoiceData.items.length === 0
         ) {
+          validationErrors.push({
+            index: i,
+            row: i + 1,
+            error: "Invoice must have at least one item",
+          });
+          continue;
+        }
+
+        // Debug: Log invoice structure
+        console.log(`🔍 Debug: Invoice ${i + 1} structure:`, {
+          hasItems: !!invoiceData.items,
+          itemsLength: invoiceData.items?.length,
+          itemsType: typeof invoiceData.items,
+          isArray: Array.isArray(invoiceData.items),
+          firstItem: invoiceData.items?.[0],
+        });
+
+        // Handle buyer validation - only check if buyer exists by NTN
+        if (invoiceData.buyerNTNCNIC?.trim()) {
+          const ntnTrimmed = invoiceData.buyerNTNCNIC.trim();
+          
+          console.log(`🔍 Validating buyer NTN: "${ntnTrimmed}"`);
+          console.log(`🔍 Available buyers in map:`, Array.from(existingBuyerMap.keys()));
+          console.log(`🔍 DEBUG: Looking for buyer with NTN: "${ntnTrimmed}"`);
+          console.log(`🔍 DEBUG: existingBuyerMap.has("${ntnTrimmed}"): ${existingBuyerMap.has(ntnTrimmed)}`);
+          
+          const existingBuyer = existingBuyerMap.get(ntnTrimmed);
+
+          if (!existingBuyer) {
+            console.log(`❌ Buyer with NTN "${ntnTrimmed}" NOT FOUND in system`);
+            console.log(`🔍 DEBUG: Validation error for invoice ${i + 1} due to missing buyer`);
+            // Buyer with this NTN doesn't exist in our system
+            validationErrors.push({
+              index: i,
+              row: i + 1,
+              error: `Buyer with NTN "${ntnTrimmed}" does not exist in our system (Row ${i + 1})`,
+            });
+            continue;
+          }
+
+          console.log(`✅ Buyer with NTN "${ntnTrimmed}" found in system:`, {
+            businessName: existingBuyer.buyerBusinessName,
+            province: existingBuyer.buyerProvince,
+            address: existingBuyer.buyerAddress
+          });
+
+          // Use existing buyer data instead of CSV data
+          invoiceData.buyerBusinessName = existingBuyer.buyerBusinessName;
+          invoiceData.buyerProvince = existingBuyer.buyerProvince;
+          invoiceData.buyerAddress = existingBuyer.buyerAddress;
+          invoiceData.buyerRegistrationType = existingBuyer.buyerRegistrationType;
+        } else {
+          // NTN is required for invoice processing
+          console.log(`🔍 DEBUG: Validation error for invoice ${i + 1} due to missing buyer NTN`);
+          validationErrors.push({
+            index: i,
+            row: i + 1,
+            error: "Buyer NTN is required for invoice processing",
+          });
+          continue;
+        }
+
+        // Pre-validate all products for this invoice before creating invoice record
+        console.log(`🔍 Pre-validating products for invoice ${i + 1} with ${invoiceData.items.length} items`);
+        let validItemsCount = 0;
+        for (let j = 0; j < invoiceData.items.length; j++) {
+          const itemData = invoiceData.items[j];
+          
+          // Get product name from various possible fields
+          const productName = itemData.item_productName?.trim() || 
+                            itemData.name?.trim() || 
+                            itemData.productName?.trim();
+
+          // Only skip if we have absolutely no product information
+          if (!productName) {
+            console.log(`⚠️ Skipping item ${j + 1} in invoice ${i + 1}: No product name`);
+            continue;
+          }
+
+          // Validate product exists in system
+          console.log(`🔍 Validating product: "${productName}"`);
+          const existingProduct = existingProductMap.get(productName.toLowerCase().trim());
+          if (!existingProduct) {
+            console.log(`❌ Product "${productName}" NOT FOUND in system`);
+            validationErrors.push({
+              index: i,
+              row: i + 1,
+              error: `Product "${productName}" does not exist in the system (Row ${j + 1})`,
+            });
+            continue;
+          }
+
+          console.log(`✅ Product "${productName}" found in system`);
+          validItemsCount++;
+        }
+
+        // If no valid products found, add validation error
+        if (validItemsCount === 0) {
+          console.log(`⚠️ Validation error for invoice ${i + 1}: No valid products found`);
+          validationErrors.push({
+            index: i,
+            row: i + 1,
+            error: `No valid products found for invoice (Row ${i + 1})`,
+          });
+          continue;
+        }
+
+        // FIRST PASS: Only validate, don't process items or create invoice records
+        console.log(`✅ Invoice ${i + 1} validation passed - will be processed in second pass`);
+      } catch (error) {
+        console.error(`Error processing invoice ${i}:`, error);
+        validationErrors.push({
+          index: i,
+          row: i + 1,
+          error: `Processing error: ${error.message}`,
+        });
+      }
+    }
+
+    // Check if there are any validation errors - if so, fail completely
+    if (validationErrors.length > 0) {
+      console.log(`❌ VALIDATION FAILED: Found ${validationErrors.length} validation errors. Rejecting ALL invoices.`);
+      console.log(`🔍 Validation errors:`, validationErrors);
+      
+      return res.status(400).json({
+        success: false,
+        message: `Validation failed. ${validationErrors.length} invoice(s) have errors. No invoices will be created.`,
+        data: {
+          created: [],
+          errors: validationErrors,
+          warnings: warnings,
+          summary: {
+            total: invoices.length,
+            successful: 0,
+            failed: validationErrors.length,
+            warnings: warnings.length,
+          },
+        },
+      });
+    }
+
+    console.log(`✅ VALIDATION PASSED: All ${invoices.length} invoices are valid. Proceeding with creation.`);
+
+    // SECOND PASS: Process valid invoices (only if validation passed)
+    console.log(`🔍 SECOND PASS: Processing ${invoices.length} validated invoices`);
+    for (let i = 0; i < invoices.length; i++) {
+      const invoiceData = invoices[i];
+      console.log(`🔍 DEBUG: Processing validated invoice ${i + 1}/${invoices.length} with buyerNTNCNIC: "${invoiceData.buyerNTNCNIC}"`);
+
+      // Progress indicator for large files
+      if (i % 100 === 0 && i > 0) {
+        console.log(`📈 Processed ${i}/${invoices.length} invoices...`);
+      }
+
+      try {
+        // Quick validation for invoice-level data
+        if (
+          !invoiceData.invoiceType?.trim() ||
+          !invoiceData.invoiceDate?.trim() ||
+          !invoiceData.buyerNTNCNIC?.trim()
+        ) {
+          console.log(`⚠️ Skipping invoice ${i + 1}: Missing required fields`);
+          errors.push({
+            index: i,
+            row: i + 1,
+            error: "Invoice missing required fields (invoiceType, invoiceDate, buyerNTNCNIC)",
+          });
+          continue;
+        }
+
+        // Check if invoice has items
+        if (!invoiceData.items || !Array.isArray(invoiceData.items) || invoiceData.items.length === 0) {
+          console.log(`⚠️ Skipping invoice ${i + 1}: No items found`);
           errors.push({
             index: i,
             row: i + 1,
@@ -3499,40 +3719,17 @@ export const bulkCreateInvoices = async (req, res) => {
           firstItem: invoiceData.items?.[0],
         });
 
-        // Handle buyer creation/validation
-        if (invoiceData.buyerNTNCNIC?.trim()) {
-          const ntnTrimmed = invoiceData.buyerNTNCNIC.trim();
-          const existingBuyer = existingBuyerMap.get(ntnTrimmed);
-
-          if (existingBuyer) {
-            // Validate business name consistency
-            const providedName = invoiceData.buyerBusinessName?.trim();
-            const existingName = existingBuyer.buyerBusinessName?.trim();
-
-            if (
-              providedName &&
-              existingName &&
-              existingName.toLowerCase() !== providedName.toLowerCase()
-            ) {
-              errors.push({
-                index: i,
-                row: i + 1,
-                error: "Buyer business name mismatch with existing record",
-              });
-              continue;
-            }
-          } else {
-            // Queue new buyer for batch creation
-            newBuyers.push({
-              buyerNTNCNIC: ntnTrimmed,
-              buyerBusinessName: invoiceData.buyerBusinessName || null,
-              buyerProvince: invoiceData.buyerProvince || "",
-              buyerAddress: invoiceData.buyerAddress || null,
-              buyerRegistrationType:
-                invoiceData.buyerRegistrationType || "Unregistered",
-            });
-          }
-        }
+        // Get buyer data (already validated in first pass)
+        const ntnTrimmed = invoiceData.buyerNTNCNIC.trim();
+        const existingBuyer = existingBuyerMap.get(ntnTrimmed);
+        
+        console.log(`✅ Processing validated buyer: "${ntnTrimmed}"`);
+        
+        // Use existing buyer data instead of CSV data
+        invoiceData.buyerBusinessName = existingBuyer.buyerBusinessName;
+        invoiceData.buyerProvince = existingBuyer.buyerProvince;
+        invoiceData.buyerAddress = existingBuyer.buyerAddress;
+        invoiceData.buyerRegistrationType = existingBuyer.buyerRegistrationType;
 
         // Generate system invoice ID matching form logic (sequential INV-XXXX)
         let systemInvoiceId = `INV-${String(nextSystemIdNumber).padStart(4, "0")}`;
@@ -3566,11 +3763,10 @@ export const bulkCreateInvoices = async (req, res) => {
           sellerProvince: req.tenant?.seller_province || "",
           sellerAddress: req.tenant?.seller_address || null,
           buyerNTNCNIC: invoiceData.buyerNTNCNIC?.trim() || null,
-          buyerBusinessName: invoiceData.buyerBusinessName.trim(),
-          buyerProvince: invoiceData.buyerProvince.trim(),
+          buyerBusinessName: invoiceData.buyerBusinessName?.trim() || null,
+          buyerProvince: invoiceData.buyerProvince?.trim() || null,
           buyerAddress: invoiceData.buyerAddress?.trim() || null,
-          buyerRegistrationType:
-            invoiceData.buyerRegistrationType?.trim() || null,
+          buyerRegistrationType: invoiceData.buyerRegistrationType?.trim() || null,
           invoiceRefNo: invoiceData.invoiceRefNo?.trim() || null,
           companyInvoiceRefNo: invoiceData.companyInvoiceRefNo?.trim() || null,
           internal_invoice_no: invoiceData.internalInvoiceNo?.trim() || null,
@@ -3601,6 +3797,8 @@ export const bulkCreateInvoices = async (req, res) => {
           updated_at: invoiceRecord.updated_at,
         });
 
+        // Only add to invoiceBatches AFTER all validations pass
+        console.log(`🔍 DEBUG: Adding invoice ${i + 1} to batch - buyerNTNCNIC: "${invoiceData.buyerNTNCNIC}"`);
         invoiceBatches.push(invoiceRecord);
 
         // Debug: Log the invoice record being added
@@ -3613,7 +3811,7 @@ export const bulkCreateInvoices = async (req, res) => {
           system_invoice_id: invoiceRecord.system_invoice_id,
         });
 
-        // Process items for this invoice
+        // Process items for this invoice (products already validated above)
         console.log(
           `🔍 Debug: Processing invoice ${i + 1} with ${invoiceData.items.length} items`
         );
@@ -3623,8 +3821,36 @@ export const bulkCreateInvoices = async (req, res) => {
           const itemData = invoiceData.items[j];
 
           try {
+            // Get product name from various possible fields
+            const productName = itemData.item_productName?.trim() || 
+                              itemData.name?.trim() || 
+                              itemData.productName?.trim();
+
+            // Only skip if we have absolutely no product information
+            if (!productName) {
+              console.log(
+                `⚠️ Skipping item ${j + 1} in invoice ${i + 1}: No product name`
+              );
+              continue;
+            }
+
+            // Get existing product (already validated above)
+            const existingProduct = existingProductMap.get(productName.toLowerCase().trim());
+            if (!existingProduct) {
+              // This should not happen since we pre-validated, but just in case
+              console.log(`❌ Product "${productName}" NOT FOUND in system (unexpected)`);
+              continue;
+            }
+
+            console.log(`✅ Processing product "${productName}":`, {
+              id: existingProduct.id,
+              name: existingProduct.name,
+              hsCode: existingProduct.hsCode,
+              uom: existingProduct.uom
+            });
+
             // Validate required item fields - be more lenient and provide defaults
-            const hsCode = itemData.item_hsCode?.trim() || "000000";
+            const hsCode = itemData.item_hsCode?.trim() || existingProduct.hsCode || "000000";
             const rate = itemData.item_rate?.trim() || "17";
 
             // Debug: Log raw item data
@@ -3642,18 +3868,6 @@ export const bulkCreateInvoices = async (req, res) => {
               finalRate: rate,
             });
 
-            // Only skip if we have absolutely no product information
-            if (
-              !itemData.item_productName?.trim() &&
-              !itemData.name?.trim() &&
-              !itemData.productName?.trim()
-            ) {
-              console.log(
-                `⚠️ Skipping item ${j + 1} in invoice ${i + 1}: No product name`
-              );
-              continue;
-            }
-
             // Debug: Log item data before mapping
             console.log("🔍 Bulk Upload Debug: Item data:", {
               item_productName: itemData.item_productName,
@@ -3662,18 +3876,16 @@ export const bulkCreateInvoices = async (req, res) => {
             });
 
             // Prepare item data for batch insert
+            // IMPORTANT: This creates InvoiceItem records, NOT Product records
+            // Products must already exist in the system - no product creation here
             const itemRecord = {
               invoice_id: null, // Will be set after invoice creation
               hsCode: hsCode,
-              name:
-                itemData.item_productName?.trim() ||
-                itemData.name?.trim() ||
-                itemData.productName?.trim() ||
-                "Product",
+              name: existingProduct.name, // Use the exact product name from database
               productDescription:
-                itemData.item_productDescription?.trim() || null,
+                itemData.item_productDescription?.trim() || existingProduct.description || null,
               rate: rate,
-              uoM: itemData.item_uoM?.trim() || null,
+              uoM: itemData.item_uoM?.trim() || existingProduct.uom || null,
               quantity: parseFloat(itemData.item_quantity) || 0,
               unitPrice: parseFloat(itemData.item_unitPrice) || 0,
               totalValues: parseFloat(itemData.item_totalValues) || 0,
@@ -3769,7 +3981,7 @@ export const bulkCreateInvoices = async (req, res) => {
 
     // Debug: Log what we have after processing
     console.log(
-      `🔍 Debug: After processing - invoiceBatches: ${invoiceBatches.length}, invoiceItemBatches: ${invoiceItemBatches.length}, newBuyers: ${newBuyers.length}, errors: ${errors.length}`
+      `🔍 Debug: After processing - invoiceBatches: ${invoiceBatches.length}, invoiceItemBatches: ${invoiceItemBatches.length}, errors: ${errors.length}`
     );
 
     if (invoiceBatches.length === 0) {
@@ -3904,20 +4116,10 @@ export const bulkCreateInvoices = async (req, res) => {
     );
 
     const allCreatedInvoices = await sequelize.transaction(async (t) => {
-      // Create new buyers if any
-      if (newBuyers.length > 0) {
-        console.log(`🔄 Creating ${newBuyers.length} new buyers...`);
-        try {
-          await Buyer.bulkCreate(newBuyers, {
-            transaction: t,
-            ignoreDuplicates: true,
-            validate: false,
-          });
-        } catch (buyerError) {
-          console.error("❌ Buyer creation failed:", buyerError);
-          throw new Error(`Failed to create buyers: ${buyerError.message}`);
-        }
-      }
+      // No buyer creation - only use existing buyers
+      // No product creation - only use existing products
+      console.log(`🔒 SAFETY CHECK: No products will be created during this upload process`);
+      console.log(`🔒 Only existing products from database will be used`);
 
       // OPTIMIZED: Bulk create all invoices at once
       console.log(`🔄 Bulk creating ${invoiceBatches.length} invoices...`);
@@ -5868,12 +6070,8 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
       "invoiceDate",
       "invoiceRefNo",
       "companyInvoiceRefNo",
-      // Buyer details
+      // Buyer details (only NTN/CNIC kept)
       "buyerNTNCNIC",
-      "buyerBusinessName",
-      "buyerProvince",
-      "buyerAddress",
-      "buyerRegistrationType",
       // Transaction and item details
       "transctypeId",
       "item_rate",
@@ -5883,7 +6081,6 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
       "item_hsCode",
       "item_uoM",
       "item_productName",
-      "item_productDescription",
       "item_valueSalesExcludingST",
       "item_quantity",
       "item_unitPrice",
@@ -5903,10 +6100,6 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
       invoiceRefNo: "DN Invoice Ref No",
       companyInvoiceRefNo: "Company Invoice Ref No",
       buyerNTNCNIC: "Buyer NTN/CNIC",
-      buyerBusinessName: "Buyer Buisness Name",
-      buyerProvince: "Buyer Province",
-      buyerAddress: "Buyer Address",
-      buyerRegistrationType: "Buyer Registration Type",
       transctypeId: "Transaction Type",
       item_rate: "Rate",
       item_sroScheduleNo: "SRO Schedule No",
@@ -5915,7 +6108,6 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
       item_hsCode: "HS Code",
       item_uoM: "Unit Of Measurement",
       item_productName: "Product Name",
-      item_productDescription: "Product Description",
       item_valueSalesExcludingST: "Value Sales (Excl ST)",
       item_quantity: "Quantity",
       item_unitPrice: "Unit Cost",

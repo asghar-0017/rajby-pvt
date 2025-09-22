@@ -244,11 +244,7 @@ const SalesReport = () => {
         }, 0) || 0;
 
         const taxAmount = invoice.items?.reduce((sum, item) => {
-          const quantity = parseFloat(item.quantity) || 0;
-          const unitPrice = parseFloat(item.unitPrice) || 0;
-          const itemTotal = quantity * unitPrice;
-          const taxRate = parseFloat(item.rate || item.salesTaxApplicable) || 0;
-          return sum + (itemTotal * taxRate / 100);
+          return sum + (parseFloat(item.salesTaxApplicable) || 0);
         }, 0) || 0;
 
         const hsCodes = [...new Set(invoice.items?.map(item => item.hsCode).filter(Boolean) || [])];
@@ -297,7 +293,30 @@ const SalesReport = () => {
           discount.toFixed(2),
           totalAmount.toFixed(2)
         ];
-      })
+      }),
+      // Add Sales Tax Sub-total row
+      [
+        '', '', '', '', '', '', '', '', '', '', '', 
+        'Sales Tax Sub-total:', 
+        invoices.reduce((total, invoice) => {
+          const taxAmount = invoice.items?.reduce((sum, item) => {
+            return sum + (parseFloat(item.salesTaxApplicable) || 0);
+          }, 0) || 0;
+          return total + taxAmount;
+        }, 0).toFixed(2),
+        '', '', '', '', '', ''
+      ],
+      // Add Total Value inc.St Sub-total row
+      [
+        '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 
+        'Total Value inc.St Sub-total:', 
+        invoices.reduce((total, invoice) => {
+          const totalAmount = invoice.items?.reduce((sum, item) => {
+            return sum + (parseFloat(item.totalValues) || 0);
+          }, 0) || 0;
+          return total + totalAmount;
+        }, 0).toFixed(2)
+      ]
     ];
 
     const csvContent = csvData.map(row => row.join(',')).join('\n');
@@ -447,11 +466,7 @@ const SalesReport = () => {
                   }, 0) || 0;
 
                   const taxAmount = invoice.items?.reduce((sum, item) => {
-                    const quantity = parseFloat(item.quantity) || 0;
-                    const unitPrice = parseFloat(item.unitPrice) || 0;
-                    const itemTotal = quantity * unitPrice;
-                    const taxRate = parseFloat(item.rate || item.salesTaxApplicable) || 0;
-                    return sum + (itemTotal * taxRate / 100);
+                    return sum + (parseFloat(item.salesTaxApplicable) || 0);
                   }, 0) || 0;
 
                   const extraTax = invoice.items?.reduce((sum, item) => parseFloat(item.extraTax) || 0, 0) || 0;
@@ -499,6 +514,37 @@ const SalesReport = () => {
                     </tr>
                   `;
                 }).join('')}
+                
+                <!-- Sales Tax Sub-total Row -->
+                <tr style="background-color: #f8f9fa; border-top: 2px solid #dee2e6; font-weight: bold;">
+                  <td colspan="12" style="text-align: right; padding: 12px 16px; color: #495057; border-bottom: 1px solid #dee2e6;">
+                    Sales Tax Sub-total:
+                  </td>
+                  <td style="color: #dc3545; font-weight: bold; padding: 12px 16px; border-bottom: 1px solid #dee2e6;">
+                    Rs ${invoices.reduce((total, invoice) => {
+                      const taxAmount = invoice.items?.reduce((sum, item) => {
+                        return sum + (parseFloat(item.salesTaxApplicable) || 0);
+                      }, 0) || 0;
+                      return total + taxAmount;
+                    }, 0).toFixed(2)}
+                  </td>
+                  <td colspan="6" style="padding: 12px 16px; border-bottom: 1px solid #dee2e6;"></td>
+                </tr>
+                
+                <!-- Total Value inc.St Sub-total Row -->
+                <tr style="background-color: #e8f4fd; font-weight: bold;">
+                  <td colspan="18" style="text-align: right; padding: 12px 16px; color: #495057; border-bottom: 2px solid #dee2e6;">
+                    Total Value inc.St Sub-total:
+                  </td>
+                  <td style="color: #1976d2; font-weight: bold; padding: 12px 16px; border-bottom: 2px solid #dee2e6;">
+                    Rs ${invoices.reduce((total, invoice) => {
+                      const totalAmount = invoice.items?.reduce((sum, item) => {
+                        return sum + (parseFloat(item.totalValues) || 0);
+                      }, 0) || 0;
+                      return total + totalAmount;
+                    }, 0).toFixed(2)}
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -506,6 +552,18 @@ const SalesReport = () => {
           <div class="summary">
             <h4>Summary</h4>
             <p><strong>Total Invoices:</strong> ${invoices.length}</p>
+            <p><strong>Sales Tax Sub-total:</strong> Rs ${invoices.reduce((total, invoice) => {
+              const taxAmount = invoice.items?.reduce((sum, item) => {
+                return sum + (parseFloat(item.salesTaxApplicable) || 0);
+              }, 0) || 0;
+              return total + taxAmount;
+            }, 0).toFixed(2)}</p>
+            <p><strong>Total Value inc.St Sub-total:</strong> Rs ${invoices.reduce((total, invoice) => {
+              const totalAmount = invoice.items?.reduce((sum, item) => {
+                return sum + (parseFloat(item.totalValues) || 0);
+              }, 0) || 0;
+              return total + totalAmount;
+            }, 0).toFixed(2)}</p>
             <p><strong>Generated on:</strong> ${new Date().toLocaleString()}</p>
           </div>
         </body>
@@ -1152,30 +1210,29 @@ const SalesReport = () => {
                 </Box>
               </Box>
             </Box>
-          )}
+          </CardContent>
+        </Card>
+      )}
 
-          {/* Status Filter Display */}
-          {selectedStatus && selectedStatus !== 'All' && (
-            <Box sx={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: 2, 
-              p: 2, 
-              backgroundColor: '#f8f9fa', 
-              borderRadius: 1, 
-              border: '1px solid #dee2e6',
-              mb: 2
-            }}>
-              <Box sx={{ 
-                fontSize: '1.2rem', 
-                color: '#6c757d',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: 32,
-                height: 32,
-                backgroundColor: '#e9ecef',
-                borderRadius: '50%'
+      {/* Status Filter Display */}
+      {selectedStatus && selectedStatus !== 'All' && (
+        <Card
+          sx={{
+            mb: 4,
+            backgroundColor: '#f8f9fa',
+            border: '1px solid #e0e0e0',
+            borderRadius: 2,
+            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+          }}
+        >
+          <CardContent sx={{ p: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+              <Box sx={{
+                p: 1.5,
+                borderRadius: 1,
+                backgroundColor: '#6c757d',
+                color: 'white',
+                mt: 0.5
               }}>
                 📋
               </Box>
@@ -1200,7 +1257,6 @@ const SalesReport = () => {
                 </Box>
               </Box>
             </Box>
-          )}
           </CardContent>
         </Card>
       )}
@@ -1432,13 +1488,9 @@ const SalesReport = () => {
                     return sum + (quantity * unitPrice);
                   }, 0) || 0;
 
-                  // Calculate tax amount
+                  // Calculate tax amount using pre-calculated salesTaxApplicable field
                   const taxAmount = invoice.items?.reduce((sum, item) => {
-                    const quantity = parseFloat(item.quantity) || 0;
-                    const unitPrice = parseFloat(item.unitPrice) || 0;
-                    const itemTotal = quantity * unitPrice;
-                    const taxRate = parseFloat(item.rate || item.salesTaxApplicable) || 0;
-                    return sum + (itemTotal * taxRate / 100);
+                    return sum + (parseFloat(item.salesTaxApplicable) || 0);
                   }, 0) || 0;
 
                   // Get unique HS codes
@@ -1594,6 +1646,70 @@ const SalesReport = () => {
                     </TableRow>
                   );
                 })}
+                
+                {/* Sales Tax Sub-total Row */}
+                {invoices.length > 0 && (
+                  <TableRow sx={{ 
+                    backgroundColor: '#f8f9fa',
+                    borderTop: '2px solid #dee2e6',
+                    '& .MuiTableCell-root': {
+                      padding: '12px 16px',
+                      fontSize: '0.8rem',
+                      fontWeight: 'bold',
+                      borderBottom: '1px solid #dee2e6'
+                    }
+                  }}>
+                    <TableCell colSpan={12} sx={{ textAlign: 'right', color: '#495057' }}>
+                      Sales Tax Sub-total:
+                    </TableCell>
+                    <TableCell sx={{ 
+                      color: 'error.main',
+                      fontSize: '0.8rem',
+                      fontWeight: 'bold'
+                    }}>
+                      {formatCurrency(
+                        invoices.reduce((total, invoice) => {
+                          const taxAmount = invoice.items?.reduce((sum, item) => {
+                            return sum + (parseFloat(item.salesTaxApplicable) || 0);
+                          }, 0) || 0;
+                          return total + taxAmount;
+                        }, 0)
+                      )}
+                    </TableCell>
+                    <TableCell colSpan={6}></TableCell>
+                  </TableRow>
+                )}
+                
+                {/* Total Value inc.St Sub-total Row */}
+                {invoices.length > 0 && (
+                  <TableRow sx={{ 
+                    backgroundColor: '#e8f4fd',
+                    '& .MuiTableCell-root': {
+                      padding: '12px 16px',
+                      fontSize: '0.8rem',
+                      fontWeight: 'bold',
+                      borderBottom: '2px solid #dee2e6'
+                    }
+                  }}>
+                    <TableCell colSpan={18} sx={{ textAlign: 'right', color: '#495057' }}>
+                      Total Value inc.St Sub-total:
+                    </TableCell>
+                    <TableCell sx={{ 
+                      color: 'primary.main',
+                      fontSize: '0.8rem',
+                      fontWeight: 'bold'
+                    }}>
+                      {formatCurrency(
+                        invoices.reduce((total, invoice) => {
+                          const totalAmount = invoice.items?.reduce((sum, item) => {
+                            return sum + (parseFloat(item.totalValues) || 0);
+                          }, 0) || 0;
+                          return total + totalAmount;
+                        }, 0)
+                      )}
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </TableContainer>

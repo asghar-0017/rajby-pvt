@@ -378,169 +378,7 @@ export default function BasicTable() {
     }
   };
 
-  // NEW: Function to automatically create missing products from invoice data
-  const createMissingProducts = async (invoicesData) => {
-    try {
-      // Extract all unique products from invoice items
-      const allProducts = new Set();
-      const productDetails = new Map(); // Store product details for creation
-
-      invoicesData.forEach((invoice) => {
-        if (invoice.items && Array.isArray(invoice.items)) {
-          invoice.items.forEach((item) => {
-            // Clean HS code to extract only the numeric part (e.g., "8432.1010 - DESC" -> "8432.1010")
-            const rawHsCode = item.item_hsCode || item.hsCode || "";
-            const cleanedHsCode =
-              typeof rawHsCode === "string" && rawHsCode.includes(" - ")
-                ? rawHsCode.split(" - ")[0].trim()
-                : String(rawHsCode).trim();
-
-            // Create a unique key for each product
-            const productKey = `${item.item_name || item.name || ""}-${cleanedHsCode}`;
-
-            if (productKey && productKey !== "-") {
-              allProducts.add(productKey);
-
-              // Store product details for creation
-              if (!productDetails.has(productKey)) {
-                productDetails.set(productKey, {
-                  name: item.item_name || item.name || "",
-                  hsCode: cleanedHsCode,
-                  description:
-                    item.item_description ||
-                    item.productDescription ||
-                    item.description ||
-                    "",
-                  uom: item.item_uom || item.billOfLadingUoM || item.uom || "",
-                  // Add other product fields as needed
-                });
-              }
-            }
-          });
-        }
-      });
-
-      if (allProducts.size === 0) {
-        console.log("No products found in invoice data");
-        return;
-      }
-
-      console.log(`Found ${allProducts.size} unique products in invoice data`);
-
-      // Get existing products to check which ones need to be created
-      const existingProductsResponse = await api.get(
-        `/tenant/${selectedTenant.tenant_id}/products`
-      );
-
-      if (!existingProductsResponse.data.success) {
-        console.error("Failed to fetch existing products");
-        return;
-      }
-
-      const existingProducts = existingProductsResponse.data.data || [];
-      const existingProductKeys = new Set();
-
-      existingProducts.forEach((product) => {
-        const key = `${product.name}-${product.hsCode}`;
-        existingProductKeys.add(key);
-      });
-
-      // Find products that don't exist
-      const missingProducts = [];
-      productDetails.forEach((details, key) => {
-        if (!existingProductKeys.has(key) && details.name && details.hsCode) {
-          missingProducts.push(details);
-        }
-      });
-
-      if (missingProducts.length === 0) {
-        console.log("All products already exist in the system");
-        return;
-      }
-
-      console.log(
-        `Found ${missingProducts.length} missing products to create:`,
-        missingProducts
-      );
-
-      // Create missing products
-      const createdProducts = [];
-      const failedProducts = [];
-
-      for (const product of missingProducts) {
-        try {
-          // Resolve UOM via HS Code if not provided
-          let resolvedUom = product.uom && String(product.uom).trim();
-          if (!resolvedUom && product.hsCode) {
-            try {
-              const uoms = await hsCodeCache.getUOM(product.hsCode);
-              if (Array.isArray(uoms) && uoms.length > 0) {
-                resolvedUom = uoms[0].description || uoms[0].uoM || "";
-              }
-            } catch (_) {
-              // ignore, fallback below
-            }
-          }
-
-          const productData = {
-            name: product.name,
-            hsCode: product.hsCode,
-            description: product.description || product.name,
-            uom: resolvedUom || "PCS", // Fallback only if nothing resolved
-            // Add other required fields with defaults
-            category: "Auto-Created",
-            isActive: true,
-            // You can add more fields as needed
-          };
-
-          const createResponse = await api.post(
-            `/tenant/${selectedTenant.tenant_id}/products`,
-            productData
-          );
-
-          if (createResponse.data.success) {
-            createdProducts.push(product.name);
-            console.log(`Successfully created product: ${product.name}`);
-          } else {
-            failedProducts.push(product.name);
-            console.error(
-              `Failed to create product ${product.name}:`,
-              createResponse.data.message
-            );
-          }
-        } catch (error) {
-          failedProducts.push(product.name);
-          console.error(`Error creating product ${product.name}:`, error);
-        }
-      }
-
-      // Show results
-      if (createdProducts.length > 0) {
-        toast.success(
-          `Successfully created ${createdProducts.length} new products: ${createdProducts.slice(0, 3).join(", ")}${createdProducts.length > 3 ? "..." : ""}`,
-          { autoClose: 5000 }
-        );
-        console.log(
-          `Created ${createdProducts.length} products:`,
-          createdProducts
-        );
-      }
-
-      if (failedProducts.length > 0) {
-        toast.warning(
-          `Failed to create ${failedProducts.length} products: ${failedProducts.slice(0, 3).join(", ")}${failedProducts.length > 3 ? "..." : ""}`,
-          { autoClose: 5000 }
-        );
-        console.log(
-          `Failed to create ${failedProducts.length} products:`,
-          failedProducts
-        );
-      }
-    } catch (error) {
-      console.error("Error in createMissingProducts:", error);
-      throw error;
-    }
-  };
+  // Product creation removed - only use existing products
 
   const handleBulkUpload = async (invoicesData, options = {}) => {
     const {
@@ -589,15 +427,7 @@ export default function BasicTable() {
             );
           }
 
-          // Create missing products
-          try {
-            await createMissingProducts(invoicesData);
-          } catch (productError) {
-            console.error("Error creating missing products:", productError);
-            toast.warning(
-              "Invoices uploaded successfully, but some products could not be created automatically."
-            );
-          }
+          // Product creation removed - only use existing products
 
           return result;
         } else {
@@ -630,15 +460,7 @@ export default function BasicTable() {
             );
           }
 
-          // Create missing products
-          try {
-            await createMissingProducts(invoicesData);
-          } catch (productError) {
-            console.error("Error creating missing products:", productError);
-            toast.warning(
-              "Invoices uploaded successfully, but some products could not be created automatically."
-            );
-          }
+          // Product creation removed - only use existing products
 
           return response.data;
         } else {
