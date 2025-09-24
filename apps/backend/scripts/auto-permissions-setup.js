@@ -227,10 +227,7 @@ class AutoPermissionsSetup {
       // Setup permissions
       await this.setupPermissions();
       
-      // Setup default roles
-      await this.setupDefaultRoles();
-      
-      // Setup role permissions
+      // Setup role permissions (only for existing roles)
       await this.setupRolePermissions();
       
       const duration = Date.now() - startTime;
