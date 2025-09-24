@@ -26,6 +26,7 @@ import RolePermission from '../src/model/mysql/RolePermission.js';
 import AuditLog from '../src/model/mysql/AuditLog.js';
 import AuditPermission from '../src/model/mysql/AuditPermission.js';
 import UserTenantAssignment from '../src/model/mysql/UserTenantAssignment.js';
+import AutoPermissionsSetup from './auto-permissions-setup.js';
 
 dotenv.config();
 
@@ -37,6 +38,8 @@ class AutoSchemaSync {
     this.results = {
       tablesCreated: 0,
       columnsAdded: 0,
+      permissionsCreated: 0,
+      permissionsUpdated: 0,
       errors: [],
       warnings: []
     };
@@ -228,6 +231,33 @@ class AutoSchemaSync {
     }
   }
 
+  /**
+   * Setup permissions and roles
+   */
+  async setupPermissionsAndRoles() {
+    try {
+      this.log('Setting up permissions and roles...');
+      
+      const permissionsSetup = new AutoPermissionsSetup();
+      permissionsSetup.silent = this.silent;
+      
+      const result = await permissionsSetup.run();
+      
+      if (result.success) {
+        this.results.permissionsCreated += result.results.permissionsCreated;
+        this.results.permissionsUpdated += result.results.permissionsUpdated;
+        this.results.errors.push(...result.results.errors);
+        this.log('Permissions and roles setup completed successfully');
+      } else {
+        this.log(`Permissions setup failed: ${result.error}`, 'error');
+        this.results.errors.push(`Permissions setup: ${result.error}`);
+      }
+    } catch (error) {
+      this.log(`Error setting up permissions: ${error.message}`, 'error');
+      this.results.errors.push(`Permissions setup: ${error.message}`);
+    }
+  }
+
   async run(options = {}) {
     const { keepConnectionOpen = false } = options;
     const startTime = Date.now();
@@ -247,6 +277,9 @@ class AutoSchemaSync {
       // Sync tenant databases
       await this.syncTenantDatabases();
 
+      // Setup permissions and roles
+      await this.setupPermissionsAndRoles();
+
       const duration = Date.now() - startTime;
       this.log(`Schema synchronization completed in ${duration}ms`);
       
@@ -255,6 +288,8 @@ class AutoSchemaSync {
         console.log(`\n📊 Schema Sync Summary:`);
         console.log(`   Tables synchronized: ${this.results.tablesCreated}`);
         console.log(`   Columns added: ${this.results.columnsAdded}`);
+        console.log(`   Permissions created: ${this.results.permissionsCreated}`);
+        console.log(`   Permissions updated: ${this.results.permissionsUpdated}`);
         if (this.results.warnings.length > 0) {
           console.log(`   Warnings: ${this.results.warnings.length}`);
         }
