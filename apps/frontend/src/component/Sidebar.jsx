@@ -50,6 +50,8 @@ import { ExpandLess, ExpandMore } from "@mui/icons-material";
 import Footer from "./Footer";
 import PasswordUpdateMenuMount from "./PasswordUpdateMenuMount";
 import ProfileMenuMount from "./ProfileMenuMount";
+import PermissionGate from "./PermissionGate";
+import { usePermissions } from "../hooks/usePermissions";
 // import productionForm  from "../pages/productionForm"
 
 const drawerWidth = 240;
@@ -116,48 +118,99 @@ export default function Sidebar({ onLogout }) {
   const [open, setOpen] = React.useState(true); // Set to true for permanently open
   const { user } = useAuth();
   const { selectedTenant, isTenantSelected } = useTenantSelection();
+  const { hasPermission } = usePermissions();
   const navigate = useNavigate();
   const location = useLocation();
 
   const navItems = [
-    { name: "Dashboard", href: "/", icon: <RiHome2Fill /> },
-    { name: "Create Invoice", href: "/create-invoice", icon: <IoIosCreate /> },
-    { name: "Invoice List", href: "/your-invoices", icon: <BsFileTextFill /> },
-    { name: "Buyers", href: "/buyers", icon: <FaWallet /> },
-    { name: "Products", href: "/products", icon: <InboxIcon /> },
+    { name: "Dashboard", href: "/dashboard", icon: <RiHome2Fill />, permission: "dashboard.view" },
+    { name: "Create Invoice", href: "/create-invoice", icon: <IoIosCreate />, permission: "invoice.create" },
+    { name: "Invoice List", href: "/your-invoices", icon: <BsFileTextFill />, permission: "invoice.view" },
+    { name: "Buyers", href: "/buyers", icon: <FaWallet />, permission: "buyer.view" },
+    { name: "Products", href: "/products", icon: <InboxIcon />, permission: "product.view" },
+    { name: "User Management", href: "/user-management", icon: <FaUsers />, permission: "read_user" },
     { 
       name: "Reports", 
       icon: <FaChartBar />, 
       hasSubmenu: true,
+      permission: "report.view",
       submenu: [
-        { name: "Sales Tax Summary", href: "/sales-report", icon: <FaChartBar /> }
+        { name: "Sales Tax Summary", href: "/sales-report", icon: <FaChartBar />, permission: "report.view" }
       ]
     },
     { name: "logout" },
   ];
 
-  // Add "Select Company" for admins or users with multiple company assignments
-  if (user?.role === "admin") {
+  // Custom function to check if a navigation item should be shown
+  const shouldShowNavItem = (item) => {
+    // If no permission required, always show
+    if (!item.permission) return true;
+    
+    // Check if user has the required permission
+    const hasRequiredPermission = hasPermission(item.permission);
+    
+    // Admin users should see all menu items
+    if (user?.role === 'admin' || user?.type === 'admin') {
+      return hasRequiredPermission;
+    }
+    
+    // Special logic for Products, Buyers, and Invoice List when user has report access
+    if (item.name === "Products" && item.permission === "product.view") {
+      // Hide Products if user has report access (they get product.view implicitly)
+      const hasReportAccess = hasPermission("report.view");
+      return hasRequiredPermission && !hasReportAccess;
+    }
+    
+    if (item.name === "Buyers" && item.permission === "buyer.view") {
+      // Hide Buyers if user has report access (they get buyer.view implicitly)
+      const hasReportAccess = hasPermission("report.view");
+      return hasRequiredPermission && !hasReportAccess;
+    }
+    
+    if (item.name === "Invoice List" && item.permission === "invoice.view") {
+      // Hide Invoice List if user has report access (they get invoice.view implicitly)
+      const hasReportAccess = hasPermission("report.view");
+      return hasRequiredPermission && !hasReportAccess;
+    }
+    
+    // For all other items, use normal permission check
+    return hasRequiredPermission;
+  };
+
+  // Add navigation items for users with multiple company assignments
+  // For admin users: show if they have access to multiple companies (they have access to all)
+  // For regular users: show if they have multiple companies assigned
+  const shouldShowCompanySelection = () => {
+    // Debug: Log user data in sidebar
+    console.log("Sidebar: Current user:", user);
+    console.log("Sidebar: User role:", user?.role);
+    console.log("Sidebar: User type:", user?.type);
+    console.log("Sidebar: Assigned tenants:", user?.assignedTenants);
+    console.log("Sidebar: Number of assigned tenants:", user?.assignedTenants?.length || 0);
+
+    if (user?.role === 'admin' || user?.type === 'admin') {
+      // Admin users have access to all companies, so always show the option
+      // The TenantManagement page will fetch all companies for admin users
+      console.log("Sidebar: Admin user detected - showing Select Company");
+      return true;
+    } else {
+      // Regular users: show only if they have multiple companies assigned
+      const hasMultipleCompanies = Boolean(
+        user?.assignedTenants &&
+        Array.isArray(user.assignedTenants) &&
+        user.assignedTenants.length > 1
+      );
+      console.log("Sidebar: Regular user - has multiple companies:", hasMultipleCompanies);
+      return hasMultipleCompanies;
+    }
+  };
+
+  if (shouldShowCompanySelection()) {
+    // User with multiple company access - show tenant selection without permission check
     navItems.unshift({
       name: "Select Company",
       href: "/tenant-management",
-      icon: <FaBusinessTime />,
-    });
-    navItems.splice(1, 0, {
-      name: "User Management",
-      href: "/user-management",
-      icon: <FaUsers />,
-    });
-  } else if (
-    user?.role === "user" &&
-    user?.assignedTenants &&
-    user.assignedTenants.length > 1
-  ) {
-    // Regular user with multiple company assignments
-    navItems.unshift({
-      name: "Select Company",
-      href: "/tenant-management",
-      icon: <FaBusinessTime />,
+      icon: <FaBusinessTime />
     });
   }
 
@@ -313,170 +366,175 @@ export default function Sidebar({ onLogout }) {
                 </ListItemButton>
               </ListItem>
             ) : hasSubmenu ? (
-              <React.Fragment key={item.name}>
-                <ListItem disablePadding>
-                  <ListItemButton
-                    onClick={handleReportsToggle}
-                    sx={{
-                      borderRadius: "8px",
-                      margin: "4px 8px",
-                      backgroundColor: "transparent",
-                      "&:hover": {
-                        backgroundColor: "#2A69B0",
-                        "& .MuiListItemIcon-root": {
-                          color: "white",
-                        },
-                        "& .MuiTypography-root": {
-                          color: "white",
-                        },
-                      },
-                    }}
-                  >
-                    <ListItemIcon sx={{ color: "black" }}>
-                      {item.icon ? (
-                        React.cloneElement(item.icon, {
-                          style: { fontSize: 24 },
-                        })
-                      ) : (
-                        <InboxIcon sx={{ fontSize: 24 }} />
-                      )}
-                    </ListItemIcon>
-                    <ListItemText
-                      primary={item.name}
+              shouldShowNavItem(item) ? (
+                <React.Fragment key={item.name}>
+                  <ListItem disablePadding>
+                    <ListItemButton
+                      onClick={handleReportsToggle}
                       sx={{
-                        "& .MuiTypography-root": {
-                          color: "black",
-                          fontWeight: 700,
-                          fontFamily: '"Kumbh Sans", sans-serif !important',
+                        borderRadius: "8px",
+                        margin: "4px 8px",
+                        backgroundColor: "transparent",
+                        "&:hover": {
+                          backgroundColor: "#2A69B0",
+                          "& .MuiListItemIcon-root": {
+                            color: "white",
+                          },
+                          "& .MuiTypography-root": {
+                            color: "white",
+                          },
                         },
-                      }}
-                      style={{ fontFamily: '"Kumbh Sans", sans-serif' }}
-                    />
-                    {reportsOpen ? <ExpandLess /> : <ExpandMore />}
-                  </ListItemButton>
-                </ListItem>
-                <Collapse in={reportsOpen} timeout="auto" unmountOnExit>
-                  <List component="div" disablePadding>
-                    {item.submenu.map((subItem) => (
-                      <NavLink
-                        key={subItem.name}
-                        to={subItem.href}
-                        style={{ textDecoration: "none", color: "inherit" }}
-                      >
-                        <ListItem disablePadding>
-                          <ListItemButton
-                            sx={{
-                              borderRadius: "8px",
-                              margin: "4px 8px 4px 32px",
-                              backgroundColor:
-                                location.pathname === subItem.href
-                                  ? "#2A69B0"
-                                  : "transparent",
-                              "&:hover": {
-                                backgroundColor: "#2A69B0",
-                                "& .MuiListItemIcon-root": {
-                                  color: "white",
-                                },
-                                "& .MuiTypography-root": {
-                                  color: "white",
-                                },
-                              },
-                            }}
-                          >
-                            <ListItemIcon
-                              sx={{
-                                color:
-                                  location.pathname === subItem.href ? "white" : "black",
-                              }}
-                            >
-                              {subItem.icon ? (
-                                React.cloneElement(subItem.icon, {
-                                  style: { fontSize: 20 },
-                                })
-                              ) : (
-                                <InboxIcon sx={{ fontSize: 20 }} />
-                              )}
-                            </ListItemIcon>
-                            <ListItemText
-                              primary={subItem.name}
-                              sx={{
-                                "& .MuiTypography-root": {
-                                  color:
-                                    location.pathname === subItem.href ? "white" : "black",
-                                  fontWeight: 600,
-                                  fontFamily: '"Kumbh Sans", sans-serif !important',
-                                  fontSize: '0.75rem',
-                                  whiteSpace: 'nowrap',
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                },
-                              }}
-                              style={{ fontFamily: '"Kumbh Sans", sans-serif' }}
-                            />
-                          </ListItemButton>
-                        </ListItem>
-                      </NavLink>
-                    ))}
-                  </List>
-                </Collapse>
-              </React.Fragment>
-            ) : (
-              <NavLink
-                key={item.name}
-                to={item.href}
-                style={{ textDecoration: "none", color: "inherit" }}
-              >
-                <ListItem disablePadding>
-                  <ListItemButton
-                    sx={{
-                      borderRadius: "8px",
-                      margin: "4px 8px",
-                      backgroundColor:
-                        location.pathname === item.href
-                          ? "#2A69B0"
-                          : "transparent",
-                      "&:hover": {
-                        backgroundColor: "#2A69B0",
-                        "& .MuiListItemIcon-root": {
-                          color: "white",
-                        },
-                        "& .MuiTypography-root": {
-                          color: "white",
-                        },
-                      },
-                    }}
-                  >
-                    <ListItemIcon
-                      sx={{
-                        color:
-                          location.pathname === item.href ? "white" : "black",
                       }}
                     >
-                      {item.icon ? (
-                        React.cloneElement(item.icon, {
-                          style: { fontSize: 24 },
-                        })
-                      ) : index % 2 === 0 ? (
-                        <InboxIcon sx={{ fontSize: 24 }} />
-                      ) : (
-                        <MailIcon sx={{ fontSize: 24 }} />
-                      )}
-                    </ListItemIcon>
-                    <ListItemText
-                      primary={item.name}
+                      <ListItemIcon sx={{ color: "black" }}>
+                        {item.icon ? (
+                          React.cloneElement(item.icon, {
+                            style: { fontSize: 24 },
+                          })
+                        ) : (
+                          <InboxIcon sx={{ fontSize: 24 }} />
+                        )}
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={item.name}
+                        sx={{
+                          "& .MuiTypography-root": {
+                            color: "black",
+                            fontWeight: 700,
+                            fontFamily: '"Kumbh Sans", sans-serif !important',
+                          },
+                        }}
+                        style={{ fontFamily: '"Kumbh Sans", sans-serif' }}
+                      />
+                      {reportsOpen ? <ExpandLess /> : <ExpandMore />}
+                    </ListItemButton>
+                  </ListItem>
+                  <Collapse in={reportsOpen} timeout="auto" unmountOnExit>
+                    <List component="div" disablePadding>
+                      {item.submenu.map((subItem) => (
+                        <PermissionGate key={subItem.name} permission={subItem.permission} hide>
+                          <NavLink
+                            to={subItem.href}
+                            style={{ textDecoration: "none", color: "inherit" }}
+                          >
+                            <ListItem disablePadding>
+                              <ListItemButton
+                                sx={{
+                                  borderRadius: "8px",
+                                  margin: "4px 8px 4px 32px",
+                                  backgroundColor:
+                                    location.pathname === subItem.href
+                                      ? "#2A69B0"
+                                      : "transparent",
+                                  "&:hover": {
+                                    backgroundColor: "#2A69B0",
+                                    "& .MuiListItemIcon-root": {
+                                      color: "white",
+                                    },
+                                    "& .MuiTypography-root": {
+                                      color: "white",
+                                    },
+                                  },
+                                }}
+                              >
+                                <ListItemIcon
+                                  sx={{
+                                    color:
+                                      location.pathname === subItem.href ? "white" : "black",
+                                  }}
+                                >
+                                  {subItem.icon ? (
+                                    React.cloneElement(subItem.icon, {
+                                      style: { fontSize: 20 },
+                                    })
+                                  ) : (
+                                    <InboxIcon sx={{ fontSize: 20 }} />
+                                  )}
+                                </ListItemIcon>
+                                <ListItemText
+                                  primary={subItem.name}
+                                  sx={{
+                                    "& .MuiTypography-root": {
+                                      color:
+                                        location.pathname === subItem.href ? "white" : "black",
+                                      fontWeight: 600,
+                                      fontFamily: '"Kumbh Sans", sans-serif !important',
+                                      fontSize: '0.75rem',
+                                      whiteSpace: 'nowrap',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                    },
+                                  }}
+                                  style={{ fontFamily: '"Kumbh Sans", sans-serif' }}
+                                />
+                              </ListItemButton>
+                            </ListItem>
+                          </NavLink>
+                        </PermissionGate>
+                      ))}
+                    </List>
+                  </Collapse>
+                </React.Fragment>
+              ) : null
+            ) : (
+              shouldShowNavItem(item) ? (
+                <NavLink
+                  key={item.name}
+                  to={item.href}
+                  style={{ textDecoration: "none", color: "inherit" }}
+                >
+                  <ListItem disablePadding>
+                    <ListItemButton
                       sx={{
-                        "& .MuiTypography-root": {
-                          color:
-                            location.pathname === item.href ? "white" : "black",
-                          fontWeight: 700,
-                          fontFamily: '"Kumbh Sans", sans-serif !important',
+                        borderRadius: "8px",
+                        margin: "4px 8px",
+                        backgroundColor:
+                          location.pathname === item.href
+                            ? "#2A69B0"
+                            : "transparent",
+                        "&:hover": {
+                          backgroundColor: "#2A69B0",
+                          "& .MuiListItemIcon-root": {
+                            color: "white",
+                          },
+                          "& .MuiTypography-root": {
+                            color: "white",
+                          },
                         },
                       }}
-                      style={{ fontFamily: '"Kumbh Sans", sans-serif' }}
-                    />
-                  </ListItemButton>
-                </ListItem>
-              </NavLink>
+                    >
+                      <ListItemIcon
+                        sx={{
+                          color:
+                            location.pathname === item.href ? "white" : "black",
+                        }}
+                      >
+                        {item.icon ? (
+                          React.cloneElement(item.icon, {
+                            style: { fontSize: 24 },
+                          })
+                        ) : index % 2 === 0 ? (
+                          <InboxIcon sx={{ fontSize: 24 }} />
+                        ) : (
+                          <MailIcon sx={{ fontSize: 24 }} />
+                        )}
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={item.name}
+                        sx={{
+                          "& .MuiTypography-root": {
+                            color:
+                              location.pathname === item.href ? "white" : "black",
+                            fontWeight: 700,
+                            fontFamily: '"Kumbh Sans", sans-serif !important',
+                          },
+                        }}
+                        style={{ fontFamily: '"Kumbh Sans", sans-serif' }}
+                      />
+                    </ListItemButton>
+                  </ListItem>
+                </NavLink>
+              ) : null
             );
           })}
         </List>

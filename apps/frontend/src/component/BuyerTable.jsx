@@ -20,6 +20,7 @@ import {
 import SearchIcon from "@mui/icons-material/Search";
 import SentimentDissatisfiedIcon from "@mui/icons-material/SentimentDissatisfied";
 import CustomPagination from "./CustomPagination";
+import PermissionGate from "./PermissionGate";
 
 export default function BuyerTable({
   buyers,
@@ -165,108 +166,116 @@ export default function BuyerTable({
               Buyer Management
             </Typography>
             <Box sx={{ flexGrow: 1 }} />
-            <Button
-              variant="outlined"
-              color="primary"
-              onClick={() => onUpload()}
-              sx={{ mr: 1 }}
-            >
-              Upload CSV
-            </Button>
-            <Button
-              variant="outlined"
-              color="primary"
-              onClick={() => {
-                setSelectMode((prev) => !prev);
-                if (selectMode) setSelectedIds(new Set());
-              }}
-              sx={{ mr: 1, minWidth: 80 }}
-            >
-              {selectMode ? "Cancel" : "Select"}
-            </Button>
-            {selectMode && (
+            <PermissionGate permission="buyer_uploader">
               <Button
                 variant="outlined"
-                color="error"
-                disabled={bulkDeleteLoading || selectedIds.size === 0}
-                onClick={async () => {
-                  if (!selectedTenant) return;
-                  const ids = Array.from(selectedIds);
-                  const result = await Swal.fire({
-                    title: "Delete Selected Buyers",
-                    text: `Are you sure you want to delete ${ids.length} selected buyer(s)?`,
-                    icon: "warning",
-                    showCancelButton: true,
-                    confirmButtonColor: "#d33",
-                    cancelButtonColor: "#3085d6",
-                    confirmButtonText: "Yes, delete",
-                    cancelButtonText: "Cancel",
-                    reverseButtons: true,
-                  });
-                  if (!result.isConfirmed) return;
-                  try {
-                    setBulkDeleteLoading(true);
-                    const successes = [];
-                    const failures = [];
-                    for (const id of ids) {
-                      try {
-                        const response = await api.delete(
-                          `/tenant/${selectedTenant.tenant_id}/buyers/${id}`
-                        );
-                        if (response.data?.success) successes.push(id);
-                        else
+                color="primary"
+                onClick={() => onUpload()}
+                sx={{ mr: 1 }}
+              >
+                Upload CSV
+              </Button>
+            </PermissionGate>
+            <PermissionGate permission="buyer.delete">
+              <Button
+                variant="outlined"
+                color="primary"
+                onClick={() => {
+                  setSelectMode((prev) => !prev);
+                  if (selectMode) setSelectedIds(new Set());
+                }}
+                sx={{ mr: 1, minWidth: 80 }}
+              >
+                {selectMode ? "Cancel" : "Select"}
+              </Button>
+            </PermissionGate>
+            {selectMode && (
+              <PermissionGate permission="buyer.delete">
+                <Button
+                  variant="outlined"
+                  color="error"
+                  disabled={bulkDeleteLoading || selectedIds.size === 0}
+                  onClick={async () => {
+                    if (!selectedTenant) return;
+                    const ids = Array.from(selectedIds);
+                    const result = await Swal.fire({
+                      title: "Delete Selected Buyers",
+                      text: `Are you sure you want to delete ${ids.length} selected buyer(s)?`,
+                      icon: "warning",
+                      showCancelButton: true,
+                      confirmButtonColor: "#d33",
+                      cancelButtonColor: "#3085d6",
+                      confirmButtonText: "Yes, delete",
+                      cancelButtonText: "Cancel",
+                      reverseButtons: true,
+                    });
+                    if (!result.isConfirmed) return;
+                    try {
+                      setBulkDeleteLoading(true);
+                      const successes = [];
+                      const failures = [];
+                      for (const id of ids) {
+                        try {
+                          const response = await api.delete(
+                            `/tenant/${selectedTenant.tenant_id}/buyers/${id}`
+                          );
+                          if (response.data?.success) successes.push(id);
+                          else
+                            failures.push({
+                              id,
+                              message: response.data?.message || "Failed",
+                            });
+                        } catch (err) {
                           failures.push({
                             id,
-                            message: response.data?.message || "Failed",
+                            message:
+                              err.response?.data?.message ||
+                              err.message ||
+                              "Error",
                           });
-                      } catch (err) {
-                        failures.push({
-                          id,
-                          message:
-                            err.response?.data?.message ||
-                            err.message ||
-                            "Error",
+                        }
+                      }
+                      if (successes.length > 0) {
+                        onBulkDeleted && onBulkDeleted(successes);
+                      }
+                      if (failures.length === 0) {
+                        Swal.fire({
+                          icon: "success",
+                          title: "Deleted",
+                          text: `${successes.length} buyer(s) deleted.`,
+                          confirmButtonColor: "#28a745",
+                        });
+                      } else if (successes.length === 0) {
+                        Swal.fire({
+                          icon: "error",
+                          title: "Deletion Failed",
+                          text: failures.map((f) => f.message).join("\n"),
+                          confirmButtonColor: "#d33",
+                        });
+                      } else {
+                        Swal.fire({
+                          icon: "warning",
+                          title: "Partial Delete",
+                          text: `${successes.length} deleted, ${failures.length} failed.`,
+                          confirmButtonColor: "#ff9800",
                         });
                       }
+                      setSelectedIds(new Set());
+                      setSelectMode(false);
+                    } finally {
+                      setBulkDeleteLoading(false);
                     }
-                    if (successes.length > 0) {
-                      onBulkDeleted && onBulkDeleted(successes);
-                    }
-                    if (failures.length === 0) {
-                      Swal.fire({
-                        icon: "success",
-                        title: "Deleted",
-                        text: `${successes.length} buyer(s) deleted.`,
-                        confirmButtonColor: "#28a745",
-                      });
-                    } else if (successes.length === 0) {
-                      Swal.fire({
-                        icon: "error",
-                        title: "Deletion Failed",
-                        text: failures.map((f) => f.message).join("\n"),
-                        confirmButtonColor: "#d33",
-                      });
-                    } else {
-                      Swal.fire({
-                        icon: "warning",
-                        title: "Partial Delete",
-                        text: `${successes.length} deleted, ${failures.length} failed.`,
-                        confirmButtonColor: "#ff9800",
-                      });
-                    }
-                    setSelectedIds(new Set());
-                    setSelectMode(false);
-                  } finally {
-                    setBulkDeleteLoading(false);
-                  }
-                }}
-              >
-                {bulkDeleteLoading ? "Deleting..." : "Delete Selected"}
-              </Button>
+                  }}
+                >
+                  {bulkDeleteLoading ? "Deleting..." : "Delete Selected"}
+                </Button>
+              </PermissionGate>
             )}
-            <Button variant="contained" color="primary" onClick={() => onAdd()}>
-              Add Buyer
-            </Button>
+            <PermissionGate permission="buyer.create">
+              <Button variant="contained" color="primary" onClick={() => onAdd()}>
+                Add Buyer
+              </Button>
+            </PermissionGate>
           </Box>
 
           {/* Search and Controls */}
@@ -467,46 +476,50 @@ export default function BuyerTable({
                               gap: 1,
                             }}
                           >
-                            <Button
-                              onClick={() => onEdit(buyer)}
-                              variant="outlined"
-                              color="primary"
-                              size="small"
-                              sx={{
-                                px: 0.75,
-                                py: 0.25,
-                                minWidth: "auto",
-                                fontSize: 11,
-                                lineHeight: 1.4,
-                                "&:hover": {
-                                  backgroundColor: "primary.main",
-                                  color: "primary.contrastText",
-                                  borderColor: "primary.main",
-                                },
-                              }}
-                            >
-                              Edit
-                            </Button>
-                            <Button
-                              onClick={() => onDelete(buyer.id)}
-                              variant="outlined"
-                              color="error"
-                              size="small"
-                              sx={{
-                                px: 0.75,
-                                py: 0.25,
-                                minWidth: "auto",
-                                fontSize: 11,
-                                lineHeight: 1.4,
-                                "&:hover": {
-                                  backgroundColor: "error.main",
-                                  color: "error.contrastText",
-                                  borderColor: "error.main",
-                                },
-                              }}
-                            >
-                              Delete
-                            </Button>
+                            <PermissionGate permission="buyer.update">
+                              <Button
+                                onClick={() => onEdit(buyer)}
+                                variant="outlined"
+                                color="primary"
+                                size="small"
+                                sx={{
+                                  px: 0.75,
+                                  py: 0.25,
+                                  minWidth: "auto",
+                                  fontSize: 11,
+                                  lineHeight: 1.4,
+                                  "&:hover": {
+                                    backgroundColor: "primary.main",
+                                    color: "primary.contrastText",
+                                    borderColor: "primary.main",
+                                  },
+                                }}
+                              >
+                                Edit
+                              </Button>
+                            </PermissionGate>
+                            <PermissionGate permission="buyer.delete">
+                              <Button
+                                onClick={() => onDelete(buyer.id)}
+                                variant="outlined"
+                                color="error"
+                                size="small"
+                                sx={{
+                                  px: 0.75,
+                                  py: 0.25,
+                                  minWidth: "auto",
+                                  fontSize: 11,
+                                  lineHeight: 1.4,
+                                  "&:hover": {
+                                    backgroundColor: "error.main",
+                                    color: "error.contrastText",
+                                    borderColor: "error.main",
+                                  },
+                                }}
+                              >
+                                Delete
+                              </Button>
+                            </PermissionGate>
                           </Box>
                         </TableCell>
                       </TableRow>

@@ -45,6 +45,8 @@ import {
   Visibility as ViewIcon,
 } from "@mui/icons-material";
 import CreateUserModal from "../component/CreateUserModal";
+import RoleManagementTab from "../component/RoleManagementTab";
+import PermissionGate from "../component/PermissionGate";
 
 const UserManagement = () => {
   const { user } = useAuth();
@@ -150,6 +152,7 @@ const UserManagement = () => {
 
   // Handle create/edit user from modal
   const handleSaveUser = async (userData) => {
+    console.log('User data received:', userData);
     try {
       if (isEditMode) {
         // Update existing user
@@ -158,8 +161,7 @@ const UserManagement = () => {
           firstName: userData.firstName,
           lastName: userData.lastName,
           phone: userData.phoneNumber,
-          role: userData.role,
-          isActive: userData.status === "active",
+          roleId: userData.roleId,
           tenantIds: userData.assignedCompanies,
         };
 
@@ -196,8 +198,7 @@ const UserManagement = () => {
           firstName: userData.firstName,
           lastName: userData.lastName,
           phone: userData.phoneNumber,
-          role: userData.role,
-          isActive: userData.status === "active",
+          roleId: userData.roleId,
           tenantIds: userData.assignedCompanies,
         };
 
@@ -221,27 +222,12 @@ const UserManagement = () => {
       }
     } catch (error) {
       console.error("Error saving user:", error);
-      const backendMessage = error.response?.data?.message;
-      const backendDetail = error.response?.data?.error;
-      const text = backendMessage || backendDetail || "Failed to save user";
-      // Show toast (top-end) for quick context
       Swal.fire({
-        toast: true,
-        position: "top-end",
-        target: document.body,
         icon: "error",
-        title: "Failed to save user",
-        text,
-        showConfirmButton: false,
-        timer: 4000,
-        timerProgressBar: true,
-        didOpen: (toastEl) => {
-          if (toastEl && toastEl.parentElement) {
-            toastEl.parentElement.style.zIndex = "20000";
-          }
-        },
+        title: "Error",
+        text: error.response?.data?.message || "Failed to save user",
       });
-      // Do not rethrow; keep modal open and avoid triggering other handlers
+      throw error; // Re-throw to let the modal handle the error state
     }
   };
 
@@ -301,38 +287,56 @@ const UserManagement = () => {
           User Management
         </Typography>
         <Typography variant="body1" color="text.secondary">
-          Manage system users and their company assignments
+          Manage system users, roles, and permissions
         </Typography>
       </Box>
 
-      {/* Action Bar */}
-      <Paper sx={{ p: 2, mb: 3 }}>
-        <Box display="flex" justifyContent="space-between" alignItems="center">
-          <Box>
-            <Typography variant="h6">Users ({users.length})</Typography>
-            <Typography variant="body2" color="text.secondary">
-              Total registered users in the system
-            </Typography>
-          </Box>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={handleOpenCreateModal}
-            sx={{ minWidth: 150 }}
-          >
-            Create User
-          </Button>
-        </Box>
+      {/* Tabs */}
+      <Paper sx={{ mb: 3 }}>
+        <Tabs
+          value={tabValue}
+          onChange={(e, newValue) => setTabValue(newValue)}
+          indicatorColor="primary"
+          textColor="primary"
+        >
+          <Tab label="Users" />
+          <Tab label="Roles" />
+        </Tabs>
       </Paper>
 
-      {/* Error Display */}
-      {error && (
-        <Alert severity="error" sx={{ mb: 3 }}>
-          {error}
-        </Alert>
-      )}
+      {/* Tab Content */}
+      {tabValue === 0 && (
+        <Box>
+          {/* Action Bar */}
+          <Paper sx={{ p: 2, mb: 3 }}>
+            <Box display="flex" justifyContent="space-between" alignItems="center">
+              <Box>
+                <Typography variant="h6">Users ({users.length})</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Total registered users in the system
+                </Typography>
+              </Box>
+              <PermissionGate permission="create_user">
+                <Button
+                  variant="contained"
+                  startIcon={<AddIcon />}
+                  onClick={handleOpenCreateModal}
+                  sx={{ minWidth: 150 }}
+                >
+                  Create User
+                </Button>
+              </PermissionGate>
+            </Box>
+          </Paper>
 
-      {/* Users Table */}
+          {/* Error Display */}
+          {error && (
+            <Alert severity="error" sx={{ mb: 3 }}>
+              {error}
+            </Alert>
+          )}
+
+          {/* Users Table */}
       <TableContainer component={Paper}>
         <Table>
           <TableHead>
@@ -340,7 +344,6 @@ const UserManagement = () => {
               <TableCell>User</TableCell>
               <TableCell>Contact</TableCell>
               <TableCell>Role</TableCell>
-              <TableCell>Status</TableCell>
               <TableCell>Companies</TableCell>
               <TableCell>Actions</TableCell>
             </TableRow>
@@ -377,17 +380,16 @@ const UserManagement = () => {
                 </TableCell>
                 <TableCell>
                   <Chip
-                    label={user.role}
-                    color={user.role === "admin" ? "error" : "primary"}
+                    label={user.userRole?.name || user.role || "No Role"}
+                    color={
+                      user.userRole?.name === "admin" || user.role === "admin" 
+                        ? "error" 
+                        : user.userRole?.name || user.role 
+                          ? "primary" 
+                          : "default"
+                    }
                     size="small"
-                  />
-                </TableCell>
-                <TableCell>
-                  <Chip
-                    label={user.isActive ? "Active" : "Blocked"}
-                    color={user.isActive ? "success" : "error"}
-                    size="small"
-                    variant="filled"
+                    variant={user.userRole?.name || user.role ? "filled" : "outlined"}
                   />
                 </TableCell>
                 <TableCell>
@@ -419,23 +421,27 @@ const UserManagement = () => {
                 </TableCell>
                 <TableCell>
                   <Box display="flex" gap={1}>
-                    <Tooltip title="Edit User">
-                      <IconButton
-                        size="small"
-                        onClick={() => handleOpenEditModal(user)}
-                      >
-                        <EditIcon />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Delete User">
-                      <IconButton
-                        size="small"
-                        color="error"
-                        onClick={() => handleDeleteUser(user.id)}
-                      >
-                        <DeleteIcon />
-                      </IconButton>
-                    </Tooltip>
+                    <PermissionGate permission="update_user">
+                      <Tooltip title="Edit User">
+                        <IconButton
+                          size="small"
+                          onClick={() => handleOpenEditModal(user)}
+                        >
+                          <EditIcon />
+                        </IconButton>
+                      </Tooltip>
+                    </PermissionGate>
+                    <PermissionGate permission="delete_user">
+                      <Tooltip title="Delete User">
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() => handleDeleteUser(user.id)}
+                        >
+                          <DeleteIcon />
+                        </IconButton>
+                      </Tooltip>
+                    </PermissionGate>
                   </Box>
                 </TableCell>
               </TableRow>
@@ -443,6 +449,12 @@ const UserManagement = () => {
           </TableBody>
         </Table>
       </TableContainer>
+        </Box>
+      )}
+
+      {tabValue === 1 && (
+        <RoleManagementTab />
+      )}
 
       {/* Assignment Dialog */}
       <Dialog

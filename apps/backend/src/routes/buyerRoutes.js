@@ -3,6 +3,7 @@ import * as buyerController from "../controller/mysql/buyerController.js";
 import * as productController from "../controller/mysql/productController.js";
 import { identifyTenant } from "../middleWare/tenantMiddleware.js";
 import { authenticateToken } from "../middleWare/authMiddleware.js";
+import { requirePermission, requireAnyPermission } from "../middleWare/permissionMiddleware.js";
 
 const router = express.Router();
 
@@ -11,28 +12,29 @@ router.use(authenticateToken);
 router.use(identifyTenant);
 
 // Buyer management routes (tenant-specific)
-router.post("/buyers", buyerController.createBuyer);
-router.post("/buyers/bulk", buyerController.bulkCreateBuyers);
-router.post("/buyers/check-existing", buyerController.checkExistingBuyers);
-router.post("/buyers/bulk-fbr-check", buyerController.bulkCheckFBRRegistration);
-router.get("/buyers/all", buyerController.getAllBuyersWithoutPagination);
-router.get("/buyers", buyerController.getAllBuyers);
-router.get("/buyers/:id", buyerController.getBuyerById);
-router.put("/buyers/:id", buyerController.updateBuyer);
-router.delete("/buyers/:id", buyerController.deleteBuyer);
-router.get("/buyers/province/:province", buyerController.getBuyersByProvince);
+router.post("/buyers", requirePermission("buyer.create"), buyerController.createBuyer);
+router.post("/buyers/bulk", requirePermission("buyer.bulk"), buyerController.bulkCreateBuyers);
+router.post("/buyers/check-existing", requirePermission("buyer.view"), buyerController.checkExistingBuyers);
+router.post("/buyers/bulk-fbr-check", requirePermission("buyer.fbr_check"), buyerController.bulkCheckFBRRegistration);
+router.get("/buyers/all", requirePermission("buyer.view"), buyerController.getAllBuyersWithoutPagination);
+router.get("/buyers", requirePermission("buyer.view"), buyerController.getAllBuyers);
+router.get("/buyers/:id", requirePermission("buyer.view"), buyerController.getBuyerById);
+router.put("/buyers/:id", requirePermission("buyer.edit"), buyerController.updateBuyer);
+router.delete("/buyers/:id", requirePermission("buyer.delete"), buyerController.deleteBuyer);
+router.get("/buyers/province/:province", requirePermission("buyer.view"), buyerController.getBuyersByProvince);
 
 // Product routes (tenant-specific)
-router.get("/products", productController.listProducts);
-router.get("/products/all", productController.getAllProductsWithoutPagination);
-router.post("/products", productController.createProduct);
-router.get("/products/:id", productController.getProductById);
-router.put("/products/:id", productController.updateProduct);
-router.delete("/products/:id", productController.deleteProduct);
+router.get("/products", requirePermission("product.view"), productController.listProducts);
+router.get("/products/all", requirePermission("product.view"), productController.getAllProductsWithoutPagination);
+router.post("/products", requirePermission("Create Product"), productController.createProduct);
+router.get("/products/:id", requirePermission("product.view"), productController.getProductById);
+router.put("/products/:id", requirePermission("product.edit"), productController.updateProduct);
+router.delete("/products/:id", requirePermission("Delete Product"), productController.deleteProduct);
 router.post(
   "/products/check-existing",
+  requirePermission("product.view"),
   productController.checkExistingProducts
 );
-router.post("/products/bulk", productController.bulkCreateProducts);
+router.post("/products/bulk", requirePermission("Bulk Product Operations"), productController.bulkCreateProducts);
 
 export default router;

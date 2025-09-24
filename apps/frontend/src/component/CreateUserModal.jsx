@@ -22,14 +22,13 @@ import {
   OutlinedInput,
   Checkbox,
   ListItemText,
-  InputAdornment,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import EditIcon from "@mui/icons-material/Edit";
-import Visibility from "@mui/icons-material/Visibility";
-import VisibilityOff from "@mui/icons-material/VisibilityOff";
+import SecurityIcon from "@mui/icons-material/Security";
 import { useTenantSelection } from "../Context/TenantSelectionProvider";
+import { api } from "../API/Api";
 
 const CreateUserModal = ({
   isOpen,
@@ -49,15 +48,17 @@ const CreateUserModal = ({
     phoneNumber: "",
     password: "",
     confirmPassword: "",
-    role: "user",
     assignedCompanies: [],
     status: "active",
+    roleId: "",
   });
 
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [roles, setRoles] = useState([]);
+  const [loadingRoles, setLoadingRoles] = useState(false);
 
   // Filter companies based on current user's access
   const accessibleCompanies =
@@ -81,9 +82,27 @@ const CreateUserModal = ({
     return company.id || company.tenant_id;
   };
 
+  // Fetch roles from API
+  const fetchRoles = async () => {
+    try {
+      setLoadingRoles(true);
+      const response = await api.get("/role-management/roles");
+      if (response.data.success) {
+        setRoles(response.data.data);
+      }
+    } catch (error) {
+      console.error("Error fetching roles:", error);
+    } finally {
+      setLoadingRoles(false);
+    }
+  };
+
   // Reset form when modal opens or editingUser changes
   useEffect(() => {
     if (isOpen) {
+      // Fetch roles when modal opens
+      fetchRoles();
+      
       if (editingUser && isEditMode) {
         // Pre-fill form with existing user data
         setFormData({
@@ -93,12 +112,12 @@ const CreateUserModal = ({
           phoneNumber: editingUser.phone || editingUser.phoneNumber || "",
           password: "", // Don't pre-fill password for security
           confirmPassword: "",
-          role: editingUser.role || "user",
           assignedCompanies:
             editingUser.UserTenantAssignments?.map(
               (assignment) => assignment.tenantId || assignment.Tenant?.id
             ).filter(Boolean) || [],
-          status: editingUser.isActive ? "active" : "blocked",
+          status: "active", // Always set to active for editing
+          roleId: editingUser.roleId || editingUser.userRole?.id || "",
         });
       } else {
         // Reset form for new user
@@ -109,9 +128,9 @@ const CreateUserModal = ({
           phoneNumber: "",
           password: "",
           confirmPassword: "",
-          role: "user",
           assignedCompanies: [],
           status: "active",
+          roleId: "",
         });
       }
       setErrors({});
@@ -156,6 +175,9 @@ const CreateUserModal = ({
       newErrors.confirmPassword = "Passwords do not match";
     }
 
+    // Role selection is now optional - users can be created without roles
+    // Roles can be assigned later from the role management tab
+
     if (formData.assignedCompanies.length === 0) {
       newErrors.assignedCompanies = "At least one company must be assigned";
     }
@@ -179,6 +201,8 @@ const CreateUserModal = ({
         ...formData,
         confirmPassword: undefined,
       };
+      
+      console.log('Form data being submitted:', submitData);
 
       // Remove password if it's empty (for editing)
       if (isEditMode && !submitData.password) {
@@ -201,14 +225,6 @@ const CreateUserModal = ({
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: "" }));
     }
-  };
-
-  const handleTogglePasswordVisibility = () => {
-    setShowPassword((prev) => !prev);
-  };
-
-  const handleToggleConfirmPasswordVisibility = () => {
-    setShowConfirmPassword((prev) => !prev);
   };
 
   const handleCompanyChange = (event) => {
@@ -357,19 +373,6 @@ const CreateUserModal = ({
                   error={!!errors.password}
                   helperText={errors.password}
                   required={!isEditMode}
-                  InputProps={{
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <IconButton
-                          aria-label="toggle password visibility"
-                          onClick={handleTogglePasswordVisibility}
-                          edge="end"
-                        >
-                          {showPassword ? <VisibilityOff /> : <Visibility />}
-                        </IconButton>
-                      </InputAdornment>
-                    ),
-                  }}
                 />
                 {formData.password && (
                   <TextField
@@ -383,55 +386,74 @@ const CreateUserModal = ({
                     error={!!errors.confirmPassword}
                     helperText={errors.confirmPassword}
                     required
-                    InputProps={{
-                      endAdornment: (
-                        <InputAdornment position="end">
-                          <IconButton
-                            aria-label="toggle confirm password visibility"
-                            onClick={handleToggleConfirmPasswordVisibility}
-                            edge="end"
-                          >
-                            {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
-                          </IconButton>
-                        </InputAdornment>
-                      ),
-                    }}
                   />
                 )}
               </Stack>
             </Box>
 
-            {/* Role and Status */}
+            {/* Status */}
             <Box>
               <Typography variant="h6" sx={{ mb: 2, color: "text.secondary" }}>
-                Role & Status
+                Status
               </Typography>
-              <Stack direction="row" spacing={2}>
-                <FormControl fullWidth>
-                  <InputLabel>Role</InputLabel>
-                  <Select
-                    value={formData.role}
-                    onChange={(e) => handleInputChange("role", e.target.value)}
-                    label="Role"
-                  >
-                    <MenuItem value="user">User</MenuItem>
-                    <MenuItem value="admin">Admin</MenuItem>
-                  </Select>
-                </FormControl>
-                <FormControl fullWidth>
-                  <InputLabel>Status</InputLabel>
-                  <Select
-                    value={formData.status}
-                    onChange={(e) =>
-                      handleInputChange("status", e.target.value)
-                    }
-                    label="Status"
-                  >
-                    <MenuItem value="active">Active</MenuItem>
-                    <MenuItem value="blocked">Blocked</MenuItem>
-                  </Select>
-                </FormControl>
-              </Stack>
+              <FormControl fullWidth>
+                <InputLabel>Status</InputLabel>
+                <Select
+                  value={formData.status}
+                  onChange={(e) =>
+                    handleInputChange("status", e.target.value)
+                  }
+                  label="Status"
+                >
+                  <MenuItem value="active">Active</MenuItem>
+                </Select>
+              </FormControl>
+            </Box>
+
+            {/* Role Assignment */}
+            <Box>
+              <Typography variant="h6" sx={{ mb: 2, color: "text.secondary" }}>
+                Role Assignment
+              </Typography>
+              <FormControl fullWidth error={!!errors.roleId}>
+                <InputLabel>Select Role</InputLabel>
+                <Select
+                  value={formData.roleId}
+                  onChange={(e) => handleInputChange("roleId", e.target.value)}
+                  label="Select Role"
+                  disabled={loadingRoles}
+                  startAdornment={loadingRoles ? <CircularProgress size={20} /> : null}
+                >
+                  <MenuItem value="">
+                    <em>No Role Assigned</em>
+                  </MenuItem>
+                  {roles.map((role) => (
+                    <MenuItem key={role.id} value={role.id}>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                        <SecurityIcon fontSize="small" />
+                        <Box>
+                          <Typography variant="body2" fontWeight="medium">
+                            {role.name}
+                          </Typography>
+                          {role.description && (
+                            <Typography variant="caption" color="text.secondary">
+                              {role.description}
+                            </Typography>
+                          )}
+                        </Box>
+                      </Box>
+                    </MenuItem>
+                  ))}
+                </Select>
+                {errors.roleId && (
+                  <Typography variant="caption" color="error">
+                    {errors.roleId}
+                  </Typography>
+                )}
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
+                  Select a role to assign specific permissions to this user. Roles can be changed later.
+                </Typography>
+              </FormControl>
             </Box>
 
             {/* Company Assignment */}

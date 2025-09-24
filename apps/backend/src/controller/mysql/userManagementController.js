@@ -47,7 +47,7 @@ export const getUserById = async (req, res) => {
 // Create new user
 export const createUser = async (req, res) => {
   try {
-    const { email, password, firstName, lastName, phone, role, isActive, tenantIds } =
+    const { email, password, firstName, lastName, phone, roleId, isActive, tenantIds } =
       req.body;
     const createdByAdminId = req.user.id; // Admin who is creating the user
 
@@ -73,7 +73,7 @@ export const createUser = async (req, res) => {
         firstName,
         lastName,
         phone,
-        role,
+        roleId,
         isActive,
       },
       createdByAdminId

@@ -52,20 +52,36 @@ const TenantManagement = () => {
       setLoading(true);
       setError(null);
 
+      // Debug: Log user information
+      console.log("TenantManagement: Current user:", user);
+      console.log("TenantManagement: User role:", user?.role);
+      console.log("TenantManagement: User assignedTenants:", user?.assignedTenants);
+
       // Use different endpoints based on user type and access level
       // If user has admin role and can access all companies, use admin endpoint
       // Otherwise, use user endpoint to get only assigned companies
       const endpoint = "/user/companies"; // Always use user endpoint for regular users
+      console.log("TenantManagement: Fetching from endpoint:", endpoint);
+      
       const response = await api.get(endpoint);
+      console.log("TenantManagement: API Response:", response);
 
       if (response.data.success) {
         console.log("Fetched Company:", response.data.data);
+        console.log("Number of companies:", response.data.data?.length || 0);
         setTenants(response.data.data);
       } else {
+        console.error("API returned success: false", response.data);
         setError("Failed to fetch Company");
       }
     } catch (error) {
       console.error("Error fetching Company:", error);
+      console.error("Error details:", {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        statusText: error.response?.statusText
+      });
       setError(error.response?.data?.message || "Failed to fetch tenants");
     } finally {
       setLoading(false);
@@ -161,6 +177,12 @@ const TenantManagement = () => {
           {activelySelectedTenantId === selectedTenant.tenant_id
             ? `Currently working with: ${selectedTenant.sellerBusinessName}`
             : `Previously selected: ${selectedTenant.sellerBusinessName} (Please select again to continue)`}
+        </Alert>
+      )}
+
+      {tenants.length === 0 && !loading && !error && (
+        <Alert severity="warning" sx={{ mb: 3 }}>
+          <strong>No companies found!</strong> You don't have access to any companies. Please contact your administrator.
         </Alert>
       )}
 

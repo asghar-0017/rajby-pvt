@@ -35,9 +35,14 @@ const User = masterSequelize.define(
       type: DataTypes.STRING(20),
       allowNull: true,
     },
-    role: {
-      type: DataTypes.ENUM("user", "admin"),
-      defaultValue: "user",
+    roleId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      field: "role_id",
+      references: {
+        model: "roles",
+        key: "id",
+      },
     },
     isActive: {
       type: DataTypes.BOOLEAN,
@@ -86,12 +91,12 @@ const User = masterSequelize.define(
         unique: true,
       },
       {
-        name: "idx_user_role",
-        fields: ["role"],
+        name: "idx_user_role_id",
+        fields: ["role_id"],
       },
       {
         name: "idx_user_active",
-        fields: ["isActive"],
+        fields: ["is_active"],
       },
     ],
   }

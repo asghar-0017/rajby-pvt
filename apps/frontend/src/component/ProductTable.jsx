@@ -21,6 +21,7 @@ import {
 import SearchIcon from "@mui/icons-material/Search";
 import SentimentDissatisfiedIcon from "@mui/icons-material/SentimentDissatisfied";
 import CustomPagination from "./CustomPagination";
+import PermissionGate from "./PermissionGate";
 
 export default function ProductTable({
   products,
@@ -159,23 +160,26 @@ export default function ProductTable({
           Products Management
         </Typography>
         <Box sx={{ flexGrow: 1 }} />
-        <Button
-          variant="outlined"
-          color="primary"
-          onClick={() => {
-            setSelectMode((prev) => !prev);
-            if (selectMode) setSelectedIds(new Set());
-          }}
-          sx={{ minWidth: 80 }}
-        >
-          {selectMode ? "Cancel" : "Select"}
-        </Button>
-        {selectMode && (
+        <PermissionGate permission="product.view">
           <Button
             variant="outlined"
-            color="error"
-            disabled={bulkDeleteLoading || selectedIds.size === 0}
-            onClick={async () => {
+            color="primary"
+            onClick={() => {
+              setSelectMode((prev) => !prev);
+              if (selectMode) setSelectedIds(new Set());
+            }}
+            sx={{ minWidth: 80 }}
+          >
+            {selectMode ? "Cancel" : "Select"}
+          </Button>
+        </PermissionGate>
+        {selectMode && (
+          <PermissionGate permission="product.delete">
+            <Button
+              variant="outlined"
+              color="error"
+              disabled={bulkDeleteLoading || selectedIds.size === 0}
+              onClick={async () => {
               if (!selectedTenant) return;
               const ids = Array.from(selectedIds);
               const result = await Swal.fire({
@@ -249,18 +253,23 @@ export default function ProductTable({
               ? "Deleting..."
               : `Delete Selected (${selectedIds.size})`}
           </Button>
+          </PermissionGate>
         )}
-        <Button
-          variant="outlined"
-          color="primary"
-          onClick={onUpload}
-          sx={{ ml: 1 }}
-        >
-          Upload Products
-        </Button>
-        <Button variant="contained" color="primary" onClick={onAdd}>
-          Add Product
-        </Button>
+        <PermissionGate permission="product_uploader">
+          <Button
+            variant="outlined"
+            color="primary"
+            onClick={onUpload}
+            sx={{ ml: 1 }}
+          >
+            Upload Products
+          </Button>
+        </PermissionGate>
+        <PermissionGate permission="product.create">
+          <Button variant="contained" color="primary" onClick={onAdd}>
+            Add Product
+          </Button>
+        </PermissionGate>
       </Box>
 
       {/* Search and Controls */}
@@ -343,27 +352,29 @@ export default function ProductTable({
               <TableHead>
                 <TableRow sx={{ background: "#EDEDED" }}>
                   {selectMode && (
-                    <TableCell align="center" sx={{ width: 50 }}>
-                      <input
-                        type="checkbox"
-                        checked={
-                          paginatedProducts.length > 0 &&
-                          paginatedProducts.every((p) => selectedIds.has(p.id))
-                        }
-                        onChange={() => {
-                          const allVisibleSelected = paginatedProducts.every(
-                            (p) => selectedIds.has(p.id)
-                          );
-                          const next = new Set(selectedIds);
-                          if (allVisibleSelected) {
-                            paginatedProducts.forEach((p) => next.delete(p.id));
-                          } else {
-                            paginatedProducts.forEach((p) => next.add(p.id));
+                    <PermissionGate permission="product.view" hide>
+                      <TableCell align="center" sx={{ width: 50 }}>
+                        <input
+                          type="checkbox"
+                          checked={
+                            paginatedProducts.length > 0 &&
+                            paginatedProducts.every((p) => selectedIds.has(p.id))
                           }
-                          setSelectedIds(next);
-                        }}
-                      />
-                    </TableCell>
+                          onChange={() => {
+                            const allVisibleSelected = paginatedProducts.every(
+                              (p) => selectedIds.has(p.id)
+                            );
+                            const next = new Set(selectedIds);
+                            if (allVisibleSelected) {
+                              paginatedProducts.forEach((p) => next.delete(p.id));
+                            } else {
+                              paginatedProducts.forEach((p) => next.add(p.id));
+                            }
+                            setSelectedIds(next);
+                          }}
+                        />
+                      </TableCell>
+                    </PermissionGate>
                   )}
                   {[
                     "S.No",
@@ -403,18 +414,20 @@ export default function ProductTable({
                     }}
                   >
                     {selectMode && (
-                      <TableCell align="center" sx={{ width: 50 }}>
-                        <input
-                          type="checkbox"
-                          checked={selectedIds.has(product.id)}
-                          onChange={() => {
-                            const next = new Set(selectedIds);
-                            if (next.has(product.id)) next.delete(product.id);
-                            else next.add(product.id);
-                            setSelectedIds(next);
-                          }}
-                        />
-                      </TableCell>
+                      <PermissionGate permission="product.view">
+                        <TableCell align="center" sx={{ width: 50 }}>
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(product.id)}
+                            onChange={() => {
+                              const next = new Set(selectedIds);
+                              if (next.has(product.id)) next.delete(product.id);
+                              else next.add(product.id);
+                              setSelectedIds(next);
+                            }}
+                          />
+                        </TableCell>
+                      </PermissionGate>
                     )}
                     <TableCell
                       component="th"
@@ -451,46 +464,50 @@ export default function ProductTable({
                           gap: 1,
                         }}
                       >
-                        <Button
-                          onClick={() => onEdit(product)}
-                          variant="outlined"
-                          color="primary"
-                          size="small"
-                          sx={{
-                            px: 0.75,
-                            py: 0.25,
-                            minWidth: "auto",
-                            fontSize: 11,
-                            lineHeight: 1.4,
-                            "&:hover": {
-                              backgroundColor: "primary.main",
-                              color: "primary.contrastText",
-                              borderColor: "primary.main",
-                            },
-                          }}
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          onClick={() => onDelete(product.id)}
-                          variant="outlined"
-                          color="error"
-                          size="small"
-                          sx={{
-                            px: 0.75,
-                            py: 0.25,
-                            minWidth: "auto",
-                            fontSize: 11,
-                            lineHeight: 1.4,
-                            "&:hover": {
-                              backgroundColor: "error.main",
-                              color: "error.contrastText",
-                              borderColor: "error.main",
-                            },
-                          }}
-                        >
-                          Delete
-                        </Button>
+                        <PermissionGate permission="product.update">
+                          <Button
+                            onClick={() => onEdit(product)}
+                            variant="outlined"
+                            color="primary"
+                            size="small"
+                            sx={{
+                              px: 0.75,
+                              py: 0.25,
+                              minWidth: "auto",
+                              fontSize: 11,
+                              lineHeight: 1.4,
+                              "&:hover": {
+                                backgroundColor: "primary.main",
+                                color: "primary.contrastText",
+                                borderColor: "primary.main",
+                              },
+                            }}
+                          >
+                            Edit
+                          </Button>
+                        </PermissionGate>
+                        <PermissionGate permission="product.delete">
+                          <Button
+                            onClick={() => onDelete(product.id)}
+                            variant="outlined"
+                            color="error"
+                            size="small"
+                            sx={{
+                              px: 0.75,
+                              py: 0.25,
+                              minWidth: "auto",
+                              fontSize: 11,
+                              lineHeight: 1.4,
+                              "&:hover": {
+                                backgroundColor: "error.main",
+                                color: "error.contrastText",
+                                borderColor: "error.main",
+                              },
+                            }}
+                          >
+                            Delete
+                          </Button>
+                        </PermissionGate>
                       </Box>
                     </TableCell>
                   </TableRow>

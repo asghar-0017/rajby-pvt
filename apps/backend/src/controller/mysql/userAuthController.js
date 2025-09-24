@@ -66,6 +66,7 @@ export const userLogin = async (req, res) => {
         firstName: user.firstName,
         lastName: user.lastName,
         role: user.role,
+        roleId: user.roleId,
         type: "user",
         assignedTenants: user.UserTenantAssignments.map((assignment) => ({
           tenantId: assignment.Tenant.tenant_id,
@@ -85,6 +86,14 @@ export const userLogin = async (req, res) => {
       lastName: user.lastName,
       phone: user.phone,
       role: user.role,
+      roleId: user.roleId,
+      userRole: user.userRole ? {
+        id: user.userRole.id,
+        name: user.userRole.name,
+        displayName: user.userRole.displayName,
+        description: user.userRole.description,
+        isSystemRole: user.userRole.isSystemRole,
+      } : null,
       assignedTenants: user.UserTenantAssignments.map((assignment) => ({
         tenantId: assignment.Tenant.tenant_id,
         tenantName: assignment.Tenant.seller_business_name,

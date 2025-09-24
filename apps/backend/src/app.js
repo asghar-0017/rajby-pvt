@@ -16,6 +16,7 @@ import tenantAuthRoutes from "./routes/tenantAuthRoutes.js";
 import userAuthRoutes from "./routes/userAuthRoutes.js";
 import userManagementRoutes from "./routes/userManagementRoutes.js";
 import userCompanyRoutes from "./routes/userCompanyRoutes.js";
+import roleManagementRoutes from "./routes/roleManagementRoutes.js";
 
 import tenantRoutes from "./routes/tenantRoutes.js";
 import buyerRoutes from "./routes/buyerRoutes.js";
@@ -48,7 +49,7 @@ app.use(
         connectSrc: [
           "'self'",
           "https://gw.fbr.gov.pk",
-          "https://sardarhos.inplsoftwares.online",
+          "http://localhost:5150",
         ],
         scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
@@ -62,8 +63,8 @@ app.use(
   cors({
     origin: [
       "http://localhost:5174",
-      "https://sardarhos.inplsoftwares.online",
-      "https://sardarhos.inplsoftwares.online",
+      "http://localhost:5150",
+      "http://localhost:5150",
       "https://fbrtestcase.inplsoftwares.online",
       "*",
     ],
@@ -84,6 +85,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/tenant-auth", tenantAuthRoutes);
 app.use("/api/user-auth", userAuthRoutes);
 app.use("/api/user-management", userManagementRoutes);
+app.use("/api/role-management", roleManagementRoutes);
 app.use("/api/user", userCompanyRoutes);
 app.use("/api/admin", tenantRoutes);
 app.use("/api/tenant/:tenantId", buyerRoutes);

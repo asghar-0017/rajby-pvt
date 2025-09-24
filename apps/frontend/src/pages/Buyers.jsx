@@ -8,6 +8,7 @@ import BuyerTable from "../component/BuyerTable";
 import { Button } from "@mui/material";
 import TenantSelectionPrompt from "../component/TenantSelectionPrompt";
 import { useTenantSelection } from "../Context/TenantSelectionProvider";
+import PermissionGate from "../component/PermissionGate";
 
 const Buyers = () => {
   const { selectedTenant } = useTenantSelection();

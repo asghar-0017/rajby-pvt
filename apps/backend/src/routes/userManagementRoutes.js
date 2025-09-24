@@ -14,12 +14,13 @@ import {
   authenticateToken,
   requireAdmin,
 } from "../middleWare/authMiddleware.js";
+import { requireAdminOrPermission } from "../middleWare/permissionMiddleware.js";
 
 const router = express.Router();
 
-// All routes require authentication and admin role
+// All routes require authentication and user.view permission
 router.use(authenticateToken);
-router.use(requireAdmin);
+router.use(requireAdminOrPermission('read_user'));
 
 // User management routes
 router.get("/users", getAllUsers);

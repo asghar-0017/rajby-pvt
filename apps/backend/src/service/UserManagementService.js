@@ -4,6 +4,7 @@ import {
   Tenant,
   UserTenantAssignment,
   AdminUser,
+  Role,
 } from "../model/mysql/associations.js";
 import { masterSequelize } from "../config/mysql.js";
 
@@ -17,12 +18,11 @@ class UserManagementService {
         firstName,
         lastName,
         phone,
-        role = "user",
-        isActive = true,
+        roleId,
       } = userData;
 
-      // Check if user already exists (only active users)
-      const existingUser = await User.findOne({ where: { email, isActive: true } });
+      // Check if user already exists
+      const existingUser = await User.findOne({ where: { email } });
       if (existingUser) {
         throw new Error("User with this email already exists");
       }
@@ -37,9 +37,9 @@ class UserManagementService {
         firstName,
         lastName,
         phone,
-        role,
+        roleId,
         createdBy: createdByAdminId,
-        isActive,
+        isActive: true,
         isVerified: true, // Auto-verify users created by admin
       });
 
@@ -124,6 +124,9 @@ class UserManagementService {
   async getAllUsers() {
     try {
       const users = await User.findAll({
+        where: {
+          isActive: true, // Only get active users
+        },
         include: [
           {
             model: UserTenantAssignment,
@@ -146,6 +149,11 @@ class UserManagementService {
             as: "CreatedBy",
             attributes: ["id", "email"],
             required: false,
+          },
+          {
+            model: Role,
+            as: "userRole",
+            attributes: ["id", "name", "description"],
           },
         ],
         order: [["created_at", "DESC"]],
@@ -182,12 +190,16 @@ class UserManagementService {
                   "database_name",
                   "is_active",
                   "created_at",
-                  // Use attribute names (camelCase) so Sequelize maps correctly on instances
                   "sandboxTestToken",
                   "sandboxProductionToken",
                 ],
               },
             ],
+          },
+          {
+            model: Role,
+            as: "userRole",
+            attributes: ["id", "name", "description"],
           },
         ],
       });
@@ -199,7 +211,7 @@ class UserManagementService {
     }
   }
 
-  // Get user by email with tenant assignments
+  // Get user by email with tenant assignments and role
   async getUserByEmail(email) {
     try {
       const user = await User.findOne({
@@ -223,12 +235,16 @@ class UserManagementService {
                   "database_name",
                   "is_active",
                   "created_at",
-                  // Use attribute names (camelCase)
                   "sandboxTestToken",
                   "sandboxProductionToken",
                 ],
               },
             ],
+          },
+          {
+            model: Role,
+            as: "userRole",
+            attributes: ["id", "name", "displayName", "description", "isSystemRole"],
           },
         ],
       });
@@ -269,17 +285,16 @@ class UserManagementService {
         throw new Error("User not found");
       }
 
-      // First, remove all tenant assignments
-      await UserTenantAssignment.destroy({
-        where: { userId }
-      });
+      // Deactivate user
+      await user.update({ isActive: false });
 
-      // Then, physically delete the user from the database
-      await User.destroy({
-        where: { id: userId }
-      });
+      // Deactivate all tenant assignments
+      await UserTenantAssignment.update(
+        { isActive: false },
+        { where: { userId } }
+      );
 
-      return { message: "User deleted successfully" };
+      return user;
     } catch (error) {
       console.error("Error deleting user:", error);
       throw error;

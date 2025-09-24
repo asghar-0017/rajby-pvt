@@ -10,6 +10,7 @@ import { AuthProvider, useAuth } from "../Context/AuthProvider"; // <-- useAuth 
 import { TenantProvider } from "../Context/TenantProvider";
 import { TenantSelectionProvider } from "../Context/TenantSelectionProvider";
 import ProtectedRoute from "../Context/ProtectedRoute";
+import PermissionRoute from "../component/PermissionRoute";
 import CreateInvoice from "../pages/createInvoiceForm";
 import TenantDashboard from "../component/TenantDashboard";
 import YourInvoices from "../pages/YourInvoices";
@@ -24,6 +25,7 @@ import Products from "../pages/Products";
 import TenantManagement from "../pages/TenantManagement";
 import UserManagement from "../pages/UserManagement";
 import SalesReport from "../pages/SalesReport";
+import RoleBasedRedirect from "../component/RoleBasedRedirect";
 
 // import ProductionForm from "../pages/productionForm"
 
@@ -56,19 +58,87 @@ const AppRouter = () => {
                   </ProtectedRoute>
                 }
               >
-                <Route index element={<TenantDashboard />} />
-                <Route path="create-invoice" element={<CreateInvoice />} />
-                <Route path="your-invoices" element={<YourInvoices />} />
-                <Route path="register-buyer" element={<RegisterUser />} />
-                <Route path="registered-users" element={<RegisteredUsers />} />
-                <Route path="buyers" element={<Buyers />} />
-                <Route path="products" element={<Products />} />
-                <Route path="sales-report" element={<SalesReport />} />
+                <Route index element={<RoleBasedRedirect />} />
+                <Route 
+                  path="dashboard" 
+                  element={
+                    <PermissionRoute permission="dashboard.view">
+                      <TenantDashboard />
+                    </PermissionRoute>
+                  } 
+                />
+                <Route 
+                  path="create-invoice" 
+                  element={
+                    <PermissionRoute permission="invoice.create">
+                      <CreateInvoice />
+                    </PermissionRoute>
+                  } 
+                />
+                <Route 
+                  path="your-invoices" 
+                  element={
+                    <PermissionRoute permission="invoice.view">
+                      <YourInvoices />
+                    </PermissionRoute>
+                  } 
+                />
+                <Route 
+                  path="register-buyer" 
+                  element={
+                    <PermissionRoute permission="buyer.create">
+                      <RegisterUser />
+                    </PermissionRoute>
+                  } 
+                />
+                <Route 
+                  path="registered-users" 
+                  element={
+                    <PermissionRoute permission="buyer.view">
+                      <RegisteredUsers />
+                    </PermissionRoute>
+                  } 
+                />
+                <Route 
+                  path="buyers" 
+                  element={
+                    <PermissionRoute permission="buyer.view">
+                      <Buyers />
+                    </PermissionRoute>
+                  } 
+                />
+                <Route 
+                  path="products" 
+                  element={
+                    <PermissionRoute permission="product.view">
+                      <Products />
+                    </PermissionRoute>
+                  } 
+                />
+                <Route 
+                  path="sales-report" 
+                  element={
+                    <PermissionRoute permission="report.view">
+                      <SalesReport />
+                    </PermissionRoute>
+                  } 
+                />
                 <Route
                   path="tenant-management"
-                  element={<TenantManagement />}
+                  element={
+                    <PermissionRoute permission="tenant.view" adminOverride={true}>
+                      <TenantManagement />
+                    </PermissionRoute>
+                  }
                 />
-                <Route path="user-management" element={<UserManagement />} />
+                <Route 
+                  path="user-management" 
+                  element={
+                    <PermissionRoute permission="read_user" adminOverride={true}>
+                      <UserManagement />
+                    </PermissionRoute>
+                  } 
+                />
               </Route>
             </Routes>
           </TenantSelectionProvider>

@@ -29,6 +29,13 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem("token", token);
         localStorage.setItem("user", JSON.stringify(sanitizeUser(userData)));
 
+        // Debug: Log user data
+        console.log("AuthProvider: Login successful");
+        console.log("AuthProvider: User data:", userData);
+        console.log("AuthProvider: User role:", userData.role);
+        console.log("AuthProvider: Assigned tenants:", userData.assignedTenants);
+        console.log("AuthProvider: Number of assigned tenants:", userData.assignedTenants?.length || 0);
+
         setUser(sanitizeUser(userData));
         setIsAuthenticated(true);
 

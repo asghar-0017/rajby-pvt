@@ -150,6 +150,7 @@ export const login = async (req, res) => {
           id: admin.id,
           email: admin.email,
           role: admin.role,
+          roleId: null, // Admin users don't have roleId in the current system
           type: "admin",
           iat: Math.floor(Date.now() / 1000),
         },
@@ -172,6 +173,14 @@ export const login = async (req, res) => {
         id: admin.id,
         email: admin.email,
         role: admin.role,
+        roleId: null,
+        userRole: {
+          id: null,
+          name: "admin",
+          displayName: "Administrator",
+          description: "System Administrator",
+          isSystemRole: true,
+        },
         is_verify: admin.is_verify,
         photo_profile: admin.photo_profile,
         created_at: admin.created_at,
@@ -232,6 +241,7 @@ export const login = async (req, res) => {
           firstName: user.firstName,
           lastName: user.lastName,
           role: user.role,
+          roleId: user.roleId,
           type: "user",
           assignedTenants: user.UserTenantAssignments.map((assignment) => ({
             tenantId: assignment.Tenant.tenant_id,
@@ -264,6 +274,14 @@ export const login = async (req, res) => {
         lastName: user.lastName,
         phone: user.phone,
         role: user.role,
+        roleId: user.roleId,
+        userRole: user.userRole ? {
+          id: user.userRole.id,
+          name: user.userRole.name,
+          displayName: user.userRole.displayName,
+          description: user.userRole.description,
+          isSystemRole: user.userRole.isSystemRole,
+        } : null,
         assignedTenants: user.UserTenantAssignments.map((assignment) => ({
           tenantId: assignment.Tenant.tenant_id,
           tenantName: assignment.Tenant.seller_business_name,

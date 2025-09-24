@@ -28,6 +28,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
+import PermissionGate from "./PermissionGate";
 
 import { api, API_CONFIG } from "../API/Api";
 import { postData } from "../API/GetApi";
@@ -1444,14 +1445,16 @@ export default function BasicTable() {
               </Button>
 
 
-              <Button
-                variant="outlined"
-                color="primary"
-                startIcon={<CloudUploadIcon />}
-                onClick={() => setUploaderOpen(true)}
-              >
-                Bulk Upload CSV/Excel
-              </Button>
+              <PermissionGate permission="invoice_uploader">
+                <Button
+                  variant="outlined"
+                  color="primary"
+                  startIcon={<CloudUploadIcon />}
+                  onClick={() => setUploaderOpen(true)}
+                >
+                  Bulk Upload CSV/Excel
+                </Button>
+              </PermissionGate>
             </Box>
           </Box>
 
@@ -2192,50 +2195,54 @@ export default function BasicTable() {
                             {(row.status === "draft" ||
                               row.status === "saved") && (
                               <>
-                                <Tooltip
-                                  title={`Edit ${row.status === "draft" ? "Draft" : "Saved"} Invoice`}
-                                >
-                                  <Button
-                                    variant="outlined"
-                                    color="warning"
-                                    size="small"
-                                    onClick={() => handleEditInvoice(row)}
-                                    sx={{
-                                      minWidth: "32px",
-                                      width: "32px",
-                                      height: "32px",
-                                      p: 0,
-                                      "&:hover": {
-                                        backgroundColor: "warning.main",
-                                        color: "warning.contrastText",
-                                        borderColor: "warning.main",
-                                      },
-                                    }}
+                                <PermissionGate permission="invoice.update">
+                                  <Tooltip
+                                    title={`Edit ${row.status === "draft" ? "Draft" : "Saved"} Invoice`}
                                   >
-                                    <EditIcon fontSize="small" />
-                                  </Button>
-                                </Tooltip>
-                                <Tooltip title="Delete Invoice">
-                                  <Button
-                                    variant="outlined"
-                                    color="error"
-                                    size="small"
-                                    onClick={() => handleDeleteClick(row)}
-                                    sx={{
-                                      minWidth: "32px",
-                                      width: "32px",
-                                      height: "32px",
-                                      p: 0,
-                                      "&:hover": {
-                                        backgroundColor: "error.main",
-                                        color: "error.contrastText",
-                                        borderColor: "error.main",
-                                      },
-                                    }}
-                                  >
-                                    <DeleteIcon fontSize="small" />
-                                  </Button>
-                                </Tooltip>
+                                    <Button
+                                      variant="outlined"
+                                      color="warning"
+                                      size="small"
+                                      onClick={() => handleEditInvoice(row)}
+                                      sx={{
+                                        minWidth: "32px",
+                                        width: "32px",
+                                        height: "32px",
+                                        p: 0,
+                                        "&:hover": {
+                                          backgroundColor: "warning.main",
+                                          color: "warning.contrastText",
+                                          borderColor: "warning.main",
+                                        },
+                                      }}
+                                    >
+                                      <EditIcon fontSize="small" />
+                                    </Button>
+                                  </Tooltip>
+                                </PermissionGate>
+                                <PermissionGate permission="invoice.delete">
+                                  <Tooltip title="Delete Invoice">
+                                    <Button
+                                      variant="outlined"
+                                      color="error"
+                                      size="small"
+                                      onClick={() => handleDeleteClick(row)}
+                                      sx={{
+                                        minWidth: "32px",
+                                        width: "32px",
+                                        height: "32px",
+                                        p: 0,
+                                        "&:hover": {
+                                          backgroundColor: "error.main",
+                                          color: "error.contrastText",
+                                          borderColor: "error.main",
+                                        },
+                                      }}
+                                    >
+                                      <DeleteIcon fontSize="small" />
+                                    </Button>
+                                  </Tooltip>
+                                </PermissionGate>
                               </>
                             )}
                           </Box>
