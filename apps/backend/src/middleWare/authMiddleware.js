@@ -72,7 +72,8 @@ export const authenticateToken = async (req, res, next) => {
 };
 
 export const requireAdmin = (req, res, next) => {
-  if (req.user && req.user.role === "admin") {
+  // Check if user is admin by type or role
+  if (req.user && (req.userType === "admin" || req.user.role === "admin" || req.user.type === "admin")) {
     next();
   } else {
     return res.status(403).json({

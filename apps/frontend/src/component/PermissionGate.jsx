@@ -15,7 +15,7 @@ import { usePermissions } from '../hooks/usePermissions';
 const PermissionGate = ({
   permission,
   mode = 'any',
-  adminOverride = true,
+  adminOverride = false, // Changed default to false to be more restrictive
   children,
   fallback = null,
   hide = false,

@@ -240,7 +240,7 @@ export const login = async (req, res) => {
           email: user.email,
           firstName: user.firstName,
           lastName: user.lastName,
-          role: user.role,
+          role: user.userRole?.name || user.role, // Use role name from userRole if available
           roleId: user.roleId,
           type: "user",
           assignedTenants: user.UserTenantAssignments.map((assignment) => ({
@@ -273,7 +273,7 @@ export const login = async (req, res) => {
         firstName: user.firstName,
         lastName: user.lastName,
         phone: user.phone,
-        role: user.role,
+        role: user.userRole?.name || user.role, // Use role name from userRole if available
         roleId: user.roleId,
         userRole: user.userRole ? {
           id: user.userRole.id,

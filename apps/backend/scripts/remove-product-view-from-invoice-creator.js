@@ -36,7 +36,7 @@ async function removeProductViewFromInvoiceCreator() {
     const productPermissions = [
       'product.view',
       'product.create',
-      'product.edit',
+      'product.update',
       'product.delete',
       'product.upload',
       'product.bulk',

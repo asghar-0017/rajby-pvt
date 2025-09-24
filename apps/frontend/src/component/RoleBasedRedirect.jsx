@@ -17,6 +17,11 @@ const RoleBasedRedirect = () => {
     return <Navigate to="/dashboard" replace />;
   }
 
+  // Check if user has multiple company assignments - redirect to tenant management first
+  if (user?.assignedTenants && user.assignedTenants.length > 1) {
+    return <Navigate to="/tenant-management" replace />;
+  }
+
   // Check user role for specific redirects (highest priority)
   if (user?.userRole?.name === 'buyer_manager') {
     return <Navigate to="/buyers" replace />;

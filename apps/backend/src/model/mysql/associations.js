@@ -6,6 +6,9 @@ import UserTenantAssignment from "./UserTenantAssignment.js";
 import Role from "./Role.js";
 import Permission from "./Permission.js";
 import RolePermission from "./RolePermission.js";
+import AuditLog from "./AuditLog.js";
+import AuditSummary from "./AuditSummary.js";
+import AuditPermission from "./AuditPermission.js";
 
 // AdminUser associations
 AdminUser.hasMany(AdminSession, { foreignKey: "admin_id" });
@@ -52,6 +55,25 @@ Permission.belongsToMany(Role, {
 User.belongsTo(Role, { foreignKey: "roleId", as: "userRole" });
 Role.hasMany(User, { foreignKey: "roleId", as: "users" });
 
+// Audit associations
+User.hasMany(AuditLog, { foreignKey: "userId", as: "auditLogs" });
+AuditLog.belongsTo(User, { foreignKey: "userId", as: "user" });
+
+Tenant.hasMany(AuditLog, { foreignKey: "tenantId", as: "auditLogs" });
+AuditLog.belongsTo(Tenant, { foreignKey: "tenantId", as: "tenant" });
+
+User.hasMany(AuditSummary, { foreignKey: "createdByUserId", as: "createdAuditSummaries" });
+AuditSummary.belongsTo(User, { foreignKey: "createdByUserId", as: "createdByUser" });
+
+User.hasMany(AuditSummary, { foreignKey: "lastModifiedByUserId", as: "modifiedAuditSummaries" });
+AuditSummary.belongsTo(User, { foreignKey: "lastModifiedByUserId", as: "lastModifiedByUser" });
+
+User.hasMany(AuditSummary, { foreignKey: "deletedByUserId", as: "deletedAuditSummaries" });
+AuditSummary.belongsTo(User, { foreignKey: "deletedByUserId", as: "deletedByUser" });
+
+Tenant.hasMany(AuditSummary, { foreignKey: "tenantId", as: "auditSummaries" });
+AuditSummary.belongsTo(Tenant, { foreignKey: "tenantId", as: "tenant" });
+
 // AdminUser associations with Role (for created_by) - commented out since created_by column doesn't exist
 // AdminUser.hasMany(Role, { foreignKey: "createdBy", as: "CreatedRoles" });
 // Role.belongsTo(AdminUser, { foreignKey: "createdBy", as: "CreatedBy" });
@@ -64,5 +86,8 @@ export {
   UserTenantAssignment, 
   Role, 
   Permission, 
-  RolePermission 
+  RolePermission,
+  AuditLog,
+  AuditSummary,
+  AuditPermission
 };

@@ -19,6 +19,7 @@ class UserManagementService {
         lastName,
         phone,
         roleId,
+        isActive,
       } = userData;
 
       // Check if user already exists
@@ -39,7 +40,7 @@ class UserManagementService {
         phone,
         roleId,
         createdBy: createdByAdminId,
-        isActive: true,
+        isActive: isActive !== undefined ? isActive : true, // Use provided status or default to true
         isVerified: true, // Auto-verify users created by admin
       });
 
@@ -124,9 +125,7 @@ class UserManagementService {
   async getAllUsers() {
     try {
       const users = await User.findAll({
-        where: {
-          isActive: true, // Only get active users
-        },
+        // Remove the isActive filter to show all users (both active and blocked)
         include: [
           {
             model: UserTenantAssignment,
@@ -170,7 +169,7 @@ class UserManagementService {
   async getUserById(userId) {
     try {
       const user = await User.findOne({
-        where: { id: userId, isActive: true },
+        where: { id: userId }, // Remove isActive filter to get user regardless of status
         include: [
           {
             model: UserTenantAssignment,
@@ -416,7 +415,7 @@ class UserManagementService {
         include: [
           {
             model: User,
-            where: { isActive: true }, // Only get active users
+            // Remove isActive filter to show all users (both active and blocked)
             attributes: [
               "id",
               "email",

@@ -22,11 +22,14 @@ import {
   OutlinedInput,
   Checkbox,
   ListItemText,
+  InputAdornment,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import EditIcon from "@mui/icons-material/Edit";
 import SecurityIcon from "@mui/icons-material/Security";
+import Visibility from "@mui/icons-material/Visibility";
+import VisibilityOff from "@mui/icons-material/VisibilityOff";
 import { useTenantSelection } from "../Context/TenantSelectionProvider";
 import { api } from "../API/Api";
 
@@ -116,7 +119,7 @@ const CreateUserModal = ({
             editingUser.UserTenantAssignments?.map(
               (assignment) => assignment.tenantId || assignment.Tenant?.id
             ).filter(Boolean) || [],
-          status: "active", // Always set to active for editing
+          status: editingUser.isActive ? "active" : "blocked", // Set based on user's current status
           roleId: editingUser.roleId || editingUser.userRole?.id || "",
         });
       } else {
@@ -200,6 +203,9 @@ const CreateUserModal = ({
       const submitData = {
         ...formData,
         confirmPassword: undefined,
+        // Map status to the correct field names for backend
+        phone: formData.phoneNumber,
+        tenantIds: formData.assignedCompanies,
       };
       
       console.log('Form data being submitted:', submitData);
@@ -373,6 +379,19 @@ const CreateUserModal = ({
                   error={!!errors.password}
                   helperText={errors.password}
                   required={!isEditMode}
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton
+                          aria-label="toggle password visibility"
+                          onClick={() => setShowPassword(!showPassword)}
+                          edge="end"
+                        >
+                          {showPassword ? <VisibilityOff /> : <Visibility />}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  }}
                 />
                 {formData.password && (
                   <TextField
@@ -386,6 +405,19 @@ const CreateUserModal = ({
                     error={!!errors.confirmPassword}
                     helperText={errors.confirmPassword}
                     required
+                    InputProps={{
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton
+                            aria-label="toggle confirm password visibility"
+                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                            edge="end"
+                          >
+                            {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    }}
                   />
                 )}
               </Stack>
@@ -406,8 +438,12 @@ const CreateUserModal = ({
                   label="Status"
                 >
                   <MenuItem value="active">Active</MenuItem>
+                  <MenuItem value="blocked">Blocked</MenuItem>
                 </Select>
               </FormControl>
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
+                Blocked users cannot log into the system.
+              </Typography>
             </Box>
 
             {/* Role Assignment */}

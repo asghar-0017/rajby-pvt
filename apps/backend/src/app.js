@@ -17,6 +17,8 @@ import userAuthRoutes from "./routes/userAuthRoutes.js";
 import userManagementRoutes from "./routes/userManagementRoutes.js";
 import userCompanyRoutes from "./routes/userCompanyRoutes.js";
 import roleManagementRoutes from "./routes/roleManagementRoutes.js";
+import auditRoutes from "./routes/auditRoutes.js";
+import { requestIdMiddleware } from "./middleWare/auditMiddleware.js";
 
 import tenantRoutes from "./routes/tenantRoutes.js";
 import buyerRoutes from "./routes/buyerRoutes.js";
@@ -41,6 +43,9 @@ app.use(express.static(path.join(__dirname, "dist")));
 
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+
+// Add request ID middleware for audit tracking
+app.use(requestIdMiddleware);
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -49,7 +54,7 @@ app.use(
         connectSrc: [
           "'self'",
           "https://gw.fbr.gov.pk",
-          "https://novaplast.inplsoftwares.online",
+          "https://fbrnewtest.inplsoftwares.online",
         ],
         scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
@@ -63,8 +68,8 @@ app.use(
   cors({
     origin: [
       "http://localhost:5174",
-      "https://novaplast.inplsoftwares.online",
-      "https://novaplast.inplsoftwares.online",
+      "https://fbrnewtest.inplsoftwares.online",
+      "https://fbrnewtest.inplsoftwares.online",
       "https://fbrtestcase.inplsoftwares.online",
       "*",
     ],
@@ -87,6 +92,7 @@ app.use("/api/user-auth", userAuthRoutes);
 app.use("/api/user-management", userManagementRoutes);
 app.use("/api/role-management", roleManagementRoutes);
 app.use("/api/user", userCompanyRoutes);
+app.use("/api/audit", auditRoutes);
 app.use("/api/admin", tenantRoutes);
 app.use("/api/tenant/:tenantId", buyerRoutes);
 app.use("/api/tenant/:tenantId", invoiceRoutes);

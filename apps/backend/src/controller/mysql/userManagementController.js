@@ -1,5 +1,6 @@
 import UserManagementService from "../../service/UserManagementService.js";
 import { formatResponse } from "../../utils/formatResponse.js";
+import { logAuditEvent } from "../../middleWare/auditMiddleware.js";
 
 // Get all users
 export const getAllUsers = async (req, res) => {
@@ -47,7 +48,7 @@ export const getUserById = async (req, res) => {
 // Create new user
 export const createUser = async (req, res) => {
   try {
-    const { email, password, firstName, lastName, phone, roleId, isActive, tenantIds } =
+    const { email, password, firstName, lastName, phone, roleId, status, tenantIds } =
       req.body;
     const createdByAdminId = req.user.id; // Admin who is creating the user
 
@@ -74,7 +75,7 @@ export const createUser = async (req, res) => {
         lastName,
         phone,
         roleId,
-        isActive,
+        isActive: status === "active", // Convert status string to boolean
       },
       createdByAdminId
     );
@@ -99,6 +100,30 @@ export const createUser = async (req, res) => {
 
     // Fetch the complete user data with assignments
     const completeUser = await UserManagementService.getUserById(user.id);
+
+    // Log audit event for user creation
+    await logAuditEvent(
+      req,
+      "user",
+      user.id,
+      "CREATE",
+      null, // oldValues
+      {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        phone: user.phone,
+        roleId: user.roleId,
+        isActive: user.isActive,
+        isVerified: user.isVerified,
+        createdBy: user.createdBy,
+      }, // newValues
+      {
+        entityName: user.email,
+        tenantIds: tenantIds,
+      }
+    );
 
     return res
       .status(201)
@@ -131,13 +156,26 @@ export const createUser = async (req, res) => {
 export const updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const { tenantIds, ...updateData } = req.body; // Extract tenantIds from updateData
+    const { tenantIds, status, ...updateData } = req.body; // Extract tenantIds and status from updateData
     const updatedByAdminId = req.user.id;
 
     // Remove sensitive fields that shouldn't be updated directly
     delete updateData.id;
     delete updateData.created_at;
     delete updateData.updated_at;
+
+    // Convert status to isActive boolean if provided
+    if (status !== undefined) {
+      updateData.isActive = status === "active";
+    }
+
+    // Get old user data for audit
+    const oldUser = await UserManagementService.getUserById(id);
+    if (!oldUser) {
+      return res
+        .status(404)
+        .json(formatResponse(false, "User not found", null, 404));
+    }
 
     // Update user basic information
     const user = await UserManagementService.updateUser(id, updateData);
@@ -174,6 +212,38 @@ export const updateUser = async (req, res) => {
     // Fetch the complete updated user data with assignments
     const completeUser = await UserManagementService.getUserById(id);
 
+    // Log audit event for user update
+    await logAuditEvent(
+      req,
+      "user",
+      id,
+      "UPDATE",
+      {
+        id: oldUser.id,
+        email: oldUser.email,
+        firstName: oldUser.firstName,
+        lastName: oldUser.lastName,
+        phone: oldUser.phone,
+        roleId: oldUser.roleId,
+        isActive: oldUser.isActive,
+        isVerified: oldUser.isVerified,
+      }, // oldValues
+      {
+        id: completeUser.id,
+        email: completeUser.email,
+        firstName: completeUser.firstName,
+        lastName: completeUser.lastName,
+        phone: completeUser.phone,
+        roleId: completeUser.roleId,
+        isActive: completeUser.isActive,
+        isVerified: completeUser.isVerified,
+      }, // newValues
+      {
+        entityName: completeUser.email,
+        tenantIds: tenantIds,
+      }
+    );
+
     return res
       .status(200)
       .json(
@@ -193,7 +263,39 @@ export const updateUser = async (req, res) => {
 export const deleteUser = async (req, res) => {
   try {
     const { id } = req.params;
+    
+    // Get user data before deletion for audit
+    const userToDelete = await UserManagementService.getUserById(id);
+    if (!userToDelete) {
+      return res
+        .status(404)
+        .json(formatResponse(false, "User not found", null, 404));
+    }
+
     await UserManagementService.deleteUser(id);
+
+    // Log audit event for user deletion
+    await logAuditEvent(
+      req,
+      "user",
+      id,
+      "DELETE",
+      {
+        id: userToDelete.id,
+        email: userToDelete.email,
+        firstName: userToDelete.firstName,
+        lastName: userToDelete.lastName,
+        phone: userToDelete.phone,
+        roleId: userToDelete.roleId,
+        isActive: userToDelete.isActive,
+        isVerified: userToDelete.isVerified,
+        createdBy: userToDelete.createdBy,
+      }, // oldValues
+      null, // newValues
+      {
+        entityName: userToDelete.email,
+      }
+    );
 
     return res
       .status(200)

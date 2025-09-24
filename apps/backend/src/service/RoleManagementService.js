@@ -529,6 +529,11 @@ class RoleManagementService {
           return false;
         }
 
+        // If user has a system role with all permissions, grant access
+        if (user.userRole.isSystemRole === true) {
+          return true;
+        }
+
         // Check if user's role has the required permission
         const hasPermission = user.userRole.permissions.length > 0;
         return hasPermission;
@@ -566,6 +571,11 @@ class RoleManagementService {
 
       if (!user || !user.userRole) {
         return false;
+      }
+
+      // If user has a system role with all permissions, grant access
+      if (user.userRole.isSystemRole === true) {
+        return true;
       }
 
       // Check if user's role has the required permission
@@ -615,6 +625,14 @@ class RoleManagementService {
           return [];
         }
 
+        // If user has a system role, return all active permissions
+        if (user.userRole.isSystemRole === true) {
+          const allPermissions = await Permission.findAll({
+            where: { isActive: true }
+          });
+          return allPermissions;
+        }
+
         return user.userRole.permissions;
       }
 
@@ -648,6 +666,14 @@ class RoleManagementService {
 
       if (!user || !user.userRole) {
         return [];
+      }
+
+      // If user has a system role, return all active permissions
+      if (user.userRole.isSystemRole === true) {
+        const allPermissions = await Permission.findAll({
+          where: { isActive: true }
+        });
+        return allPermissions;
       }
 
       return user.userRole.permissions;

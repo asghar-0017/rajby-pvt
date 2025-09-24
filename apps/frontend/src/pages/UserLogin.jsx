@@ -14,11 +14,15 @@ import {
   CircularProgress,
   Container,
   Paper,
+  InputAdornment,
+  IconButton,
 } from "@mui/material";
 import {
   Person as PersonIcon,
   Lock as LockIcon,
   Business as BusinessIcon,
+  Visibility,
+  VisibilityOff,
 } from "@mui/icons-material";
 
 const UserLogin = () => {
@@ -28,6 +32,7 @@ const UserLogin = () => {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
   const { login } = useAuth();
 
@@ -160,7 +165,7 @@ const UserLogin = () => {
               fullWidth
               name="password"
               label="Password"
-              type="password"
+              type={showPassword ? "text" : "password"}
               id="password"
               autoComplete="current-password"
               value={formData.password}
@@ -168,6 +173,17 @@ const UserLogin = () => {
               InputProps={{
                 startAdornment: (
                   <LockIcon sx={{ mr: 1, color: "text.secondary" }} />
+                ),
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      aria-label="toggle password visibility"
+                      onClick={() => setShowPassword(!showPassword)}
+                      edge="end"
+                    >
+                      {showPassword ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
                 ),
               }}
             />

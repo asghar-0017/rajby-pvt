@@ -1,4 +1,5 @@
 import { Op } from "sequelize";
+import { logAuditEvent } from "../../middleWare/auditMiddleware.js";
 
 export const listProducts = async (req, res) => {
   try {
@@ -130,6 +131,28 @@ export const createProduct = async (req, res) => {
           ? `${req.user?.firstName ?? ""}${req.user?.lastName ? ` ${req.user.lastName}` : ""}`.trim()
           : (req.user?.role === "admin" ? "Admin" : null),
     });
+    // Log audit event for product creation
+    await logAuditEvent(
+      req,
+      "product",
+      product.id,
+      "CREATE",
+      null, // oldValues
+      {
+        id: product.id,
+        name: product.name,
+        description: product.description,
+        hsCode: product.hsCode,
+        uom: product.uom,
+        created_by_user_id: product.created_by_user_id,
+        created_by_email: product.created_by_email,
+        created_by_name: product.created_by_name,
+      }, // newValues
+      {
+        entityName: product.name,
+      }
+    );
+
     res.status(201).json({ success: true, data: product });
   } catch (err) {
     // Handle specific database errors
@@ -179,12 +202,41 @@ export const updateProduct = async (req, res) => {
         .json({ success: false, message: "name is required" });
     }
 
+    // Capture old values for audit
+    const oldValues = {
+      id: product.id,
+      name: product.name,
+      description: product.description,
+      hsCode: product.hsCode,
+      uom: product.uom,
+    };
+
     await product.update({
       name,
       description,
       hsCode,
       uom,
     });
+
+    // Log audit event for product update
+    await logAuditEvent(
+      req,
+      "product",
+      product.id,
+      "UPDATE",
+      oldValues, // oldValues
+      {
+        id: product.id,
+        name: product.name,
+        description: product.description,
+        hsCode: product.hsCode,
+        uom: product.uom,
+      }, // newValues
+      {
+        entityName: product.name,
+      }
+    );
+
     res.json({ success: true, data: product });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -203,7 +255,33 @@ export const deleteProduct = async (req, res) => {
         .json({ success: false, message: "Product not found" });
     }
 
+    // Capture product data before deletion for audit
+    const productData = {
+      id: product.id,
+      name: product.name,
+      description: product.description,
+      hsCode: product.hsCode,
+      uom: product.uom,
+      created_by_user_id: product.created_by_user_id,
+      created_by_email: product.created_by_email,
+      created_by_name: product.created_by_name,
+    };
+
     await product.destroy();
+
+    // Log audit event for product deletion
+    await logAuditEvent(
+      req,
+      "product",
+      productData.id,
+      "DELETE",
+      productData, // oldValues
+      null, // newValues
+      {
+        entityName: productData.name,
+      }
+    );
+
     res.json({ success: true, message: "Product deleted successfully" });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

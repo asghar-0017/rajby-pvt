@@ -25,6 +25,7 @@ import Products from "../pages/Products";
 import TenantManagement from "../pages/TenantManagement";
 import UserManagement from "../pages/UserManagement";
 import SalesReport from "../pages/SalesReport";
+import AuditManagement from "../pages/AuditManagement";
 import RoleBasedRedirect from "../component/RoleBasedRedirect";
 
 // import ProductionForm from "../pages/productionForm"
@@ -118,24 +119,28 @@ const AppRouter = () => {
                 <Route 
                   path="sales-report" 
                   element={
-                    <PermissionRoute permission="report.view">
+                    <PermissionRoute permission="report.view" adminOverride={false}>
                       <SalesReport />
                     </PermissionRoute>
                   } 
                 />
                 <Route
                   path="tenant-management"
-                  element={
-                    <PermissionRoute permission="tenant.view" adminOverride={true}>
-                      <TenantManagement />
-                    </PermissionRoute>
-                  }
+                  element={<TenantManagement />}
                 />
                 <Route 
                   path="user-management" 
                   element={
                     <PermissionRoute permission="read_user" adminOverride={true}>
                       <UserManagement />
+                    </PermissionRoute>
+                  } 
+                />
+                <Route 
+                  path="audit-management" 
+                  element={
+                    <PermissionRoute permission="audit.view" adminOverride={true}>
+                      <AuditManagement />
                     </PermissionRoute>
                   } 
                 />

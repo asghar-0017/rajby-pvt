@@ -46,6 +46,7 @@ import { useTenantSelection } from "../Context/TenantSelectionProvider";
 import { FaBusinessTime } from "react-icons/fa6";
 import { FaUsers } from "react-icons/fa";
 import { FaChartBar } from "react-icons/fa";
+import { FaClipboardList } from "react-icons/fa";
 import { ExpandLess, ExpandMore } from "@mui/icons-material";
 import Footer from "./Footer";
 import PasswordUpdateMenuMount from "./PasswordUpdateMenuMount";
@@ -118,7 +119,7 @@ export default function Sidebar({ onLogout }) {
   const [open, setOpen] = React.useState(true); // Set to true for permanently open
   const { user } = useAuth();
   const { selectedTenant, isTenantSelected } = useTenantSelection();
-  const { hasPermission } = usePermissions();
+  const { hasPermission, isAdmin } = usePermissions();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -129,6 +130,7 @@ export default function Sidebar({ onLogout }) {
     { name: "Buyers", href: "/buyers", icon: <FaWallet />, permission: "buyer.view" },
     { name: "Products", href: "/products", icon: <InboxIcon />, permission: "product.view" },
     { name: "User Management", href: "/user-management", icon: <FaUsers />, permission: "read_user" },
+    { name: "Audit Management", href: "/audit-management", icon: <FaClipboardList />, permission: "audit.view" },
     { 
       name: "Reports", 
       icon: <FaChartBar />, 
@@ -150,28 +152,12 @@ export default function Sidebar({ onLogout }) {
     const hasRequiredPermission = hasPermission(item.permission);
     
     // Admin users should see all menu items
-    if (user?.role === 'admin' || user?.type === 'admin') {
+    if (isAdmin()) {
       return hasRequiredPermission;
     }
     
-    // Special logic for Products, Buyers, and Invoice List when user has report access
-    if (item.name === "Products" && item.permission === "product.view") {
-      // Hide Products if user has report access (they get product.view implicitly)
-      const hasReportAccess = hasPermission("report.view");
-      return hasRequiredPermission && !hasReportAccess;
-    }
-    
-    if (item.name === "Buyers" && item.permission === "buyer.view") {
-      // Hide Buyers if user has report access (they get buyer.view implicitly)
-      const hasReportAccess = hasPermission("report.view");
-      return hasRequiredPermission && !hasReportAccess;
-    }
-    
-    if (item.name === "Invoice List" && item.permission === "invoice.view") {
-      // Hide Invoice List if user has report access (they get invoice.view implicitly)
-      const hasReportAccess = hasPermission("report.view");
-      return hasRequiredPermission && !hasReportAccess;
-    }
+    // Removed special logic that was hiding menu items when users have report access
+    // Users should have access to both individual features AND reports if they have the permissions
     
     // For all other items, use normal permission check
     return hasRequiredPermission;
@@ -188,7 +174,7 @@ export default function Sidebar({ onLogout }) {
     console.log("Sidebar: Assigned tenants:", user?.assignedTenants);
     console.log("Sidebar: Number of assigned tenants:", user?.assignedTenants?.length || 0);
 
-    if (user?.role === 'admin' || user?.type === 'admin') {
+    if (isAdmin()) {
       // Admin users have access to all companies, so always show the option
       // The TenantManagement page will fetch all companies for admin users
       console.log("Sidebar: Admin user detected - showing Select Company");
@@ -412,7 +398,7 @@ export default function Sidebar({ onLogout }) {
                   <Collapse in={reportsOpen} timeout="auto" unmountOnExit>
                     <List component="div" disablePadding>
                       {item.submenu.map((subItem) => (
-                        <PermissionGate key={subItem.name} permission={subItem.permission} hide>
+                        <PermissionGate key={subItem.name} permission={subItem.permission} hide adminOverride={true}>
                           <NavLink
                             to={subItem.href}
                             style={{ textDecoration: "none", color: "inherit" }}

@@ -1,6 +1,8 @@
 // Buyer controller for multi-tenant MySQL system
 // This controller uses req.tenantModels.Buyer from tenant middleware
 
+import { logAuditEvent } from "../../middleWare/auditMiddleware.js";
+
 // Create new buyer
 export const createBuyer = async (req, res) => {
   try {
@@ -101,6 +103,29 @@ export const createBuyer = async (req, res) => {
           ? `${req.user?.firstName ?? ""}${req.user?.lastName ? ` ${req.user.lastName}` : ""}`.trim()
           : (req.user?.role === "admin" ? `Admin (${req.user?.id || req.user?.userId})` : null),
     });
+
+    // Log audit event for buyer creation
+    await logAuditEvent(
+      req,
+      "buyer",
+      buyer.id,
+      "CREATE",
+      null, // oldValues
+      {
+        id: buyer.id,
+        buyerNTNCNIC: buyer.buyerNTNCNIC,
+        buyerBusinessName: buyer.buyerBusinessName,
+        buyerProvince: buyer.buyerProvince,
+        buyerAddress: buyer.buyerAddress,
+        buyerRegistrationType: buyer.buyerRegistrationType,
+        created_by_user_id: buyer.created_by_user_id,
+        created_by_email: buyer.created_by_email,
+        created_by_name: buyer.created_by_name,
+      }, // newValues
+      {
+        entityName: buyer.buyerBusinessName || buyer.buyerNTNCNIC,
+      }
+    );
 
     res.status(201).json({
       success: true,
@@ -348,6 +373,16 @@ export const updateBuyer = async (req, res) => {
 
     const normalizedProvince = normalizeProvince(buyerProvince);
 
+    // Capture old values for audit
+    const oldValues = {
+      id: buyer.id,
+      buyerNTNCNIC: buyer.buyerNTNCNIC,
+      buyerBusinessName: buyer.buyerBusinessName,
+      buyerProvince: buyer.buyerProvince,
+      buyerAddress: buyer.buyerAddress,
+      buyerRegistrationType: buyer.buyerRegistrationType,
+    };
+
     await buyer.update({
       buyerNTNCNIC,
       buyerBusinessName,
@@ -355,6 +390,26 @@ export const updateBuyer = async (req, res) => {
       buyerAddress,
       buyerRegistrationType,
     });
+
+    // Log audit event for buyer update
+    await logAuditEvent(
+      req,
+      "buyer",
+      buyer.id,
+      "UPDATE",
+      oldValues, // oldValues
+      {
+        id: buyer.id,
+        buyerNTNCNIC: buyer.buyerNTNCNIC,
+        buyerBusinessName: buyer.buyerBusinessName,
+        buyerProvince: buyer.buyerProvince,
+        buyerAddress: buyer.buyerAddress,
+        buyerRegistrationType: buyer.buyerRegistrationType,
+      }, // newValues
+      {
+        entityName: buyer.buyerBusinessName || buyer.buyerNTNCNIC,
+      }
+    );
 
     res.status(200).json({
       success: true,
@@ -403,7 +458,33 @@ export const deleteBuyer = async (req, res) => {
       });
     }
 
+    // Capture buyer data before deletion for audit
+    const buyerData = {
+      id: buyer.id,
+      buyerNTNCNIC: buyer.buyerNTNCNIC,
+      buyerBusinessName: buyer.buyerBusinessName,
+      buyerProvince: buyer.buyerProvince,
+      buyerAddress: buyer.buyerAddress,
+      buyerRegistrationType: buyer.buyerRegistrationType,
+      created_by_user_id: buyer.created_by_user_id,
+      created_by_email: buyer.created_by_email,
+      created_by_name: buyer.created_by_name,
+    };
+
     await buyer.destroy();
+
+    // Log audit event for buyer deletion
+    await logAuditEvent(
+      req,
+      "buyer",
+      buyerData.id,
+      "DELETE",
+      buyerData, // oldValues
+      null, // newValues
+      {
+        entityName: buyerData.buyerBusinessName || buyerData.buyerNTNCNIC,
+      }
+    );
 
     res.status(200).json({
       success: true,

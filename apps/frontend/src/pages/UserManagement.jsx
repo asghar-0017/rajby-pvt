@@ -162,6 +162,7 @@ const UserManagement = () => {
           lastName: userData.lastName,
           phone: userData.phoneNumber,
           roleId: userData.roleId,
+          status: userData.status,
           tenantIds: userData.assignedCompanies,
         };
 
@@ -199,6 +200,7 @@ const UserManagement = () => {
           lastName: userData.lastName,
           phone: userData.phoneNumber,
           roleId: userData.roleId,
+          status: userData.status,
           tenantIds: userData.assignedCompanies,
         };
 
@@ -344,6 +346,7 @@ const UserManagement = () => {
               <TableCell>User</TableCell>
               <TableCell>Contact</TableCell>
               <TableCell>Role</TableCell>
+              <TableCell>Status</TableCell>
               <TableCell>Companies</TableCell>
               <TableCell>Actions</TableCell>
             </TableRow>
@@ -390,6 +393,14 @@ const UserManagement = () => {
                     }
                     size="small"
                     variant={user.userRole?.name || user.role ? "filled" : "outlined"}
+                  />
+                </TableCell>
+                <TableCell>
+                  <Chip
+                    label={user.isActive ? "Active" : "Blocked"}
+                    color={user.isActive ? "success" : "error"}
+                    size="small"
+                    variant="filled"
                   />
                 </TableCell>
                 <TableCell>

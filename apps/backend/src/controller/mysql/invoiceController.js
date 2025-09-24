@@ -21,6 +21,7 @@ import TenantDatabaseService from "../../service/TenantDatabaseService.js";
 import Tenant from "../../model/mysql/Tenant.js";
 
 import hsCodeCacheService from "../../service/HSCodeCacheService.js";
+import { logAuditEvent } from "../../middleWare/auditMiddleware.js";
 
 const { toWords } = numberToWords;
 
@@ -374,7 +375,7 @@ export const createInvoice = async (req, res) => {
           created_by_name:
             (req.user?.firstName || req.user?.lastName)
               ? `${req.user?.firstName ?? ""}${req.user?.lastName ? ` ${req.user.lastName}` : ""}`.trim()
-              : (req.user?.role === "admin" ? `Admin (${req.user?.id || req.user?.userId})` : null),
+              : (req.user?.role === "admin" ? `Admin (${req.user?.id || "Unknown"})` : null),
         },
 
         { transaction: t }
@@ -547,6 +548,30 @@ export const createInvoice = async (req, res) => {
       return invoice;
     });
 
+    // Log audit event for invoice creation
+    await logAuditEvent(
+      req,
+      "invoice",
+      result.id,
+      "CREATE",
+      null, // oldValues
+      {
+        invoice_id: result.id,
+        invoice_number: result.invoice_number,
+        system_invoice_id: result.system_invoice_id,
+        status: result.status,
+        fbr_invoice_number: result.fbr_invoice_number,
+        sellerBusinessName: result.sellerBusinessName,
+        buyerBusinessName: result.buyerBusinessName,
+        invoiceDate: result.invoiceDate,
+        totalAmount: result.totalAmount,
+      }, // newValues
+      {
+        entityName: result.invoice_number || result.system_invoice_id,
+        itemsCount: items ? items.length : 0,
+      }
+    );
+
     res.status(200).json({
       success: true,
 
@@ -635,20 +660,23 @@ export const saveInvoice = async (req, res) => {
           throw new Error("Invoice not found");
         }
 
-        if (invoice.status !== "draft") {
-          throw new Error("Only draft invoices can be updated");
+        if (invoice.status !== "draft" && invoice.status !== "saved") {
+          throw new Error("Only draft or saved invoices can be updated");
         }
 
-        // Check if the current invoice number already has DRAFT_ prefix
-
+        // Generate appropriate invoice number based on current status
         let updatedInvoiceNumber = invoice.invoice_number;
 
-        if (
-          !updatedInvoiceNumber ||
-          !updatedInvoiceNumber.startsWith("DRAFT_")
-        ) {
-          // Generate a new DRAFT_ invoice number if it doesn't have the right prefix
-
+        // If changing from SAVED to DRAFT, generate new DRAFT number
+        if (invoice.invoice_number && invoice.invoice_number.startsWith("SAVED_")) {
+          updatedInvoiceNumber = await generateShortInvoiceId(Invoice, "DRAFT");
+        }
+        // If changing from DRAFT to DRAFT, keep the same DRAFT number
+        else if (invoice.invoice_number && invoice.invoice_number.startsWith("DRAFT_")) {
+          updatedInvoiceNumber = invoice.invoice_number; // Keep existing DRAFT number
+        }
+        // If no invoice number or other format, generate new DRAFT number
+        else {
           updatedInvoiceNumber = await generateShortInvoiceId(Invoice, "DRAFT");
         }
 
@@ -692,7 +720,7 @@ export const saveInvoice = async (req, res) => {
 
             transctypeId,
 
-            status: "saved",
+            status: "draft",
 
             fbr_invoice_number: null,
           },
@@ -760,7 +788,7 @@ export const saveInvoice = async (req, res) => {
 
             transctypeId,
 
-            status: "saved",
+            status: "draft",
 
             fbr_invoice_number: null,
             created_by_user_id: req.user?.userId || req.user?.id || null,
@@ -768,7 +796,7 @@ export const saveInvoice = async (req, res) => {
             created_by_name:
               (req.user?.firstName || req.user?.lastName)
                 ? `${req.user?.firstName ?? ""}${req.user?.lastName ? ` ${req.user.lastName}` : ""}`.trim()
-                : (req.user?.role === "admin" ? `Admin ` : null),
+                : (req.user?.role === "admin" ? `Admin (${req.user?.id || "Unknown"})` : null),
           },
 
           { transaction: t }
@@ -885,6 +913,32 @@ export const saveInvoice = async (req, res) => {
       return invoice;
     });
 
+    // Log audit event for invoice save (draft)
+    await logAuditEvent(
+      req,
+      "invoice",
+      result.id,
+      "SAVE_DRAFT",
+      null, // oldValues (null for new draft)
+      {
+        invoice_id: result.id,
+        invoice_number: result.invoice_number,
+        system_invoice_id: result.system_invoice_id,
+        status: result.status,
+        invoiceType: result.invoiceType,
+        invoiceDate: result.invoiceDate,
+        sellerBusinessName: result.sellerBusinessName,
+        buyerBusinessName: result.buyerBusinessName,
+        totalAmount: result.totalAmount,
+      }, // newValues
+      {
+        entityName: result.invoice_number || result.system_invoice_id,
+        endpoint: req.originalUrl,
+        method: req.method,
+        itemsCount: items ? items.length : 0,
+      }
+    );
+
     res.status(201).json({
       success: true,
 
@@ -959,9 +1013,16 @@ export const saveAndValidateInvoice = async (req, res) => {
       items,
     } = req.body;
 
-    // Generate a temporary invoice number for saved invoice
-    // Use a more robust approach to handle concurrent requests
-    const tempInvoiceNumber = await generateShortInvoiceId(Invoice, "SAVED");
+    // Generate appropriate invoice number based on whether it's a new invoice or update
+    let tempInvoiceNumber;
+    
+    if (id) {
+      // For updates, we'll determine the invoice number based on current status
+      tempInvoiceNumber = null; // Will be set in the update logic
+    } else {
+      // For new invoices, generate a SAVED invoice number
+      tempInvoiceNumber = await generateShortInvoiceId(Invoice, "SAVED");
+    }
 
     // Validate the data first (basic validation)
 
@@ -1089,9 +1150,25 @@ export const saveAndValidateInvoice = async (req, res) => {
           throw new Error("Only draft or saved invoices can be updated");
         }
 
+        // Generate appropriate invoice number for SAVED status
+        let updatedInvoiceNumber = invoice.invoice_number;
+
+        // If changing from DRAFT to SAVED, generate new SAVED number
+        if (invoice.invoice_number && invoice.invoice_number.startsWith("DRAFT_")) {
+          updatedInvoiceNumber = await generateShortInvoiceId(Invoice, "SAVED");
+        }
+        // If already SAVED, keep the same SAVED number
+        else if (invoice.invoice_number && invoice.invoice_number.startsWith("SAVED_")) {
+          updatedInvoiceNumber = invoice.invoice_number; // Keep existing SAVED number
+        }
+        // If no invoice number or other format, generate new SAVED number
+        else {
+          updatedInvoiceNumber = await generateShortInvoiceId(Invoice, "SAVED");
+        }
+
         await invoice.update(
           {
-            invoice_number: tempInvoiceNumber,
+            invoice_number: updatedInvoiceNumber,
 
             invoiceType,
 
@@ -1130,14 +1207,12 @@ export const saveAndValidateInvoice = async (req, res) => {
             status: "saved",
 
             fbr_invoice_number: null,
-            created_by_user_id: req.userType === "user" ? (req.user.userId || req.user.id) : null,
-            created_by_email: req.userType === "user" ? req.user.email : null,
+            created_by_user_id: req.user?.userId || req.user?.id || null,
+            created_by_email: req.user?.email || null,
             created_by_name:
-              req.userType === "user"
-                ? ((req.user?.firstName || req.user?.lastName)
-                    ? `${req.user?.firstName ?? ""}${req.user?.lastName ? ` ${req.user.lastName}` : ""}`.trim()
-                    : null)
-                : null,
+              (req.user?.firstName || req.user?.lastName)
+                ? `${req.user?.firstName ?? ""}${req.user?.lastName ? ` ${req.user.lastName}` : ""}`.trim()
+                : (req.user?.role === "admin" ? `Admin (${req.user?.id || "Unknown"})` : null),
           },
 
           { transaction: t }
@@ -1199,11 +1274,9 @@ export const saveAndValidateInvoice = async (req, res) => {
             created_by_user_id: req.user?.userId || req.user?.id || null,
             created_by_email: req.user?.email || null,
             created_by_name:
-              req.userType === "user"
-                ? ((req.user?.firstName || req.user?.lastName)
-                    ? `${req.user?.firstName ?? ""}${req.user?.lastName ? ` ${req.user.lastName}` : ""}`.trim()
-                    : null)
-                : (req.user?.role === "admin" ? `Admin ` : null),
+              (req.user?.firstName || req.user?.lastName)
+                ? `${req.user?.firstName ?? ""}${req.user?.lastName ? ` ${req.user.lastName}` : ""}`.trim()
+                : (req.user?.role === "admin" ? `Admin (${req.user?.id || "Unknown"})` : null),
           },
 
           { transaction: t }
@@ -1317,6 +1390,34 @@ export const saveAndValidateInvoice = async (req, res) => {
 
       return invoice;
     });
+
+    // Log audit event for invoice save and validate
+    await logAuditEvent(
+      req,
+      "invoice",
+      result.id,
+      "SAVE_AND_VALIDATE",
+      null, // oldValues (null for new invoice)
+      {
+        invoice_id: result.id,
+        invoice_number: result.invoice_number,
+        system_invoice_id: result.system_invoice_id,
+        status: result.status,
+        invoiceType: result.invoiceType,
+        invoiceDate: result.invoiceDate,
+        sellerBusinessName: result.sellerBusinessName,
+        buyerBusinessName: result.buyerBusinessName,
+        totalAmount: result.totalAmount,
+        fbrValidation: fbrValidationResult ? "success" : "skipped",
+      }, // newValues
+      {
+        entityName: result.invoice_number || result.system_invoice_id,
+        endpoint: req.originalUrl,
+        method: req.method,
+        itemsCount: items ? items.length : 0,
+        fbrValidationResult: fbrValidationResult ? "validated" : "skipped",
+      }
+    );
 
     res.status(201).json({
       success: true,
@@ -2508,7 +2609,52 @@ export const updateInvoice = async (req, res) => {
       });
     }
 
+    // Store old values for audit BEFORE updating
+    const oldValues = {
+      invoice_id: invoice.id,
+      invoice_number: invoice.invoice_number,
+      system_invoice_id: invoice.system_invoice_id,
+      status: invoice.status,
+      fbr_invoice_number: invoice.fbr_invoice_number,
+      sellerBusinessName: invoice.sellerBusinessName,
+      buyerBusinessName: invoice.buyerBusinessName,
+      invoiceDate: invoice.invoiceDate,
+      totalAmount: invoice.totalAmount,
+    };
+
+    // Update the invoice
     await invoice.update(updateData);
+
+    // Reload the invoice to get the updated values
+    await invoice.reload();
+
+    // Prepare new values for audit
+    const newValues = {
+      invoice_id: invoice.id,
+      invoice_number: invoice.invoice_number,
+      system_invoice_id: invoice.system_invoice_id,
+      status: invoice.status,
+      fbr_invoice_number: invoice.fbr_invoice_number,
+      sellerBusinessName: invoice.sellerBusinessName,
+      buyerBusinessName: invoice.buyerBusinessName,
+      invoiceDate: invoice.invoiceDate,
+      totalAmount: invoice.totalAmount,
+    };
+
+    // Log audit event for invoice update
+    await logAuditEvent(
+      req,
+      "invoice",
+      invoice.id,
+      "UPDATE",
+      oldValues, // oldValues (before update)
+      newValues, // newValues (after update)
+      {
+        entityName: invoice.invoice_number || invoice.system_invoice_id,
+        endpoint: req.originalUrl,
+        method: req.method,
+      }
+    );
 
     res.status(200).json({
       success: true,
@@ -2548,7 +2694,35 @@ export const deleteInvoice = async (req, res) => {
       });
     }
 
+    // Store old values for audit before deletion
+    const oldValues = {
+      invoice_id: invoice.id,
+      invoice_number: invoice.invoice_number,
+      system_invoice_id: invoice.system_invoice_id,
+      status: invoice.status,
+      fbr_invoice_number: invoice.fbr_invoice_number,
+      sellerBusinessName: invoice.sellerBusinessName,
+      buyerBusinessName: invoice.buyerBusinessName,
+      invoiceDate: invoice.invoiceDate,
+      totalAmount: invoice.totalAmount,
+    };
+
     await invoice.destroy();
+
+    // Log audit event for invoice deletion
+    await logAuditEvent(
+      req,
+      "invoice",
+      invoice.id,
+      "DELETE",
+      oldValues, // oldValues
+      null, // newValues (null for deletion)
+      {
+        entityName: invoice.invoice_number || invoice.system_invoice_id,
+        endpoint: req.originalUrl,
+        method: req.method,
+      }
+    );
 
     res.status(200).json({
       success: true,
@@ -3140,7 +3314,7 @@ export const submitSavedInvoice = async (req, res) => {
     // Only update invoice_number if we have a valid FBR invoice number
 
     if (fbrInvoiceNumber) {
-      updateData.invoice_number = fbrInvoiceNumber;
+      updateData.fbr_invoice_number = fbrInvoiceNumber;
     }
 
     console.log("Updating invoice with data:", updateData);
@@ -3168,6 +3342,40 @@ export const submitSavedInvoice = async (req, res) => {
 
       status: updatedInvoice.status,
     });
+
+    // Log audit event for invoice submission to FBR
+    await logAuditEvent(
+      req,
+      "invoice",
+      invoice.id,
+      "SUBMIT_TO_FBR",
+      {
+        invoice_id: invoice.id,
+        invoice_number: invoice.invoice_number,
+        system_invoice_id: invoice.system_invoice_id,
+        status: invoice.status,
+        fbr_invoice_number: invoice.fbr_invoice_number,
+        sellerBusinessName: invoice.sellerBusinessName,
+        buyerBusinessName: invoice.buyerBusinessName,
+        totalAmount: invoice.totalAmount,
+      }, // oldValues (before submission)
+      {
+        invoice_id: updatedInvoice.id,
+        invoice_number: updatedInvoice.invoice_number,
+        system_invoice_id: updatedInvoice.system_invoice_id,
+        status: updatedInvoice.status,
+        fbr_invoice_number: updatedInvoice.fbr_invoice_number,
+        sellerBusinessName: updatedInvoice.sellerBusinessName,
+        buyerBusinessName: updatedInvoice.buyerBusinessName,
+        totalAmount: updatedInvoice.totalAmount,
+      }, // newValues (after submission)
+      {
+        entityName: updatedInvoice.invoice_number || updatedInvoice.system_invoice_id,
+        endpoint: req.originalUrl,
+        method: req.method,
+        fbrInvoiceNumber: fbrInvoiceNumber,
+      }
+    );
 
     res.status(200).json({
       success: true,
@@ -3778,7 +3986,7 @@ export const bulkCreateInvoices = async (req, res) => {
           created_by_name:
             (req.user?.firstName || req.user?.lastName)
               ? `${req.user?.firstName ?? ""}${req.user?.lastName ? ` ${req.user.lastName}` : ""}`.trim()
-              : (req.user?.role === "admin" ? "Admin" : null),
+              : (req.user?.role === "admin" ? `Admin (${req.user?.id || "Unknown"})` : null),
           created_at: new Date(),
           updated_at: new Date(),
         };
@@ -4251,6 +4459,40 @@ export const bulkCreateInvoices = async (req, res) => {
     console.log(
       `💾 Memory usage: ${memoryUsage.heapUsed}MB heap, ${memoryUsage.activeProcesses} active processes`
     );
+
+    // Log audit event for bulk invoice creation
+    if (allCreatedInvoices && allCreatedInvoices.length > 0) {
+      try {
+        await logAuditEvent(
+          req,
+          "invoice",
+          null, // No specific entity ID for bulk operations
+          "BULK_CREATE",
+          null, // oldValues (null for bulk creation)
+          {
+            totalInvoices: allCreatedInvoices.length,
+            successfulInvoices: totalInvoicesCreated,
+            failedInvoices: errors.length,
+            warnings: warnings.length,
+            processingTimeMs: processingTime.toFixed(2),
+            totalTimeMs: totalTime.toFixed(2),
+          }, // newValues
+          {
+            entityName: `Bulk Upload - ${allCreatedInvoices.length} invoices`,
+            endpoint: req.originalUrl,
+            method: req.method,
+            chunkSize: chunkSize,
+            invoiceIds: allCreatedInvoices.map(inv => inv.id),
+            errorCount: errors.length,
+            warningCount: warnings.length,
+          }
+        );
+        console.log(`✅ Audit logged for bulk creation of ${allCreatedInvoices.length} invoices`);
+      } catch (auditError) {
+        console.error("⚠️ Failed to log audit event for bulk creation:", auditError);
+        // Don't fail the operation if audit logging fails
+      }
+    }
 
     res.status(200).json({
       success: true,

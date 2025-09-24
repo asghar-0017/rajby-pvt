@@ -108,7 +108,13 @@ async function setupCompleteRolePermissionSystem() {
       { name: 'create_role', display_name: 'Create Role', description: 'Create new roles', category: 'Role Management' },
       { name: 'read_role', display_name: 'Read Role', description: 'View role information', category: 'Role Management' },
       { name: 'update_role', display_name: 'Update Role', description: 'Update role information', category: 'Role Management' },
-      { name: 'delete_role', display_name: 'Delete Role', description: 'Delete roles', category: 'Role Management' }
+      { name: 'delete_role', display_name: 'Delete Role', description: 'Delete roles', category: 'Role Management' },
+      
+      // Audit Management
+      { name: 'audit.view', display_name: 'View Audit Logs', description: 'View audit logs and system activities', category: 'Audit Management' },
+      { name: 'audit.export', display_name: 'Export Audit Data', description: 'Export audit data to CSV', category: 'Audit Management' },
+      { name: 'audit.filter', display_name: 'Filter Audit Data', description: 'Filter and search audit data', category: 'Audit Management' },
+      { name: 'audit.summary', display_name: 'View Audit Summary', description: 'View audit summary and statistics', category: 'Audit Management' }
     ];
 
     for (const permission of requiredPermissions) {
@@ -157,7 +163,9 @@ async function setupCompleteRolePermissionSystem() {
         'invoice_uploader', 'invoice_validate', 'invoice_save',
         'buyer.create', 'buyer.view', 'buyer.update', 'buyer.delete', 'buyer_uploader',
         'product.create', 'product.view', 'product.update', 'product.delete', 'product_uploader',
-        'dashboard.view', 'report.view'
+        'dashboard.view', 'report.view',
+        // Audit Management - Admin has full access
+        'audit.view', 'audit.export', 'audit.filter', 'audit.summary'
       ],
       buyer: [
         // Dashboard access
@@ -170,12 +178,15 @@ async function setupCompleteRolePermissionSystem() {
         // Product read access
         'product.view',
         // Reports
-        'report.view'
+        'report.view',
+        // Audit Management - Buyer has view access
+        'audit.view', 'audit.filter'
       ],
       user: [
         // Basic permissions
         'buyer.view', 'invoice.view', 'product.view',
         'dashboard.view', 'report.view'
+        // Note: Regular users don't have audit access by default
       ]
     };
 

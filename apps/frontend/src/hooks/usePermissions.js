@@ -25,13 +25,7 @@ export const usePermissions = () => {
       setLoading(true);
       setError(null);
       
-      // For admin users, they have all permissions by default
-      if (isAdmin()) {
-        setPermissions([]); // Admin users don't need to fetch permissions
-        setLoading(false);
-        return;
-      }
-      
+      // Always fetch permissions from backend to get accurate permission data
       // Use the new user-specific endpoint instead of admin-only endpoint
       const response = await api.get(`/user-auth/my-permissions`);
       
@@ -56,11 +50,16 @@ export const usePermissions = () => {
    * @returns {boolean} True if user has the permission
    */
   const hasPermission = (permissionName) => {
-    // Admin users have all permissions
+    // Check if user has the permission in their fetched permissions
+    if (permissions && permissions.length > 0) {
+      const hasExplicitPermission = permissions.some(permission => permission.name === permissionName);
+      if (hasExplicitPermission) return true;
+    }
+    
+    // Admin users have all permissions (fallback for true admin users)
     if (isAdmin()) return true;
     
-    if (!permissions || permissions.length === 0) return false;
-    return permissions.some(permission => permission.name === permissionName);
+    return false;
   };
 
   /**
@@ -69,13 +68,18 @@ export const usePermissions = () => {
    * @returns {boolean} True if user has any of the permissions
    */
   const hasAnyPermission = (permissionNames) => {
-    // Admin users have all permissions
+    // Check if user has any of the permissions in their fetched permissions
+    if (permissions && permissions.length > 0) {
+      const hasAnyExplicitPermission = permissionNames.some(permissionName => 
+        permissions.some(permission => permission.name === permissionName)
+      );
+      if (hasAnyExplicitPermission) return true;
+    }
+    
+    // Admin users have all permissions (fallback for true admin users)
     if (isAdmin()) return true;
     
-    if (!permissions || permissions.length === 0) return false;
-    return permissionNames.some(permissionName => 
-      permissions.some(permission => permission.name === permissionName)
-    );
+    return false;
   };
 
   /**
@@ -84,21 +88,51 @@ export const usePermissions = () => {
    * @returns {boolean} True if user has all of the permissions
    */
   const hasAllPermissions = (permissionNames) => {
-    // Admin users have all permissions
+    // Check if user has all of the permissions in their fetched permissions
+    if (permissions && permissions.length > 0) {
+      const hasAllExplicitPermissions = permissionNames.every(permissionName => 
+        permissions.some(permission => permission.name === permissionName)
+      );
+      if (hasAllExplicitPermissions) return true;
+    }
+    
+    // Admin users have all permissions (fallback for true admin users)
     if (isAdmin()) return true;
     
-    if (!permissions || permissions.length === 0) return false;
-    return permissionNames.every(permissionName => 
-      permissions.some(permission => permission.name === permissionName)
-    );
+    return false;
   };
 
   /**
-   * Check if user has admin role
-   * @returns {boolean} True if user is admin
+   * Check if user has admin role or system role with all permissions
+   * @returns {boolean} True if user is admin or has system role
    */
   const isAdmin = () => {
-    return user?.role === 'admin' || user?.type === 'admin';
+    // Check for admin role or type
+    if (user?.role === 'admin' || user?.type === 'admin') {
+      return true;
+    }
+    
+    // Check if user has a role name that indicates admin privileges
+    const adminRoleNames = ['admin', 'administrator', 'super_admin'];
+    if (user?.userRole?.name && adminRoleNames.includes(user.userRole.name.toLowerCase())) {
+      return true;
+    }
+    
+    // Check if user has a system role AND has admin-level permissions
+    if (user?.userRole?.isSystemRole === true) {
+      // Only consider system roles as admin if they have the actual admin role name
+      // or if they have all the core admin permissions
+      const hasAdminPermissions = hasAllPermissions([
+        'create_user', 'read_user', 'update_user', 'delete_user',
+        'create_role', 'read_role', 'update_role', 'delete_role'
+      ]);
+      
+      if (user?.userRole?.name === 'admin' || hasAdminPermissions) {
+        return true;
+      }
+    }
+    
+    return false;
   };
 
   /**
