@@ -54,7 +54,7 @@ app.use(
         connectSrc: [
           "'self'",
           "https://gw.fbr.gov.pk",
-          "https://gascoengineering.inplsoftwares.online",
+          "https://getzpharma.inplsoftwares.online",
         ],
         scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
@@ -68,8 +68,8 @@ app.use(
   cors({
     origin: [
       "http://localhost:5174",
-      "https://gascoengineering.inplsoftwares.online",
-      "https://gascoengineering.inplsoftwares.online",
+      "https://getzpharma.inplsoftwares.online",
+      "https://getzpharma.inplsoftwares.online",
       "https://fbrtestcase.inplsoftwares.online",
       "*",
     ],
