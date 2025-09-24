@@ -84,31 +84,6 @@ class AutoPermissionsSetup {
     ];
   }
 
-  /**
-   * Get default roles
-   */
-  getDefaultRoles() {
-    return [
-      {
-        name: 'admin',
-        display_name: 'Administrator',
-        description: 'Full system access with all permissions',
-        is_system_role: 1
-      },
-      {
-        name: 'buyer',
-        display_name: 'Buyer Management',
-        description: 'Buyer management and invoice creation permissions',
-        is_system_role: 1
-      },
-      {
-        name: 'user',
-        display_name: 'Standard User',
-        description: 'Basic user permissions for viewing and limited operations',
-        is_system_role: 1
-      }
-    ];
-  }
 
   /**
    * Setup permissions
@@ -150,38 +125,6 @@ class AutoPermissionsSetup {
     }
   }
 
-  /**
-   * Setup default roles
-   */
-  async setupDefaultRoles() {
-    this.log('Setting up default roles...');
-    
-    const defaultRoles = this.getDefaultRoles();
-    
-    for (const role of defaultRoles) {
-      try {
-        // Check if role already exists
-        const [existingRole] = await masterSequelize.query(
-          'SELECT id FROM roles WHERE name = ?',
-          { replacements: [role.name] }
-        );
-
-        if (existingRole.length > 0) {
-          this.log(`Role '${role.name}' already exists (ID: ${existingRole[0].id})`);
-        } else {
-          // Create the role
-          const [result] = await masterSequelize.query(
-            'INSERT INTO roles (name, display_name, description, is_system_role, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, NOW(), NOW())',
-            { replacements: [role.name, role.display_name, role.description, role.is_system_role, 1] }
-          );
-          this.log(`Created role: ${role.name} (ID: ${result.insertId})`);
-        }
-      } catch (error) {
-        this.log(`Error with role '${role.name}': ${error.message}`, 'error');
-        this.results.errors.push(`Role ${role.name}: ${error.message}`);
-      }
-    }
-  }
 
   /**
    * Setup role permissions
