@@ -34,4 +34,4 @@ jobs:
 
           cd ${{ github.workspace }}/apps/backend
 
-          /usr/bin/pm2 start index.js --name pharmachecmicals || /usr/bin/pm2 restart pharmachecmicals
+          /usr/bin/pm2 start index.js --name novaplast || /usr/bin/pm2 restart novaplast
