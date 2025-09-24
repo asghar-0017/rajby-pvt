@@ -26,7 +26,7 @@ router.get("/buyers/province/:province", requirePermission("buyer.view"), buyerC
 // Product routes (tenant-specific)
 router.get("/products", requirePermission("product.view"), productController.listProducts);
 router.get("/products/all", requirePermission("product.view"), productController.getAllProductsWithoutPagination);
-router.post("/products", requirePermission("Create Product"), productController.createProduct);
+router.post("/products", requirePermission("product.create"), productController.createProduct);
 router.get("/products/:id", requirePermission("product.view"), productController.getProductById);
 router.put("/products/:id", requirePermission("product.update"), productController.updateProduct);
 router.delete("/products/:id", requirePermission("Delete Product"), productController.deleteProduct);
