@@ -17,7 +17,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "https://novaplast.inplsoftwares.online",
+        target: "https://pharmachemicals.inplsoftwares.online",
         changeOrigin: true,
         secure: false,
       },
