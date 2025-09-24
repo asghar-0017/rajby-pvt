@@ -56,19 +56,19 @@ const UserTenantAssignment = masterSequelize.define(
     indexes: [
       {
         name: "idx_user_tenant_user",
-        fields: ["userId"],
+        fields: ["user_id"],
       },
       {
         name: "idx_user_tenant_tenant",
-        fields: ["tenantId"],
+        fields: ["tenant_id"],
       },
       {
         name: "idx_user_tenant_active",
-        fields: ["isActive"],
+        fields: ["is_active"],
       },
       {
         name: "idx_user_tenant_unique",
-        fields: ["userId", "tenantId"],
+        fields: ["user_id", "tenant_id"],
         unique: true,
       },
     ],

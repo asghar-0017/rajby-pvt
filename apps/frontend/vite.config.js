@@ -17,7 +17,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "https://novaplast.inplsoftwares.online",
+        target: "https://fbrnewtest.inplsoftwares.online",
         changeOrigin: true,
         secure: false,
       },
