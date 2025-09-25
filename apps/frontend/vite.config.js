@@ -17,7 +17,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "https://globalexports.inplsoftwares.online",
+        target: "https://asultan.inplsoftwares.online",
         changeOrigin: true,
         secure: false,
       },

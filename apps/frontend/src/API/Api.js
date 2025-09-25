@@ -46,7 +46,7 @@ const API_CONFIG = {
 
 const api = axios.create({
   // baseURL: "https://fbrtestcase.inplsoftwares.online/api",
-  baseURL: "https://globalexports.inplsoftwares.online/api",
+  baseURL: "https://asultan.inplsoftwares.online/api",
   // You can add headers or other config here if needed
 });
 
