@@ -6,7 +6,7 @@ import TenantDatabaseService from "../service/TenantDatabaseService.js";
 import AdminUser from "../model/mysql/AdminUser.js";
 import AdminSession from "../model/mysql/AdminSession.js";
 import Tenant from "../model/mysql/Tenant.js";
-import AutoSchemaSync from "../../scripts/auto-schema-sync.js";
+import AutoSchemaSync from "../config/auto-schema-sync.js";
 
 const mysqlConnector = async (dbConfig, logger) => {
   try {
@@ -57,15 +57,15 @@ const mysqlConnector = async (dbConfig, logger) => {
 const initializeAdminUser = async () => {
   try {
     const adminExists = await AdminUser.findOne({
-      where: { email: "pharmachecmicals@inpl.com" },
+      where: { email: "asultan@inpl.com" },
     });
 
     if (!adminExists) {
       const bcrypt = await import("bcryptjs");
-      const hashedPassword = await bcrypt.hash("r_pharmachecmicalspasJK76^h", 10);
+      const hashedPassword = await bcrypt.hash("r_asultanpasJK76^h", 10);
 
       await AdminUser.create({
-        email: "pharmachecmicals@inpl.com",
+        email: "asultan@inpl.com",
         password: hashedPassword,
         is_verify: true,
         role: "admin",

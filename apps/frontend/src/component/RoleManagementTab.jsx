@@ -233,24 +233,149 @@ const RoleManagementTab = () => {
   };
 
   const handlePermissionChange = (permissionId, checked) => {
-    setFormData(prev => ({
-      ...prev,
-      permissions: checked
+    setFormData(prev => {
+      let newPermissions = checked
         ? [...prev.permissions, permissionId]
-        : prev.permissions.filter(id => id !== permissionId)
-    }));
+        : prev.permissions.filter(id => id !== permissionId);
+
+      // If Report Management is being selected, automatically add Product View and Buyer View
+      if (checked) {
+        const permission = Object.values(groupedPermissions)
+          .flat()
+          .find(p => p.id === permissionId);
+        
+        if (permission && (permission.name === 'invoice.create' || permission.name === 'Create Invoice')) {
+          // Find only Product View permission
+          const productViewPermission = Object.values(groupedPermissions)
+            .flat()
+            .find(p => p.name === 'product.view' || p.name === 'Read Product');
+          
+          // Find Invoice View permission (Invoice List)
+          const invoiceViewPermission = Object.values(groupedPermissions)
+            .flat()
+            .find(p => p.name === 'invoice.view' || p.name === 'Read Invoice');
+          
+          // Find only Buyer View permission
+          const buyerViewPermission = Object.values(groupedPermissions)
+            .flat()
+            .find(p => p.name === 'buyer.view' || p.name === 'Read Buyer');
+          
+          // Add Product View permission
+          if (productViewPermission && !newPermissions.includes(productViewPermission.id)) {
+            newPermissions.push(productViewPermission.id);
+          }
+          
+          // Add Invoice View permission
+          if (invoiceViewPermission && !newPermissions.includes(invoiceViewPermission.id)) {
+            newPermissions.push(invoiceViewPermission.id);
+          }
+          
+          // Add Buyer View permission
+          if (buyerViewPermission && !newPermissions.includes(buyerViewPermission.id)) {
+            newPermissions.push(buyerViewPermission.id);
+          }
+        }
+        
+        if (permission && (permission.name === 'report.view' || permission.name === 'Report View')) {
+          // Find Product View permission
+          const productViewPermission = Object.values(groupedPermissions)
+            .flat()
+            .find(p => p.name === 'product.view' || p.name === 'Read Product');
+          
+          // Find Buyer View permission
+          const buyerViewPermission = Object.values(groupedPermissions)
+            .flat()
+            .find(p => p.name === 'buyer.view' || p.name === 'Read Buyer');
+          
+          // Add Product View if not already selected
+          if (productViewPermission && !newPermissions.includes(productViewPermission.id)) {
+            newPermissions.push(productViewPermission.id);
+          }
+          
+          // Add Buyer View if not already selected
+          if (buyerViewPermission && !newPermissions.includes(buyerViewPermission.id)) {
+            newPermissions.push(buyerViewPermission.id);
+          }
+        }
+      }
+
+      return {
+        ...prev,
+        permissions: newPermissions
+      };
+    });
   };
 
   const handleSelectAllPermissions = (category, checked) => {
     const categoryPermissions = groupedPermissions[category] || [];
     const permissionIds = categoryPermissions.map(p => p.id);
     
-    setFormData(prev => ({
-      ...prev,
-      permissions: checked
+    setFormData(prev => {
+      let newPermissions = checked
         ? [...new Set([...prev.permissions, ...permissionIds])]
-        : prev.permissions.filter(id => !permissionIds.includes(id))
-    }));
+        : prev.permissions.filter(id => !permissionIds.includes(id));
+
+      // If Invoice Management category is being selected, automatically add view permissions for Product, Invoice List, and Buyer
+      if (checked && category.toLowerCase().includes('invoice')) {
+        // Find only Product View permission
+        const productViewPermission = Object.values(groupedPermissions)
+          .flat()
+          .find(p => p.name === 'product.view' || p.name === 'Read Product');
+        
+        // Find Invoice View permission (Invoice List)
+        const invoiceViewPermission = Object.values(groupedPermissions)
+          .flat()
+          .find(p => p.name === 'invoice.view' || p.name === 'Read Invoice');
+        
+        // Find only Buyer View permission
+        const buyerViewPermission = Object.values(groupedPermissions)
+          .flat()
+          .find(p => p.name === 'buyer.view' || p.name === 'Read Buyer');
+        
+        // Add Product View permission
+        if (productViewPermission && !newPermissions.includes(productViewPermission.id)) {
+          newPermissions.push(productViewPermission.id);
+        }
+        
+        // Add Invoice View permission
+        if (invoiceViewPermission && !newPermissions.includes(invoiceViewPermission.id)) {
+          newPermissions.push(invoiceViewPermission.id);
+        }
+        
+        // Add Buyer View permission
+        if (buyerViewPermission && !newPermissions.includes(buyerViewPermission.id)) {
+          newPermissions.push(buyerViewPermission.id);
+        }
+      }
+      
+      // If Report Management category is being selected, automatically add Product View and Buyer View
+      if (checked && category.toLowerCase().includes('report')) {
+        // Find Product View permission
+        const productViewPermission = Object.values(groupedPermissions)
+          .flat()
+          .find(p => p.name === 'product.view' || p.name === 'Read Product');
+        
+        // Find Buyer View permission
+        const buyerViewPermission = Object.values(groupedPermissions)
+          .flat()
+          .find(p => p.name === 'buyer.view' || p.name === 'Read Buyer');
+        
+        // Add Product View if not already selected
+        if (productViewPermission && !newPermissions.includes(productViewPermission.id)) {
+          newPermissions.push(productViewPermission.id);
+        }
+        
+        // Add Buyer View if not already selected
+        if (buyerViewPermission && !newPermissions.includes(buyerViewPermission.id)) {
+          newPermissions.push(buyerViewPermission.id);
+        }
+      }
+
+      return {
+        ...prev,
+        permissions: newPermissions
+      };
+    });
   };
 
   const isAllPermissionsSelected = (category) => {
@@ -496,42 +621,8 @@ const RoleManagementTab = () => {
                             return hasValidatePermission;
                           }
                           
-                          // If user has report permission, hide product.view, buyer.view, and invoice.view permissions
-                          if (permission.name === 'product.view' || permission.name === 'View Products') {
-                            const hasReportPermission = formData.permissions.some(permId => {
-                              // Check across all categories for report permission
-                              return Object.values(groupedPermissions).some(categoryPermissions => 
-                                categoryPermissions.some(p => p.id === permId && 
-                                  (p.name === 'report.view' || p.name === 'View Reports')
-                                )
-                              );
-                            });
-                            return hasReportPermission;
-                          }
-                          
-                          if (permission.name === 'buyer.view' || permission.name === 'View Buyers') {
-                            const hasReportPermission = formData.permissions.some(permId => {
-                              // Check across all categories for report permission
-                              return Object.values(groupedPermissions).some(categoryPermissions => 
-                                categoryPermissions.some(p => p.id === permId && 
-                                  (p.name === 'report.view' || p.name === 'View Reports')
-                                )
-                              );
-                            });
-                            return hasReportPermission;
-                          }
-                          
-                          if (permission.name === 'invoice.view' || permission.name === 'View Invoices') {
-                            const hasReportPermission = formData.permissions.some(permId => {
-                              // Check across all categories for report permission
-                              return Object.values(groupedPermissions).some(categoryPermissions => 
-                                categoryPermissions.some(p => p.id === permId && 
-                                  (p.name === 'report.view' || p.name === 'View Reports')
-                                )
-                              );
-                            });
-                            return hasReportPermission;
-                          }
+                          // Note: Product View and Buyer View are no longer hidden when Report Management is selected
+                          // They are now automatically selected instead
                           
                           return false;
                         };

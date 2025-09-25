@@ -22,6 +22,7 @@ import Tenant from "../../model/mysql/Tenant.js";
 
 import hsCodeCacheService from "../../service/HSCodeCacheService.js";
 import { logAuditEvent } from "../../middleWare/auditMiddleware.js";
+import InvoiceBackupService from "../../service/InvoiceBackupService.js";
 
 const { toWords } = numberToWords;
 
@@ -548,6 +549,31 @@ export const createInvoice = async (req, res) => {
       return invoice;
     });
 
+    // Create backup for posted invoice (direct creation)
+    try {
+      // Fetch the invoice items for backup
+      const invoiceItems = await req.tenantModels.InvoiceItem.findAll({
+        where: { invoice_id: result.id }
+      });
+      
+      await InvoiceBackupService.createPostBackup({
+        tenantDb: req.tenantDb,
+        tenantModels: req.tenantModels,
+        invoice: result,
+        invoiceItems: invoiceItems,
+        user: req.user,
+        tenant: req.tenant,
+        request: {
+          ip: req.ip || req.connection?.remoteAddress,
+          userAgent: req.get ? req.get("User-Agent") : null,
+          requestId: req.headers?.["x-request-id"] || null
+        }
+      });
+    } catch (backupError) {
+      console.error("❌ Error creating post backup:", backupError);
+      // Don't fail the main operation if backup fails
+    }
+
     // Log audit event for invoice creation
     await logAuditEvent(
       req,
@@ -556,15 +582,62 @@ export const createInvoice = async (req, res) => {
       "CREATE",
       null, // oldValues
       {
+        // Basic Invoice Information
         invoice_id: result.id,
         invoice_number: result.invoice_number,
         system_invoice_id: result.system_invoice_id,
         status: result.status,
         fbr_invoice_number: result.fbr_invoice_number,
-        sellerBusinessName: result.sellerBusinessName,
-        buyerBusinessName: result.buyerBusinessName,
+        invoiceType: result.invoiceType,
         invoiceDate: result.invoiceDate,
+        invoiceRefNo: result.invoiceRefNo,
+        companyInvoiceRefNo: result.companyInvoiceRefNo,
+        internal_invoice_no: result.internal_invoice_no,
+        transctypeId: result.transctypeId,
+        
+        // Complete Seller Information
+        sellerNTNCNIC: result.sellerNTNCNIC,
+        sellerFullNTN: result.sellerFullNTN,
+        sellerBusinessName: result.sellerBusinessName,
+        sellerProvince: result.sellerProvince,
+        sellerAddress: result.sellerAddress,
+        sellerCity: result.sellerCity,
+        
+        // Complete Buyer Information
+        buyerNTNCNIC: result.buyerNTNCNIC,
+        buyerBusinessName: result.buyerBusinessName,
+        buyerProvince: result.buyerProvince,
+        buyerAddress: result.buyerAddress,
+        buyerRegistrationType: result.buyerRegistrationType,
+        
+        // Financial Information
         totalAmount: result.totalAmount,
+        
+        // Complete Invoice Items with All Details
+        invoice_items: items ? items.map(item => ({
+          id: item.id,
+          product_name: item.name,
+          hsCode: item.hsCode,
+          productDescription: item.productDescription,
+          quantity: item.quantity,
+          rate: item.rate,
+          uoM: item.uoM,
+          unitPrice: item.unitPrice,
+          totalValues: item.totalValues,
+          valueSalesExcludingST: item.valueSalesExcludingST,
+          fixedNotifiedValueOrRetailPrice: item.fixedNotifiedValueOrRetailPrice,
+          salesTaxApplicable: item.salesTaxApplicable,
+          salesTaxWithheldAtSource: item.salesTaxWithheldAtSource,
+          extraTax: item.extraTax,
+          furtherTax: item.furtherTax,
+          sroScheduleNo: item.sroScheduleNo,
+          fedPayable: item.fedPayable,
+          advanceIncomeTax: item.advanceIncomeTax,
+          discount: item.discount,
+          saleType: item.saleType,
+          sroItemSerialNo: item.sroItemSerialNo,
+          billOfLadingUoM: item.billOfLadingUoM
+        })) : []
       }, // newValues
       {
         entityName: result.invoice_number || result.system_invoice_id,
@@ -913,6 +986,32 @@ export const saveInvoice = async (req, res) => {
       return invoice;
     });
 
+    // Create backup for draft invoice
+    try {
+      // Fetch the invoice items for backup
+      const invoiceItems = await req.tenantModels.InvoiceItem.findAll({
+        where: { invoice_id: result.id }
+      });
+      
+      await InvoiceBackupService.createDraftBackup({
+        tenantDb: req.tenantDb,
+        tenantModels: req.tenantModels,
+        invoice: result,
+        invoiceItems: invoiceItems,
+        isUpdate: !!id,
+        user: req.user,
+        tenant: req.tenant,
+        request: {
+          ip: req.ip || req.connection?.remoteAddress,
+          userAgent: req.get ? req.get("User-Agent") : null,
+          requestId: req.headers?.["x-request-id"] || null
+        }
+      });
+    } catch (backupError) {
+      console.error("❌ Error creating draft backup:", backupError);
+      // Don't fail the main operation if backup fails
+    }
+
     // Log audit event for invoice save (draft)
     await logAuditEvent(
       req,
@@ -921,15 +1020,62 @@ export const saveInvoice = async (req, res) => {
       "SAVE_DRAFT",
       null, // oldValues (null for new draft)
       {
+        // Basic Invoice Information
         invoice_id: result.id,
         invoice_number: result.invoice_number,
         system_invoice_id: result.system_invoice_id,
         status: result.status,
+        fbr_invoice_number: result.fbr_invoice_number,
         invoiceType: result.invoiceType,
         invoiceDate: result.invoiceDate,
+        invoiceRefNo: result.invoiceRefNo,
+        companyInvoiceRefNo: result.companyInvoiceRefNo,
+        internal_invoice_no: result.internal_invoice_no,
+        transctypeId: result.transctypeId,
+        
+        // Complete Seller Information
+        sellerNTNCNIC: result.sellerNTNCNIC,
+        sellerFullNTN: result.sellerFullNTN,
         sellerBusinessName: result.sellerBusinessName,
+        sellerProvince: result.sellerProvince,
+        sellerAddress: result.sellerAddress,
+        sellerCity: result.sellerCity,
+        
+        // Complete Buyer Information
+        buyerNTNCNIC: result.buyerNTNCNIC,
         buyerBusinessName: result.buyerBusinessName,
+        buyerProvince: result.buyerProvince,
+        buyerAddress: result.buyerAddress,
+        buyerRegistrationType: result.buyerRegistrationType,
+        
+        // Financial Information
         totalAmount: result.totalAmount,
+        
+        // Complete Invoice Items with All Details
+        invoice_items: items ? items.map(item => ({
+          id: item.id,
+          product_name: item.name,
+          hsCode: item.hsCode,
+          productDescription: item.productDescription,
+          quantity: item.quantity,
+          rate: item.rate,
+          uoM: item.uoM,
+          unitPrice: item.unitPrice,
+          totalValues: item.totalValues,
+          valueSalesExcludingST: item.valueSalesExcludingST,
+          fixedNotifiedValueOrRetailPrice: item.fixedNotifiedValueOrRetailPrice,
+          salesTaxApplicable: item.salesTaxApplicable,
+          salesTaxWithheldAtSource: item.salesTaxWithheldAtSource,
+          extraTax: item.extraTax,
+          furtherTax: item.furtherTax,
+          sroScheduleNo: item.sroScheduleNo,
+          fedPayable: item.fedPayable,
+          advanceIncomeTax: item.advanceIncomeTax,
+          discount: item.discount,
+          saleType: item.saleType,
+          sroItemSerialNo: item.sroItemSerialNo,
+          billOfLadingUoM: item.billOfLadingUoM
+        })) : []
       }, // newValues
       {
         entityName: result.invoice_number || result.system_invoice_id,
@@ -1391,6 +1537,32 @@ export const saveAndValidateInvoice = async (req, res) => {
       return invoice;
     });
 
+    // Create backup for saved invoice
+    try {
+      // Fetch the invoice items for backup
+      const invoiceItems = await req.tenantModels.InvoiceItem.findAll({
+        where: { invoice_id: result.id }
+      });
+      
+      await InvoiceBackupService.createSavedBackup({
+        tenantDb: req.tenantDb,
+        tenantModels: req.tenantModels,
+        invoice: result,
+        invoiceItems: invoiceItems,
+        isUpdate: !!id,
+        user: req.user,
+        tenant: req.tenant,
+        request: {
+          ip: req.ip || req.connection?.remoteAddress,
+          userAgent: req.get ? req.get("User-Agent") : null,
+          requestId: req.headers?.["x-request-id"] || null
+        }
+      });
+    } catch (backupError) {
+      console.error("❌ Error creating saved backup:", backupError);
+      // Don't fail the main operation if backup fails
+    }
+
     // Log audit event for invoice save and validate
     await logAuditEvent(
       req,
@@ -1399,16 +1571,63 @@ export const saveAndValidateInvoice = async (req, res) => {
       "SAVE_AND_VALIDATE",
       null, // oldValues (null for new invoice)
       {
+        // Basic Invoice Information
         invoice_id: result.id,
         invoice_number: result.invoice_number,
         system_invoice_id: result.system_invoice_id,
         status: result.status,
+        fbr_invoice_number: result.fbr_invoice_number,
         invoiceType: result.invoiceType,
         invoiceDate: result.invoiceDate,
+        invoiceRefNo: result.invoiceRefNo,
+        companyInvoiceRefNo: result.companyInvoiceRefNo,
+        internal_invoice_no: result.internal_invoice_no,
+        transctypeId: result.transctypeId,
+        
+        // Complete Seller Information
+        sellerNTNCNIC: result.sellerNTNCNIC,
+        sellerFullNTN: result.sellerFullNTN,
         sellerBusinessName: result.sellerBusinessName,
+        sellerProvince: result.sellerProvince,
+        sellerAddress: result.sellerAddress,
+        sellerCity: result.sellerCity,
+        
+        // Complete Buyer Information
+        buyerNTNCNIC: result.buyerNTNCNIC,
         buyerBusinessName: result.buyerBusinessName,
+        buyerProvince: result.buyerProvince,
+        buyerAddress: result.buyerAddress,
+        buyerRegistrationType: result.buyerRegistrationType,
+        
+        // Financial Information
         totalAmount: result.totalAmount,
         fbrValidation: fbrValidationResult ? "success" : "skipped",
+        
+        // Complete Invoice Items with All Details
+        invoice_items: items ? items.map(item => ({
+          id: item.id,
+          product_name: item.name,
+          hsCode: item.hsCode,
+          productDescription: item.productDescription,
+          quantity: item.quantity,
+          rate: item.rate,
+          uoM: item.uoM,
+          unitPrice: item.unitPrice,
+          totalValues: item.totalValues,
+          valueSalesExcludingST: item.valueSalesExcludingST,
+          fixedNotifiedValueOrRetailPrice: item.fixedNotifiedValueOrRetailPrice,
+          salesTaxApplicable: item.salesTaxApplicable,
+          salesTaxWithheldAtSource: item.salesTaxWithheldAtSource,
+          extraTax: item.extraTax,
+          furtherTax: item.furtherTax,
+          sroScheduleNo: item.sroScheduleNo,
+          fedPayable: item.fedPayable,
+          advanceIncomeTax: item.advanceIncomeTax,
+          discount: item.discount,
+          saleType: item.saleType,
+          sroItemSerialNo: item.sroItemSerialNo,
+          billOfLadingUoM: item.billOfLadingUoM
+        })) : []
       }, // newValues
       {
         entityName: result.invoice_number || result.system_invoice_id,
@@ -2609,17 +2828,69 @@ export const updateInvoice = async (req, res) => {
       });
     }
 
+    // Get old invoice items for backup
+    const oldInvoiceItems = await req.tenantModels.InvoiceItem.findAll({
+      where: { invoice_id: invoice.id }
+    });
+
     // Store old values for audit BEFORE updating
     const oldValues = {
+      // Basic Invoice Information
       invoice_id: invoice.id,
       invoice_number: invoice.invoice_number,
       system_invoice_id: invoice.system_invoice_id,
       status: invoice.status,
       fbr_invoice_number: invoice.fbr_invoice_number,
-      sellerBusinessName: invoice.sellerBusinessName,
-      buyerBusinessName: invoice.buyerBusinessName,
+      invoiceType: invoice.invoiceType,
       invoiceDate: invoice.invoiceDate,
+      invoiceRefNo: invoice.invoiceRefNo,
+      companyInvoiceRefNo: invoice.companyInvoiceRefNo,
+      internal_invoice_no: invoice.internal_invoice_no,
+      transctypeId: invoice.transctypeId,
+      
+      // Complete Seller Information
+      sellerNTNCNIC: invoice.sellerNTNCNIC,
+      sellerFullNTN: invoice.sellerFullNTN,
+      sellerBusinessName: invoice.sellerBusinessName,
+      sellerProvince: invoice.sellerProvince,
+      sellerAddress: invoice.sellerAddress,
+      sellerCity: invoice.sellerCity,
+      
+      // Complete Buyer Information
+      buyerNTNCNIC: invoice.buyerNTNCNIC,
+      buyerBusinessName: invoice.buyerBusinessName,
+      buyerProvince: invoice.buyerProvince,
+      buyerAddress: invoice.buyerAddress,
+      buyerRegistrationType: invoice.buyerRegistrationType,
+      
+      // Financial Information
       totalAmount: invoice.totalAmount,
+      
+      // Complete Invoice Items with All Details
+      invoice_items: oldInvoiceItems.map(item => ({
+        id: item.id,
+        product_name: item.name,
+        hsCode: item.hsCode,
+        productDescription: item.productDescription,
+        quantity: item.quantity,
+        rate: item.rate,
+        uoM: item.uoM,
+        unitPrice: item.unitPrice,
+        totalValues: item.totalValues,
+        valueSalesExcludingST: item.valueSalesExcludingST,
+        fixedNotifiedValueOrRetailPrice: item.fixedNotifiedValueOrRetailPrice,
+        salesTaxApplicable: item.salesTaxApplicable,
+        salesTaxWithheldAtSource: item.salesTaxWithheldAtSource,
+        extraTax: item.extraTax,
+        furtherTax: item.furtherTax,
+        sroScheduleNo: item.sroScheduleNo,
+        fedPayable: item.fedPayable,
+        advanceIncomeTax: item.advanceIncomeTax,
+        discount: item.discount,
+        saleType: item.saleType,
+        sroItemSerialNo: item.sroItemSerialNo,
+        billOfLadingUoM: item.billOfLadingUoM
+      }))
     };
 
     // Update the invoice
@@ -2628,18 +2899,92 @@ export const updateInvoice = async (req, res) => {
     // Reload the invoice to get the updated values
     await invoice.reload();
 
+    // Get updated invoice items for backup
+    const newInvoiceItems = await req.tenantModels.InvoiceItem.findAll({
+      where: { invoice_id: invoice.id }
+    });
+
     // Prepare new values for audit
     const newValues = {
+      // Basic Invoice Information
       invoice_id: invoice.id,
       invoice_number: invoice.invoice_number,
       system_invoice_id: invoice.system_invoice_id,
       status: invoice.status,
       fbr_invoice_number: invoice.fbr_invoice_number,
-      sellerBusinessName: invoice.sellerBusinessName,
-      buyerBusinessName: invoice.buyerBusinessName,
+      invoiceType: invoice.invoiceType,
       invoiceDate: invoice.invoiceDate,
+      invoiceRefNo: invoice.invoiceRefNo,
+      companyInvoiceRefNo: invoice.companyInvoiceRefNo,
+      internal_invoice_no: invoice.internal_invoice_no,
+      transctypeId: invoice.transctypeId,
+      
+      // Complete Seller Information
+      sellerNTNCNIC: invoice.sellerNTNCNIC,
+      sellerFullNTN: invoice.sellerFullNTN,
+      sellerBusinessName: invoice.sellerBusinessName,
+      sellerProvince: invoice.sellerProvince,
+      sellerAddress: invoice.sellerAddress,
+      sellerCity: invoice.sellerCity,
+      
+      // Complete Buyer Information
+      buyerNTNCNIC: invoice.buyerNTNCNIC,
+      buyerBusinessName: invoice.buyerBusinessName,
+      buyerProvince: invoice.buyerProvince,
+      buyerAddress: invoice.buyerAddress,
+      buyerRegistrationType: invoice.buyerRegistrationType,
+      
+      // Financial Information
       totalAmount: invoice.totalAmount,
+      
+      // Complete Invoice Items with All Details
+      invoice_items: newInvoiceItems.map(item => ({
+        id: item.id,
+        product_name: item.name,
+        hsCode: item.hsCode,
+        productDescription: item.productDescription,
+        quantity: item.quantity,
+        rate: item.rate,
+        uoM: item.uoM,
+        unitPrice: item.unitPrice,
+        totalValues: item.totalValues,
+        valueSalesExcludingST: item.valueSalesExcludingST,
+        fixedNotifiedValueOrRetailPrice: item.fixedNotifiedValueOrRetailPrice,
+        salesTaxApplicable: item.salesTaxApplicable,
+        salesTaxWithheldAtSource: item.salesTaxWithheldAtSource,
+        extraTax: item.extraTax,
+        furtherTax: item.furtherTax,
+        sroScheduleNo: item.sroScheduleNo,
+        fedPayable: item.fedPayable,
+        advanceIncomeTax: item.advanceIncomeTax,
+        discount: item.discount,
+        saleType: item.saleType,
+        sroItemSerialNo: item.sroItemSerialNo,
+        billOfLadingUoM: item.billOfLadingUoM
+      }))
     };
+
+    // Create backup for invoice edit
+    try {
+      await InvoiceBackupService.createEditBackup({
+        tenantDb: req.tenantDb,
+        tenantModels: req.tenantModels,
+        oldInvoice: { ...oldValues, id: invoice.id },
+        newInvoice: invoice,
+        oldInvoiceItems: oldInvoiceItems,
+        newInvoiceItems: newInvoiceItems,
+        user: req.user,
+        tenant: req.tenant,
+        request: {
+          ip: req.ip || req.connection?.remoteAddress,
+          userAgent: req.get ? req.get("User-Agent") : null,
+          requestId: req.headers?.["x-request-id"] || null
+        }
+      });
+    } catch (backupError) {
+      console.error("❌ Error creating edit backup:", backupError);
+      // Don't fail the main operation if backup fails
+    }
 
     // Log audit event for invoice update
     await logAuditEvent(
@@ -2694,17 +3039,69 @@ export const deleteInvoice = async (req, res) => {
       });
     }
 
+    // Get invoice items before deletion
+    const invoiceItems = await req.tenantModels.InvoiceItem.findAll({
+      where: { invoice_id: invoice.id }
+    });
+
     // Store old values for audit before deletion
     const oldValues = {
+      // Basic Invoice Information
       invoice_id: invoice.id,
       invoice_number: invoice.invoice_number,
       system_invoice_id: invoice.system_invoice_id,
       status: invoice.status,
       fbr_invoice_number: invoice.fbr_invoice_number,
-      sellerBusinessName: invoice.sellerBusinessName,
-      buyerBusinessName: invoice.buyerBusinessName,
+      invoiceType: invoice.invoiceType,
       invoiceDate: invoice.invoiceDate,
+      invoiceRefNo: invoice.invoiceRefNo,
+      companyInvoiceRefNo: invoice.companyInvoiceRefNo,
+      internal_invoice_no: invoice.internal_invoice_no,
+      transctypeId: invoice.transctypeId,
+      
+      // Complete Seller Information
+      sellerNTNCNIC: invoice.sellerNTNCNIC,
+      sellerFullNTN: invoice.sellerFullNTN,
+      sellerBusinessName: invoice.sellerBusinessName,
+      sellerProvince: invoice.sellerProvince,
+      sellerAddress: invoice.sellerAddress,
+      sellerCity: invoice.sellerCity,
+      
+      // Complete Buyer Information
+      buyerNTNCNIC: invoice.buyerNTNCNIC,
+      buyerBusinessName: invoice.buyerBusinessName,
+      buyerProvince: invoice.buyerProvince,
+      buyerAddress: invoice.buyerAddress,
+      buyerRegistrationType: invoice.buyerRegistrationType,
+      
+      // Financial Information
       totalAmount: invoice.totalAmount,
+      
+      // Complete Invoice Items with All Details
+      invoice_items: invoiceItems.map(item => ({
+        id: item.id,
+        product_name: item.name,
+        hsCode: item.hsCode,
+        productDescription: item.productDescription,
+        quantity: item.quantity,
+        rate: item.rate,
+        uoM: item.uoM,
+        unitPrice: item.unitPrice,
+        totalValues: item.totalValues,
+        valueSalesExcludingST: item.valueSalesExcludingST,
+        fixedNotifiedValueOrRetailPrice: item.fixedNotifiedValueOrRetailPrice,
+        salesTaxApplicable: item.salesTaxApplicable,
+        salesTaxWithheldAtSource: item.salesTaxWithheldAtSource,
+        extraTax: item.extraTax,
+        furtherTax: item.furtherTax,
+        sroScheduleNo: item.sroScheduleNo,
+        fedPayable: item.fedPayable,
+        advanceIncomeTax: item.advanceIncomeTax,
+        discount: item.discount,
+        saleType: item.saleType,
+        sroItemSerialNo: item.sroItemSerialNo,
+        billOfLadingUoM: item.billOfLadingUoM
+      }))
     };
 
     await invoice.destroy();
@@ -3101,6 +3498,26 @@ export const submitSavedInvoice = async (req, res) => {
 
     const { postData } = await import("../../service/FBRService.js");
 
+    // Create backup for FBR request
+    try {
+      await InvoiceBackupService.createFbrRequestBackup({
+        tenantDb: req.tenantDb,
+        tenantModels: req.tenantModels,
+        invoice: invoice,
+        fbrRequestData: fbrData,
+        user: req.user,
+        tenant: req.tenant,
+        request: {
+          ip: req.ip || req.connection?.remoteAddress,
+          userAgent: req.get ? req.get("User-Agent") : null,
+          requestId: req.headers?.["x-request-id"] || null
+        }
+      });
+    } catch (backupError) {
+      console.error("❌ Error creating FBR request backup:", backupError);
+      // Don't fail the main operation if backup fails
+    }
+
     // Submit directly to FBR (skipping validation)
 
     const postRes = await postData(
@@ -3116,6 +3533,26 @@ export const submitSavedInvoice = async (req, res) => {
     console.log("FBR Response:", JSON.stringify(postRes.data, null, 2));
 
     console.log("FBR Response Type:", typeof postRes.data);
+
+    // Create backup for FBR response
+    try {
+      await InvoiceBackupService.createFbrResponseBackup({
+        tenantDb: req.tenantDb,
+        tenantModels: req.tenantModels,
+        invoice: invoice,
+        fbrResponseData: postRes.data,
+        user: req.user,
+        tenant: req.tenant,
+        request: {
+          ip: req.ip || req.connection?.remoteAddress,
+          userAgent: req.get ? req.get("User-Agent") : null,
+          requestId: req.headers?.["x-request-id"] || null
+        }
+      });
+    } catch (backupError) {
+      console.error("❌ Error creating FBR response backup:", backupError);
+      // Don't fail the main operation if backup fails
+    }
 
     const dataSizeInfo = Array.isArray(postRes.data)
       ? postRes.data.length
@@ -3311,6 +3748,26 @@ export const submitSavedInvoice = async (req, res) => {
       fbr_invoice_number: fbrInvoiceNumber,
     };
 
+    // Create backup for posted invoice
+    try {
+      await InvoiceBackupService.createPostBackup({
+        tenantDb: req.tenantDb,
+        tenantModels: req.tenantModels,
+        invoice: invoice,
+        invoiceItems: invoiceItems,
+        user: req.user,
+        tenant: req.tenant,
+        request: {
+          ip: req.ip || req.connection?.remoteAddress,
+          userAgent: req.get ? req.get("User-Agent") : null,
+          requestId: req.headers?.["x-request-id"] || null
+        }
+      });
+    } catch (backupError) {
+      console.error("❌ Error creating post backup:", backupError);
+      // Don't fail the main operation if backup fails
+    }
+
     // Only update invoice_number if we have a valid FBR invoice number
 
     if (fbrInvoiceNumber) {
@@ -3350,24 +3807,120 @@ export const submitSavedInvoice = async (req, res) => {
       invoice.id,
       "SUBMIT_TO_FBR",
       {
+        // Basic Invoice Information
         invoice_id: invoice.id,
         invoice_number: invoice.invoice_number,
         system_invoice_id: invoice.system_invoice_id,
         status: invoice.status,
         fbr_invoice_number: invoice.fbr_invoice_number,
+        invoiceType: invoice.invoiceType,
+        invoiceDate: invoice.invoiceDate,
+        invoiceRefNo: invoice.invoiceRefNo,
+        companyInvoiceRefNo: invoice.companyInvoiceRefNo,
+        internal_invoice_no: invoice.internal_invoice_no,
+        transctypeId: invoice.transctypeId,
+        
+        // Complete Seller Information
+        sellerNTNCNIC: invoice.sellerNTNCNIC,
+        sellerFullNTN: invoice.sellerFullNTN,
         sellerBusinessName: invoice.sellerBusinessName,
+        sellerProvince: invoice.sellerProvince,
+        sellerAddress: invoice.sellerAddress,
+        sellerCity: invoice.sellerCity,
+        
+        // Complete Buyer Information
+        buyerNTNCNIC: invoice.buyerNTNCNIC,
         buyerBusinessName: invoice.buyerBusinessName,
+        buyerProvince: invoice.buyerProvince,
+        buyerAddress: invoice.buyerAddress,
+        buyerRegistrationType: invoice.buyerRegistrationType,
+        
+        // Financial Information
         totalAmount: invoice.totalAmount,
+        
+        // Complete Invoice Items with All Details
+        invoice_items: invoice.InvoiceItems ? invoice.InvoiceItems.map(item => ({
+          id: item.id,
+          product_name: item.name,
+          hsCode: item.hsCode,
+          productDescription: item.productDescription,
+          quantity: item.quantity,
+          rate: item.rate,
+          uoM: item.uoM,
+          unitPrice: item.unitPrice,
+          totalValues: item.totalValues,
+          valueSalesExcludingST: item.valueSalesExcludingST,
+          fixedNotifiedValueOrRetailPrice: item.fixedNotifiedValueOrRetailPrice,
+          salesTaxApplicable: item.salesTaxApplicable,
+          salesTaxWithheldAtSource: item.salesTaxWithheldAtSource,
+          extraTax: item.extraTax,
+          furtherTax: item.furtherTax,
+          sroScheduleNo: item.sroScheduleNo,
+          fedPayable: item.fedPayable,
+          advanceIncomeTax: item.advanceIncomeTax,
+          discount: item.discount,
+          saleType: item.saleType,
+          sroItemSerialNo: item.sroItemSerialNo,
+          billOfLadingUoM: item.billOfLadingUoM
+        })) : []
       }, // oldValues (before submission)
       {
+        // Basic Invoice Information
         invoice_id: updatedInvoice.id,
         invoice_number: updatedInvoice.invoice_number,
         system_invoice_id: updatedInvoice.system_invoice_id,
         status: updatedInvoice.status,
         fbr_invoice_number: updatedInvoice.fbr_invoice_number,
+        invoiceType: updatedInvoice.invoiceType,
+        invoiceDate: updatedInvoice.invoiceDate,
+        invoiceRefNo: updatedInvoice.invoiceRefNo,
+        companyInvoiceRefNo: updatedInvoice.companyInvoiceRefNo,
+        internal_invoice_no: updatedInvoice.internal_invoice_no,
+        transctypeId: updatedInvoice.transctypeId,
+        
+        // Complete Seller Information
+        sellerNTNCNIC: updatedInvoice.sellerNTNCNIC,
+        sellerFullNTN: updatedInvoice.sellerFullNTN,
         sellerBusinessName: updatedInvoice.sellerBusinessName,
+        sellerProvince: updatedInvoice.sellerProvince,
+        sellerAddress: updatedInvoice.sellerAddress,
+        sellerCity: updatedInvoice.sellerCity,
+        
+        // Complete Buyer Information
+        buyerNTNCNIC: updatedInvoice.buyerNTNCNIC,
         buyerBusinessName: updatedInvoice.buyerBusinessName,
+        buyerProvince: updatedInvoice.buyerProvince,
+        buyerAddress: updatedInvoice.buyerAddress,
+        buyerRegistrationType: updatedInvoice.buyerRegistrationType,
+        
+        // Financial Information
         totalAmount: updatedInvoice.totalAmount,
+        
+        // Complete Invoice Items with All Details
+        invoice_items: invoice.InvoiceItems ? invoice.InvoiceItems.map(item => ({
+          id: item.id,
+          product_name: item.name,
+          hsCode: item.hsCode,
+          productDescription: item.productDescription,
+          quantity: item.quantity,
+          rate: item.rate,
+          uoM: item.uoM,
+          unitPrice: item.unitPrice,
+          totalValues: item.totalValues,
+          valueSalesExcludingST: item.valueSalesExcludingST,
+          fixedNotifiedValueOrRetailPrice: item.fixedNotifiedValueOrRetailPrice,
+          salesTaxApplicable: item.salesTaxApplicable,
+          salesTaxWithheldAtSource: item.salesTaxWithheldAtSource,
+          extraTax: item.extraTax,
+          furtherTax: item.furtherTax,
+          sroScheduleNo: item.sroScheduleNo,
+          fedPayable: item.fedPayable,
+          advanceIncomeTax: item.advanceIncomeTax,
+          discount: item.discount,
+          saleType: item.saleType,
+          sroItemSerialNo: item.sroItemSerialNo,
+          billOfLadingUoM: item.billOfLadingUoM
+        })) : []
       }, // newValues (after submission)
       {
         entityName: updatedInvoice.invoice_number || updatedInvoice.system_invoice_id,

@@ -1492,149 +1492,155 @@ export default function BasicTable() {
 
                       return (
                         <>
-                          <Tooltip
-                            title={
-                              hasPostedInvoices
-                                ? "You have selected posted invoices. Unselect them to proceed."
-                                : ""
-                            }
-                            placement="top"
-                            arrow
-                          >
-                            <span>
-                              <Button
-                                onClick={handleBulkDelete}
-                                variant="outlined"
-                                color="error"
-                                size="small"
-                                sx={{
-                                  borderRadius: 1.5,
-                                  fontWeight: 600,
-                                  px: 1.5,
-                                  py: 0.3,
-                                  fontSize: 11,
-                                  letterSpacing: 0.3,
-                                  boxShadow: 1,
-                                  transition: "all 0.2s",
-                                  minWidth: "auto",
-                                  bgcolor: "white",
-                                  color: hasPostedInvoices ? "#ccc" : "#d32f2f",
-                                  borderColor: hasPostedInvoices
-                                    ? "#ccc"
-                                    : "#d32f2f",
-                                  "&:hover": {
-                                    background: hasPostedInvoices
-                                      ? "transparent"
-                                      : "#d32f2f",
-                                    color: hasPostedInvoices ? "#ccc" : "white",
-                                    boxShadow: hasPostedInvoices ? 1 : 2,
+                          <PermissionGate permission="invoice.delete">
+                            <Tooltip
+                              title={
+                                hasPostedInvoices
+                                  ? "You have selected posted invoices. Unselect them to proceed."
+                                  : ""
+                              }
+                              placement="top"
+                              arrow
+                            >
+                              <span>
+                                <Button
+                                  onClick={handleBulkDelete}
+                                  variant="outlined"
+                                  color="error"
+                                  size="small"
+                                  sx={{
+                                    borderRadius: 1.5,
+                                    fontWeight: 600,
+                                    px: 1.5,
+                                    py: 0.3,
+                                    fontSize: 11,
+                                    letterSpacing: 0.3,
+                                    boxShadow: 1,
+                                    transition: "all 0.2s",
+                                    minWidth: "auto",
+                                    bgcolor: "white",
+                                    color: hasPostedInvoices ? "#ccc" : "#d32f2f",
                                     borderColor: hasPostedInvoices
                                       ? "#ccc"
                                       : "#d32f2f",
-                                  },
-                                }}
-                                disabled={
-                                  bulkDeleteLoading || hasPostedInvoices
-                                }
-                              >
-                                {bulkDeleteLoading ? (
-                                  <CircularProgress size={16} color="inherit" />
-                                ) : (
-                                  "Delete Selected"
-                                )}
-                              </Button>
-                            </span>
-                          </Tooltip>
-                          <Tooltip
-                            title="Print Selected Invoices as PDF"
-                            placement="top"
-                            arrow
-                          >
-                            <span>
-                              <Button
-                                onClick={handleBulkPrint}
-                                variant="outlined"
-                                color="info"
-                                size="small"
-                                startIcon={<PrintIcon />}
-                                sx={{
-                                  borderRadius: 1.5,
-                                  fontWeight: 600,
-                                  px: 1.5,
-                                  py: 0.3,
-                                  fontSize: 11,
-                                  letterSpacing: 0.3,
-                                  boxShadow: 1,
-                                  transition: "all 0.2s",
-                                  minWidth: "auto",
-                                  bgcolor: "white",
-                                  color: "#1976d2",
-                                  borderColor: "#1976d2",
-                                  "&:hover": {
-                                    background: "#1976d2",
-                                    color: "white",
-                                    boxShadow: 2,
+                                    "&:hover": {
+                                      background: hasPostedInvoices
+                                        ? "transparent"
+                                        : "#d32f2f",
+                                      color: hasPostedInvoices ? "#ccc" : "white",
+                                      boxShadow: hasPostedInvoices ? 1 : 2,
+                                      borderColor: hasPostedInvoices
+                                        ? "#ccc"
+                                        : "#d32f2f",
+                                    },
+                                  }}
+                                  disabled={
+                                    bulkDeleteLoading || hasPostedInvoices
+                                  }
+                                >
+                                  {bulkDeleteLoading ? (
+                                    <CircularProgress size={16} color="inherit" />
+                                  ) : (
+                                    "Delete Selected"
+                                  )}
+                                </Button>
+                              </span>
+                            </Tooltip>
+                          </PermissionGate>
+                          <PermissionGate permission="invoice.view">
+                            <Tooltip
+                              title="Print Selected Invoices as PDF"
+                              placement="top"
+                              arrow
+                            >
+                              <span>
+                                <Button
+                                  onClick={handleBulkPrint}
+                                  variant="outlined"
+                                  color="info"
+                                  size="small"
+                                  startIcon={<PrintIcon />}
+                                  sx={{
+                                    borderRadius: 1.5,
+                                    fontWeight: 600,
+                                    px: 1.5,
+                                    py: 0.3,
+                                    fontSize: 11,
+                                    letterSpacing: 0.3,
+                                    boxShadow: 1,
+                                    transition: "all 0.2s",
+                                    minWidth: "auto",
+                                    bgcolor: "white",
+                                    color: "#1976d2",
                                     borderColor: "#1976d2",
-                                  },
-                                }}
-                              >
-                                Print Selected
-                              </Button>
-                            </span>
-                          </Tooltip>
-                          <Tooltip
-                            title={
-                              hasPostedInvoices
-                                ? "You have selected posted invoices. Unselect them to proceed."
-                                : ""
-                            }
-                            placement="top"
-                            arrow
-                          >
-                            <span>
-                              <Button
-                                onClick={handleSaveAndValidate}
-                                variant="outlined"
-                                color="warning"
-                                size="small"
-                                sx={{
-                                  borderRadius: 1.5,
-                                  fontWeight: 600,
-                                  px: 1.5,
-                                  py: 0.3,
-                                  fontSize: 11,
-                                  letterSpacing: 0.3,
-                                  boxShadow: 1,
-                                  transition: "all 0.2s",
-                                  minWidth: "auto",
-                                  bgcolor: "white",
-                                  color: hasPostedInvoices ? "#ccc" : "#f57c00",
-                                  borderColor: hasPostedInvoices
-                                    ? "#ccc"
-                                    : "#f57c00",
-                                  "&:hover": {
-                                    background: hasPostedInvoices
-                                      ? "transparent"
-                                      : "#f57c00",
-                                    color: hasPostedInvoices ? "#ccc" : "white",
-                                    boxShadow: hasPostedInvoices ? 1 : 2,
+                                    "&:hover": {
+                                      background: "#1976d2",
+                                      color: "white",
+                                      boxShadow: 2,
+                                      borderColor: "#1976d2",
+                                    },
+                                  }}
+                                >
+                                  Print Selected
+                                </Button>
+                              </span>
+                            </Tooltip>
+                          </PermissionGate>
+                          <PermissionGate permission="invoice_validate">
+                            <Tooltip
+                              title={
+                                hasPostedInvoices
+                                  ? "You have selected posted invoices. Unselect them to proceed."
+                                  : ""
+                              }
+                              placement="top"
+                              arrow
+                            >
+                              <span>
+                                <Button
+                                  onClick={handleSaveAndValidate}
+                                  variant="outlined"
+                                  color="warning"
+                                  size="small"
+                                  sx={{
+                                    borderRadius: 1.5,
+                                    fontWeight: 600,
+                                    px: 1.5,
+                                    py: 0.3,
+                                    fontSize: 11,
+                                    letterSpacing: 0.3,
+                                    boxShadow: 1,
+                                    transition: "all 0.2s",
+                                    minWidth: "auto",
+                                    bgcolor: "white",
+                                    color: hasPostedInvoices ? "#ccc" : "#f57c00",
                                     borderColor: hasPostedInvoices
                                       ? "#ccc"
                                       : "#f57c00",
-                                  },
-                                }}
-                                disabled={
-                                  saveValidateLoading || hasPostedInvoices
-                                }
-                              >
-                                {saveValidateLoading ? (
-                                  <CircularProgress size={16} color="inherit" />
-                                ) : (
-                                  "Save & Validate"
-                                )}
-                              </Button>
-                            </span>
-                          </Tooltip>
+                                    "&:hover": {
+                                      background: hasPostedInvoices
+                                        ? "transparent"
+                                        : "#f57c00",
+                                      color: hasPostedInvoices ? "#ccc" : "white",
+                                      boxShadow: hasPostedInvoices ? 1 : 2,
+                                      borderColor: hasPostedInvoices
+                                        ? "#ccc"
+                                        : "#f57c00",
+                                    },
+                                  }}
+                                  disabled={
+                                    saveValidateLoading || hasPostedInvoices
+                                  }
+                                >
+                                  {saveValidateLoading ? (
+                                    <CircularProgress size={16} color="inherit" />
+                                  ) : (
+                                    "Save & Validate"
+                                  )}
+                                </Button>
+                              </span>
+                            </Tooltip>
+                          </PermissionGate>
                           {isSubmitVisible && (
                             <Tooltip
                               title={

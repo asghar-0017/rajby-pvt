@@ -21,11 +21,8 @@ export const masterConfig = {
   },
   dialectOptions: {
     charset: "utf8mb4",
-    collate: "utf8mb4_unicode_ci",
     // Performance optimizations
     connectTimeout: 10000, // 10 seconds connection timeout
-    acquireTimeout: 15000, // 15 seconds acquire timeout
-    timeout: 30000, // 30 seconds query timeout
     // Connection optimizations
     multipleStatements: true, // Allow multiple statements in one query
     dateStrings: true, // Handle dates as strings for better performance
@@ -73,11 +70,8 @@ export const createTenantConnection = (databaseName) => {
     },
     dialectOptions: {
       charset: "utf8mb4",
-      collate: "utf8mb4_unicode_ci",
       // Performance optimizations
       connectTimeout: 10000, // 10 seconds connection timeout
-      acquireTimeout: 15000, // 15 seconds acquire timeout
-      timeout: 30000, // 30 seconds query timeout
       // Connection optimizations
       multipleStatements: true, // Allow multiple statements in one query
       dateStrings: true, // Handle dates as strings for better performance

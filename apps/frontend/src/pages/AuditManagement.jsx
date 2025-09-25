@@ -208,12 +208,314 @@ const AuditManagement = () => {
     setShowDetailsModal(false);
   };
 
-  // Helper function to render object as table
+  // Helper function to render seller information
+  const renderSellerInfo = (data) => {
+    if (!data) return null;
+    
+    return (
+      <div className="bg-blue-50 p-4 rounded-lg mb-4">
+        <h4 className="text-md font-semibold text-blue-900 mb-3">Seller Information</h4>
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <span className="font-medium text-gray-700">Business Name:</span>
+            <span className="ml-2 text-gray-900">{data.sellerBusinessName || 'N/A'}</span>
+          </div>
+          <div>
+            <span className="font-medium text-gray-700">NTN/CNIC:</span>
+            <span className="ml-2 text-gray-900">{data.sellerNTNCNIC || 'N/A'}</span>
+          </div>
+          {data.sellerFullNTN && (
+            <div>
+              <span className="font-medium text-gray-700">Full NTN:</span>
+              <span className="ml-2 text-gray-900">{data.sellerFullNTN}</span>
+            </div>
+          )}
+          <div>
+            <span className="font-medium text-gray-700">Province:</span>
+            <span className="ml-2 text-gray-900">{data.sellerProvince || 'N/A'}</span>
+          </div>
+          {data.sellerCity && (
+            <div>
+              <span className="font-medium text-gray-700">City:</span>
+              <span className="ml-2 text-gray-900">{data.sellerCity}</span>
+            </div>
+          )}
+          <div className="col-span-2">
+            <span className="font-medium text-gray-700">Address:</span>
+            <span className="ml-2 text-gray-900">{data.sellerAddress || 'N/A'}</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Helper function to render buyer information
+  const renderBuyerInfo = (data) => {
+    if (!data) return null;
+    
+    return (
+      <div className="bg-green-50 p-4 rounded-lg mb-4">
+        <h4 className="text-md font-semibold text-green-900 mb-3">Buyer Information</h4>
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <span className="font-medium text-gray-700">Business Name:</span>
+            <span className="ml-2 text-gray-900">{data.buyerBusinessName || 'N/A'}</span>
+          </div>
+          <div>
+            <span className="font-medium text-gray-700">NTN/CNIC:</span>
+            <span className="ml-2 text-gray-900">{data.buyerNTNCNIC || 'N/A'}</span>
+          </div>
+          <div>
+            <span className="font-medium text-gray-700">Province:</span>
+            <span className="ml-2 text-gray-900">{data.buyerProvince || 'N/A'}</span>
+          </div>
+          <div>
+            <span className="font-medium text-gray-700">Registration Type:</span>
+            <span className="ml-2 text-gray-900">{data.buyerRegistrationType || 'N/A'}</span>
+          </div>
+          {data.buyerCity && (
+            <div>
+              <span className="font-medium text-gray-700">City:</span>
+              <span className="ml-2 text-gray-900">{data.buyerCity}</span>
+            </div>
+          )}
+          <div className="col-span-2">
+            <span className="font-medium text-gray-700">Address:</span>
+            <span className="ml-2 text-gray-900">{data.buyerAddress || 'N/A'}</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Helper function to render invoice items as a comprehensive table
+  const renderInvoiceItemsTable = (invoiceItems) => {
+    if (!invoiceItems || !Array.isArray(invoiceItems) || invoiceItems.length === 0) {
+      return <p className="text-sm text-gray-500">No invoice items</p>;
+    }
+
+    return (
+      <div className="bg-purple-50 p-4 rounded-lg mb-4">
+        <h4 className="text-md font-semibold text-purple-900 mb-3">Invoice Items ({invoiceItems.length} items)</h4>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Product
+                </th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  HS Code
+                </th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Qty
+                </th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Unit Price
+                </th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Total
+                </th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Tax Rate
+                </th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Sales Tax
+                </th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Extra Tax
+                </th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Further Tax
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {invoiceItems.map((item, index) => (
+                <tr key={item.id || index}>
+                  <td className="px-3 py-2 text-sm">
+                    <div>
+                      <div className="font-medium text-gray-900">{item.product_name || 'N/A'}</div>
+                      <div className="text-gray-500 text-xs">{item.productDescription || 'No description'}</div>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 text-sm text-gray-500">
+                    {item.hsCode || 'N/A'}
+                  </td>
+                  <td className="px-3 py-2 text-sm text-gray-500">
+                    {item.quantity ? (
+                      <div>
+                        <span>{item.quantity}</span>
+                        {item.uoM && (
+                          <span className="ml-1 text-blue-600 font-medium">{item.uoM}</span>
+                        )}
+                      </div>
+                    ) : 'N/A'}
+                  </td>
+                  <td className="px-3 py-2 text-sm text-gray-500">
+                    {item.unitPrice ? `$${parseFloat(item.unitPrice).toFixed(2)}` : 'N/A'}
+                  </td>
+                  <td className="px-3 py-2 text-sm text-gray-500">
+                    {item.totalValues ? `$${parseFloat(item.totalValues).toFixed(2)}` : 'N/A'}
+                  </td>
+                  <td className="px-3 py-2 text-sm text-gray-500">
+                    {item.rate || 'N/A'}
+                  </td>
+                  <td className="px-3 py-2 text-sm text-gray-500">
+                    {item.salesTaxApplicable ? `$${parseFloat(item.salesTaxApplicable).toFixed(2)}` : 'N/A'}
+                  </td>
+                  <td className="px-3 py-2 text-sm text-gray-500">
+                    {item.extraTax ? `$${parseFloat(item.extraTax).toFixed(2)}` : 'N/A'}
+                  </td>
+                  <td className="px-3 py-2 text-sm text-gray-500">
+                    {item.furtherTax ? `$${parseFloat(item.furtherTax).toFixed(2)}` : 'N/A'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
+  // Helper function to render object as table with intelligent data display
   const renderObjectAsTable = (obj, title) => {
     if (!obj) return <p className="text-sm text-gray-500">No data available</p>;
     
-    const parsedObj = typeof obj === 'string' ? JSON.parse(obj) : obj;
-    
+    let parsedObj;
+    try {
+      parsedObj = typeof obj === 'string' ? JSON.parse(obj) : obj;
+    } catch (error) {
+      console.error('Error parsing object:', error);
+      return <p className="text-sm text-red-500">Error parsing data</p>;
+    }
+
+    // Check if this is invoice data and render it specially
+    if (parsedObj.invoice_id || parsedObj.invoice_number) {
+      return (
+        <div className="space-y-4">
+          {/* Basic Invoice Information */}
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <h4 className="text-md font-semibold text-gray-900 mb-3">Invoice Information</h4>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="font-medium text-gray-700">Invoice Number:</span>
+                <span className="ml-2 text-gray-900">{parsedObj.invoice_number || 'N/A'}</span>
+              </div>
+              <div>
+                <span className="font-medium text-gray-700">System Invoice ID:</span>
+                <span className="ml-2 text-gray-900">{parsedObj.system_invoice_id || 'N/A'}</span>
+              </div>
+              <div>
+                <span className="font-medium text-gray-700">FBR Invoice Number:</span>
+                <span className="ml-2 text-gray-900">{parsedObj.fbr_invoice_number || 'N/A'}</span>
+              </div>
+              <div>
+                <span className="font-medium text-gray-700">Status:</span>
+                <span className="ml-2 text-gray-900">{parsedObj.status || 'N/A'}</span>
+              </div>
+              <div>
+                <span className="font-medium text-gray-700">Invoice Type:</span>
+                <span className="ml-2 text-gray-900">{parsedObj.invoiceType || 'N/A'}</span>
+              </div>
+              <div>
+                <span className="font-medium text-gray-700">Invoice Date:</span>
+                <span className="ml-2 text-gray-900">{parsedObj.invoiceDate || 'N/A'}</span>
+              </div>
+              <div>
+                <span className="font-medium text-gray-700">Total Amount:</span>
+                <span className="ml-2 text-gray-900">{parsedObj.totalAmount ? `$${parseFloat(parsedObj.totalAmount).toFixed(2)}` : 'N/A'}</span>
+              </div>
+              <div>
+                <span className="font-medium text-gray-700">FBR Validation:</span>
+                <span className="ml-2 text-gray-900">{parsedObj.fbrValidation || 'N/A'}</span>
+              </div>
+              {parsedObj.invoiceRefNo && (
+                <div>
+                  <span className="font-medium text-gray-700">Invoice Ref No:</span>
+                  <span className="ml-2 text-gray-900">{parsedObj.invoiceRefNo}</span>
+                </div>
+              )}
+              {parsedObj.companyInvoiceRefNo && (
+                <div>
+                  <span className="font-medium text-gray-700">Company Invoice Ref No:</span>
+                  <span className="ml-2 text-gray-900">{parsedObj.companyInvoiceRefNo}</span>
+                </div>
+              )}
+              {parsedObj.internal_invoice_no && (
+                <div>
+                  <span className="font-medium text-gray-700">Internal Invoice No:</span>
+                  <span className="ml-2 text-gray-900">{parsedObj.internal_invoice_no}</span>
+                </div>
+              )}
+              {parsedObj.transctypeId && (
+                <div>
+                  <span className="font-medium text-gray-700">Transaction Type ID:</span>
+                  <span className="ml-2 text-gray-900">{parsedObj.transctypeId}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Seller Information */}
+          {renderSellerInfo(parsedObj)}
+
+          {/* Buyer Information */}
+          {renderBuyerInfo(parsedObj)}
+
+          {/* Invoice Items */}
+          {parsedObj.invoice_items && Array.isArray(parsedObj.invoice_items) && (
+            renderInvoiceItemsTable(parsedObj.invoice_items)
+          )}
+
+          {/* Additional fields not covered above - only show non-empty fields */}
+          {(() => {
+            const coveredFields = new Set([
+              'invoice_id', 'invoice_number', 'system_invoice_id', 'fbr_invoice_number', 'status',
+              'invoiceType', 'invoiceDate', 'totalAmount', 'fbrValidation', 'invoice_items',
+              'sellerNTNCNIC', 'sellerFullNTN', 'sellerBusinessName', 'sellerProvince', 'sellerAddress', 'sellerCity',
+              'buyerNTNCNIC', 'buyerBusinessName', 'buyerProvince', 'buyerAddress', 'buyerRegistrationType',
+              'invoiceRefNo', 'companyInvoiceRefNo', 'internal_invoice_no', 'transctypeId', 'transctypeld'
+            ]);
+            
+            // Filter out empty fields and only show meaningful additional data
+            const additionalFields = Object.entries(parsedObj)
+              .filter(([key]) => !coveredFields.has(key))
+              .filter(([key, value]) => {
+                // Only show fields that have meaningful values
+                return value !== null && 
+                       value !== undefined && 
+                       value !== '' && 
+                       value !== 'NULL' && 
+                       value !== 'null' &&
+                       (typeof value !== 'string' || value.trim() !== '');
+              });
+            
+            if (additionalFields.length > 0) {
+              return (
+                <div className="bg-yellow-50 p-4 rounded-lg">
+                  <h4 className="text-md font-semibold text-yellow-900 mb-3">Additional Information</h4>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    {additionalFields.map(([key, value]) => (
+                      <div key={key}>
+                        <span className="font-medium text-gray-700">{key}:</span>
+                        <span className="ml-2 text-gray-900">
+                          {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            }
+            return null;
+          })()}
+        </div>
+      );
+    }
+
+    // For non-invoice data, render as regular table
     return (
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
@@ -234,10 +536,10 @@ const AuditManagement = () => {
                   {key}
                 </td>
                 <td className="px-4 py-2 text-sm text-gray-500">
-                  {value === null 
+                  {value === null
                     ? <span className="text-gray-500 italic">null</span>
-                    : typeof value === 'object' && value !== null 
-                      ? JSON.stringify(value, null, 2) 
+                    : typeof value === 'object' && value !== null
+                      ? JSON.stringify(value, null, 2)
                       : String(value)
                   }
                 </td>
@@ -280,7 +582,12 @@ const AuditManagement = () => {
                   {field}
                 </td>
                 <td className="px-4 py-2 text-sm text-red-600">
-                  {values.old === null 
+                  {field === 'invoice_items' && Array.isArray(values.old) ? (
+                    <div className="mt-2">
+                      <p className="text-sm font-medium text-gray-700 mb-2">Previous Items ({values.old.length} items):</p>
+                      {renderInvoiceItemsTable(values.old)}
+                    </div>
+                  ) : values.old === null 
                     ? <span className="text-gray-500 italic">null</span>
                     : typeof values.old === 'object' && values.old !== null 
                       ? JSON.stringify(values.old, null, 2) 
@@ -288,7 +595,12 @@ const AuditManagement = () => {
                   }
                 </td>
                 <td className="px-4 py-2 text-sm text-green-600">
-                  {values.new === null 
+                  {field === 'invoice_items' && Array.isArray(values.new) ? (
+                    <div className="mt-2">
+                      <p className="text-sm font-medium text-gray-700 mb-2">New Items ({values.new.length} items):</p>
+                      {renderInvoiceItemsTable(values.new)}
+                    </div>
+                  ) : values.new === null 
                     ? <span className="text-gray-500 italic">null</span>
                     : typeof values.new === 'object' && values.new !== null 
                       ? JSON.stringify(values.new, null, 2) 

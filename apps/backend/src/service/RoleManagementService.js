@@ -141,29 +141,61 @@ class RoleManagementService {
         // If user has report permission, automatically add product.view, buyer.view, and invoice.view permissions
         const hasReportPermission = permissions.some(permId => {
           const perm = allPermissions.find(p => p.id === permId);
-          return perm && (perm.name === 'report.view' || perm.name === 'View Reports');
+          return perm && (perm.name === 'report.view' || perm.name === 'Report View');
         });
         
         if (hasReportPermission) {
           const productViewPermission = allPermissions.find(p => 
-            p.name === 'product.view' || p.name === 'View Products'
+            p.name === 'product.view' || p.name === 'Read Product'
           );
           if (productViewPermission && !finalPermissions.includes(productViewPermission.id)) {
             finalPermissions.push(productViewPermission.id);
           }
           
           const buyerViewPermission = allPermissions.find(p => 
-            p.name === 'buyer.view' || p.name === 'View Buyers'
+            p.name === 'buyer.view' || p.name === 'Read Buyer'
           );
           if (buyerViewPermission && !finalPermissions.includes(buyerViewPermission.id)) {
             finalPermissions.push(buyerViewPermission.id);
           }
           
           const invoiceViewPermission = allPermissions.find(p => 
-            p.name === 'invoice.view' || p.name === 'View Invoices'
+            p.name === 'invoice.view' || p.name === 'Read Invoice'
           );
           if (invoiceViewPermission && !finalPermissions.includes(invoiceViewPermission.id)) {
             finalPermissions.push(invoiceViewPermission.id);
+          }
+        }
+        
+        // If user has create invoice permission, automatically add product management, invoice list, and buyer permissions
+        const hasCreateInvoicePermission = permissions.some(permId => {
+          const perm = allPermissions.find(p => p.id === permId);
+          return perm && (perm.name === 'invoice.create' || perm.name === 'Create Invoice');
+        });
+        
+        if (hasCreateInvoicePermission) {
+          // Add only product view permission
+          const productViewPermission = allPermissions.find(p => 
+            p.name === 'product.view' || p.name === 'Read Product'
+          );
+          if (productViewPermission && !finalPermissions.includes(productViewPermission.id)) {
+            finalPermissions.push(productViewPermission.id);
+          }
+          
+          // Add invoice view permission (invoice list)
+          const invoiceViewPermission = allPermissions.find(p => 
+            p.name === 'invoice.view' || p.name === 'Read Invoice'
+          );
+          if (invoiceViewPermission && !finalPermissions.includes(invoiceViewPermission.id)) {
+            finalPermissions.push(invoiceViewPermission.id);
+          }
+          
+          // Add only buyer view permission
+          const buyerViewPermission = allPermissions.find(p => 
+            p.name === 'buyer.view' || p.name === 'Read Buyer'
+          );
+          if (buyerViewPermission && !finalPermissions.includes(buyerViewPermission.id)) {
+            finalPermissions.push(buyerViewPermission.id);
           }
         }
         // Note: We don't remove explicit permissions if user doesn't have report access
@@ -273,7 +305,7 @@ class RoleManagementService {
         // If user has validate permission, automatically add save permission
         const hasValidatePermission = permissions.some(permId => {
           const perm = allPermissions.find(p => p.id === permId);
-          return perm && (perm.name === 'invoice.validat' || perm.name === 'Validate Invoice');
+          return perm && (perm.name === 'invoice_validate' || perm.name === 'Validate Invoice');
         });
         
         if (hasValidatePermission) {
@@ -296,29 +328,61 @@ class RoleManagementService {
         // If user has report permission, automatically add product.view, buyer.view, and invoice.view permissions
         const hasReportPermission = permissions.some(permId => {
           const perm = allPermissions.find(p => p.id === permId);
-          return perm && (perm.name === 'report.view' || perm.name === 'View Reports');
+          return perm && (perm.name === 'report.view' || perm.name === 'Report View');
         });
         
         if (hasReportPermission) {
           const productViewPermission = allPermissions.find(p => 
-            p.name === 'product.view' || p.name === 'View Products'
+            p.name === 'product.view' || p.name === 'Read Product'
           );
           if (productViewPermission && !finalPermissions.includes(productViewPermission.id)) {
             finalPermissions.push(productViewPermission.id);
           }
           
           const buyerViewPermission = allPermissions.find(p => 
-            p.name === 'buyer.view' || p.name === 'View Buyers'
+            p.name === 'buyer.view' || p.name === 'Read Buyer'
           );
           if (buyerViewPermission && !finalPermissions.includes(buyerViewPermission.id)) {
             finalPermissions.push(buyerViewPermission.id);
           }
           
           const invoiceViewPermission = allPermissions.find(p => 
-            p.name === 'invoice.view' || p.name === 'View Invoices'
+            p.name === 'invoice.view' || p.name === 'Read Invoice'
           );
           if (invoiceViewPermission && !finalPermissions.includes(invoiceViewPermission.id)) {
             finalPermissions.push(invoiceViewPermission.id);
+          }
+        }
+        
+        // If user has create invoice permission, automatically add product management, invoice list, and buyer permissions
+        const hasCreateInvoicePermission = permissions.some(permId => {
+          const perm = allPermissions.find(p => p.id === permId);
+          return perm && (perm.name === 'invoice.create' || perm.name === 'Create Invoice');
+        });
+        
+        if (hasCreateInvoicePermission) {
+          // Add only product view permission
+          const productViewPermission = allPermissions.find(p => 
+            p.name === 'product.view' || p.name === 'Read Product'
+          );
+          if (productViewPermission && !finalPermissions.includes(productViewPermission.id)) {
+            finalPermissions.push(productViewPermission.id);
+          }
+          
+          // Add invoice view permission (invoice list)
+          const invoiceViewPermission = allPermissions.find(p => 
+            p.name === 'invoice.view' || p.name === 'Read Invoice'
+          );
+          if (invoiceViewPermission && !finalPermissions.includes(invoiceViewPermission.id)) {
+            finalPermissions.push(invoiceViewPermission.id);
+          }
+          
+          // Add only buyer view permission
+          const buyerViewPermission = allPermissions.find(p => 
+            p.name === 'buyer.view' || p.name === 'Read Buyer'
+          );
+          if (buyerViewPermission && !finalPermissions.includes(buyerViewPermission.id)) {
+            finalPermissions.push(buyerViewPermission.id);
           }
         }
         // Note: We don't remove explicit permissions if user doesn't have report access

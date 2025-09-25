@@ -3,6 +3,8 @@ import { createBuyerModel } from "../model/mysql/tenant/Buyer.js";
 import { createInvoiceModel } from "../model/mysql/tenant/Invoice.js";
 import { createInvoiceItemModel } from "../model/mysql/tenant/InvoiceItem.js";
 import { createProductModel } from "../model/mysql/tenant/Product.js";
+import { createInvoiceBackupModel } from "../model/mysql/tenant/InvoiceBackup.js";
+import { createInvoiceBackupSummaryModel } from "../model/mysql/tenant/InvoiceBackupSummary.js";
 import Tenant from "../model/mysql/Tenant.js";
 import { masterSequelize } from "../config/mysql.js";
 
@@ -144,10 +146,18 @@ class TenantDatabaseService {
       const Invoice = createInvoiceModel(sequelize);
       const InvoiceItem = createInvoiceItemModel(sequelize);
       const Product = createProductModel(sequelize);
+      const InvoiceBackup = createInvoiceBackupModel(sequelize);
+      const InvoiceBackupSummary = createInvoiceBackupSummaryModel(sequelize);
 
       // Define associations
       Invoice.hasMany(InvoiceItem, { foreignKey: "invoice_id" });
       InvoiceItem.belongsTo(Invoice, { foreignKey: "invoice_id" });
+      
+      // Backup associations
+      Invoice.hasMany(InvoiceBackup, { foreignKey: "original_invoice_id" });
+      InvoiceBackup.belongsTo(Invoice, { foreignKey: "original_invoice_id" });
+      Invoice.hasOne(InvoiceBackupSummary, { foreignKey: "original_invoice_id" });
+      InvoiceBackupSummary.belongsTo(Invoice, { foreignKey: "original_invoice_id" });
 
       // Sync all models to create tables
       console.log(`Creating tables in database: ${databaseName}`);
@@ -163,6 +173,8 @@ class TenantDatabaseService {
         Invoice,
         InvoiceItem,
         Product,
+        InvoiceBackup,
+        InvoiceBackupSummary,
       });
 
       console.log(
@@ -235,10 +247,18 @@ class TenantDatabaseService {
       const Invoice = createInvoiceModel(sequelize);
       const InvoiceItem = createInvoiceItemModel(sequelize);
       const Product = createProductModel(sequelize);
+      const InvoiceBackup = createInvoiceBackupModel(sequelize);
+      const InvoiceBackupSummary = createInvoiceBackupSummaryModel(sequelize);
 
       // Define associations
       Invoice.hasMany(InvoiceItem, { foreignKey: "invoice_id" });
       InvoiceItem.belongsTo(Invoice, { foreignKey: "invoice_id" });
+      
+      // Backup associations
+      Invoice.hasMany(InvoiceBackup, { foreignKey: "original_invoice_id" });
+      InvoiceBackup.belongsTo(Invoice, { foreignKey: "original_invoice_id" });
+      Invoice.hasOne(InvoiceBackupSummary, { foreignKey: "original_invoice_id" });
+      InvoiceBackupSummary.belongsTo(Invoice, { foreignKey: "original_invoice_id" });
 
       // Store connection and models
       this.tenantConnections.set(databaseName, sequelize);
@@ -247,6 +267,8 @@ class TenantDatabaseService {
         Invoice,
         InvoiceItem,
         Product,
+        InvoiceBackup,
+        InvoiceBackupSummary,
       });
 
       return {
@@ -257,6 +279,8 @@ class TenantDatabaseService {
           Invoice,
           InvoiceItem,
           Product,
+          InvoiceBackup,
+          InvoiceBackupSummary,
         },
       };
     } catch (error) {

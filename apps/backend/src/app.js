@@ -23,6 +23,7 @@ import { requestIdMiddleware } from "./middleWare/auditMiddleware.js";
 import tenantRoutes from "./routes/tenantRoutes.js";
 import buyerRoutes from "./routes/buyerRoutes.js";
 import invoiceRoutes, { publicInvoiceRoutes } from "./routes/invoiceRoutes.js";
+import invoiceBackupRoutes from "./routes/invoiceBackupRoutes.js";
 import hsCodeRoutes from "./routes/hsCodeRoutes.js";
 import performanceRoutes from "./routes/performanceRoutes.js";
 
@@ -54,7 +55,7 @@ app.use(
         connectSrc: [
           "'self'",
           "https://gw.fbr.gov.pk",
-          "http://localhost:5150",
+          "https://asultan.inplsoftwares.online",
         ],
         scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
@@ -68,8 +69,8 @@ app.use(
   cors({
     origin: [
       "http://localhost:5174",
-      "http://localhost:5150",
-      "http://localhost:5150",
+      "https://asultan.inplsoftwares.online",
+      "https://asultan.inplsoftwares.online",
       "https://fbrtestcase.inplsoftwares.online",
       "*",
     ],
@@ -96,6 +97,7 @@ app.use("/api/audit", auditRoutes);
 app.use("/api/admin", tenantRoutes);
 app.use("/api/tenant/:tenantId", buyerRoutes);
 app.use("/api/tenant/:tenantId", invoiceRoutes);
+app.use("/api/tenant/:tenantId", invoiceBackupRoutes);
 
 // Performance monitoring routes
 app.use("/api/tenant/:tenantId/performance", performanceRoutes);
