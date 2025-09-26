@@ -4181,10 +4181,22 @@ export const bulkCreateInvoices = async (req, res) => {
           !invoiceData.invoiceDate?.trim() ||
           !invoiceData.buyerNTNCNIC?.trim()
         ) {
+          // Check which specific fields are missing and provide detailed error messages
+          const missingFields = [];
+          if (!invoiceData.invoiceType?.trim()) {
+            missingFields.push("Invoice Type");
+          }
+          if (!invoiceData.invoiceDate?.trim()) {
+            missingFields.push("Invoice Date");
+          }
+          if (!invoiceData.buyerNTNCNIC?.trim()) {
+            missingFields.push("Buyer NTN/CNIC");
+          }
+          
           validationErrors.push({
             index: i,
             row: i + 1,
-            error: "Missing required invoice fields (invoice type, date, or buyer NTN)",
+            error: `Missing required fields: ${missingFields.join(", ")}`,
           });
           continue;
         }
@@ -4355,6 +4367,8 @@ export const bulkCreateInvoices = async (req, res) => {
         // Pre-validate all products for this invoice before creating invoice record
         console.log(`🔍 Pre-validating products for invoice ${i + 1} with ${invoiceData.items.length} items`);
         let validItemsCount = 0;
+        let hasAnyProductName = false;
+        
         for (let j = 0; j < invoiceData.items.length; j++) {
           const itemData = invoiceData.items[j];
           
@@ -4362,6 +4376,11 @@ export const bulkCreateInvoices = async (req, res) => {
           const productName = itemData.item_productName?.trim() || 
                             itemData.name?.trim() || 
                             itemData.productName?.trim();
+
+          // Check if any product name exists (even if invalid)
+          if (productName) {
+            hasAnyProductName = true;
+          }
 
           // Only skip if we have absolutely no product information
           if (!productName) {
@@ -4384,6 +4403,17 @@ export const bulkCreateInvoices = async (req, res) => {
 
           console.log(`✅ Product "${productName}" found in system`);
           validItemsCount++;
+        }
+
+        // Check if any product names are missing
+        if (!hasAnyProductName) {
+          console.log(`⚠️ Validation error for invoice ${i + 1}: No product names found`);
+          validationErrors.push({
+            index: i,
+            row: i + 1,
+            error: `Product Name is required for invoice (Row ${i + 1})`,
+          });
+          continue;
         }
 
         // If no valid products found, add validation error
@@ -5800,12 +5830,39 @@ export const submitInvoiceDataController = async (req, res) => {
 };
 
 export const downloadInvoiceTemplateExcel = async (req, res) => {
+  const processId = `excel_template_${Date.now()}`;
+  const startTime = process.hrtime.bigint();
+  
   try {
+    // Register process for memory tracking
+    const { default: MemoryManagementService } = await import("../../service/MemoryManagementService.js");
+    MemoryManagementService.registerProcess(processId, {
+      type: 'excel_template_generation',
+      tenantId: req.tenant?.tenant_id
+    });
+
     // Dynamically import exceljs to avoid loading cost if unused
-
     const ExcelJS = (await import("exceljs")).default;
-
     const { fetchData } = await import("../../service/FBRService.js");
+
+    // Force garbage collection before starting
+    if (global.gc) {
+      global.gc();
+    }
+
+    // Check initial memory usage
+    const initialMemory = MemoryManagementService.getMemoryUsage();
+    console.log(`🚀 Starting Excel template generation - Initial memory: ${initialMemory.heapUsed}MB`);
+    
+    // Set memory limit warning threshold (1GB)
+    const MEMORY_LIMIT_MB = 1024;
+    if (initialMemory.heapUsed > MEMORY_LIMIT_MB) {
+      console.warn(`⚠️ High initial memory usage detected: ${initialMemory.heapUsed}MB. Forcing cleanup...`);
+      MemoryManagementService.forceCleanup();
+      if (global.gc) {
+        global.gc();
+      }
+    }
 
     // Token is optional for template generation; prefer sandbox, then production
 
@@ -6230,6 +6287,14 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
       }
     }
 
+    // Ensure common rates (18.5% and 25%) have proper rate IDs
+    if (!rateDescToId.has("18.5%")) {
+      rateDescToId.set("18.5%", "430"); // Using rate ID from transaction type 18
+    }
+    if (!rateDescToId.has("25%")) {
+      rateDescToId.set("25%", "746"); // Using rate ID from transaction type 23
+    }
+
     // Fetch SRO schedules for all available rate IDs and create comprehensive SRO list
     // IMPORTANT: Always include rate_id=133 plus all other rate IDs
     const sroByRateId = {};
@@ -6348,132 +6413,32 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
 
     // Add fallback SRO Schedule data for comprehensive coverage
     const fallbackSROData = [
-      "SRO.1125(I)/2011",
-      "SRO.1126(I)/2011",
-      "SRO.1127(I)/2011",
-      "SRO.1128(I)/2011",
-      "SRO.1129(I)/2011",
-      "SRO.1130(I)/2011",
-      "SRO.1131(I)/2011",
-      "SRO.1132(I)/2011",
-      "SRO.1133(I)/2011",
-      "SRO.1134(I)/2011",
-      "SRO.1135(I)/2011",
-      "SRO.1136(I)/2011",
-      "SRO.1137(I)/2011",
-      "SRO.1138(I)/2011",
-      "SRO.1139(I)/2011",
-      "SRO.1140(I)/2011",
-      "SRO.1141(I)/2011",
-      "SRO.1142(I)/2011",
-      "SRO.1143(I)/2011",
-      "SRO.1144(I)/2011",
-      "SRO.1145(I)/2011",
-      "SRO.1146(I)/2011",
-      "SRO.1147(I)/2011",
-      "SRO.1148(I)/2011",
-      "SRO.1149(I)/2011",
-      "SRO.1150(I)/2011",
-      "SRO.1151(I)/2011",
-      "SRO.1152(I)/2011",
-      "SRO.1153(I)/2011",
-      "SRO.1154(I)/2011",
-      "SRO.1155(I)/2011",
-      "SRO.1156(I)/2011",
-      "SRO.1157(I)/2011",
-      "SRO.1158(I)/2011",
-      "SRO.1159(I)/2011",
-      "SRO.1160(I)/2011",
-      "SRO.1161(I)/2011",
-      "SRO.1162(I)/2011",
-      "SRO.1163(I)/2011",
-      "SRO.1164(I)/2011",
-      "SRO.1165(I)/2011",
-      "SRO.1166(I)/2011",
-      "SRO.1167(I)/2011",
-      "SRO.1168(I)/2011",
-      "SRO.1169(I)/2011",
-      "SRO.1170(I)/2011",
-      "SRO.1171(I)/2011",
-      "SRO.1172(I)/2011",
-      "SRO.1173(I)/2011",
-      "SRO.1174(I)/2011",
-      "SRO.1175(I)/2011",
-      "SRO.1176(I)/2011",
-      "SRO.1177(I)/2011",
-      "SRO.1178(I)/2011",
-      "SRO.1179(I)/2011",
-      "SRO.1180(I)/2011",
-      "SRO.1181(I)/2011",
-      "SRO.1182(I)/2011",
-      "SRO.1183(I)/2011",
-      "SRO.1184(I)/2011",
-      "SRO.1185(I)/2011",
-      "SRO.1186(I)/2011",
-      "SRO.1187(I)/2011",
-      "SRO.1188(I)/2011",
-      "SRO.1189(I)/2011",
-      "SRO.1190(I)/2011",
-      "SRO.1191(I)/2011",
-      "SRO.1192(I)/2011",
-      "SRO.1193(I)/2011",
-      "SRO.1194(I)/2011",
-      "SRO.1195(I)/2011",
-      "SRO.1196(I)/2011",
-      "SRO.1197(I)/2011",
-      "SRO.1198(I)/2011",
-      "SRO.1199(I)/2011",
-      "SRO.1200(I)/2011",
-      "SRO.1201(I)/2011",
-      "SRO.1202(I)/2011",
-      "SRO.1203(I)/2011",
-      "SRO.1204(I)/2011",
-      "SRO.1205(I)/2011",
-      "SRO.1206(I)/2011",
-      "SRO.1207(I)/2011",
-      "SRO.1208(I)/2011",
-      "SRO.1209(I)/2011",
-      "SRO.1210(I)/2011",
-      "SRO.1211(I)/2011",
-      "SRO.1212(I)/2011",
-      "SRO.1213(I)/2011",
-      "SRO.1214(I)/2011",
-      "SRO.1215(I)/2011",
-      "SRO.1216(I)/2011",
-      "SRO.1217(I)/2011",
-      "SRO.1218(I)/2011",
-      "SRO.1219(I)/2011",
-      "SRO.1220(I)/2011",
-      "SRO.1221(I)/2011",
-      "SRO.1222(I)/2011",
-      "SRO.1223(I)/2011",
-      "SRO.1224(I)/2011",
-      "SRO.1225(I)/2011",
-      "SRO.1226(I)/2011",
-      "SRO.1227(I)/2011",
-      "SRO.1228(I)/2011",
-      "SRO.1229(I)/2011",
-      "SRO.1230(I)/2011",
-      "SRO.1231(I)/2011",
-      "SRO.1232(I)/2011",
-      "SRO.1233(I)/2011",
-      "SRO.1234(I)/2011",
-      "SRO.1235(I)/2011",
-      "SRO.1236(I)/2011",
-      "SRO.1237(I)/2011",
-      "SRO.1238(I)/2011",
-      "SRO.1239(I)/2011",
-      "SRO.1240(I)/2011",
-      "SRO.1241(I)/2011",
-      "SRO.1242(I)/2011",
-      "SRO.1243(I)/2011",
-      "SRO.1244(I)/2011",
-      "SRO.1245(I)/2011",
-      "SRO.1246(I)/2011",
-      "SRO.1247(I)/2011",
-      "SRO.1248(I)/2011",
-      "SRO.1249(I)/2011",
-      "SRO.1250(I)/2011",
+      "EIGHTH SCHEDULE Table 1",
+      "EIGHTH SCHEDULE Table 2",
+      "587(I)/2017",
+      "327(I)/2008",
+      "FIFTH SCHEDULE",
+      "SECTION 49",
+      "Section 4(b)",
+      "1579(1)/2021",
+      "321(I)/2022",
+      "1450(I)/2021",
+      "1604(I)/2021",
+      "88(I)/2022",
+      "01(I)/2022",
+      "NINTH SCHEDULE",
+      "297(I)/2023-Table-I",
+      "297(I)/2023-Table-II",
+      "FIFTH SCHEDULE",
+      "ICTO",
+      "ICTO TABLE II",
+      "ICTO TABLE I",
+      "6th Schd Table I",
+      "6th Schd Table II",
+      "6th Schd Table III",
+      "Eighth Schedule Table 1",
+      "NINTH SCHEDULE",
+      "6th Schd Table III"
     ];
 
     // Add fallback SRO Schedule data to comprehensive set
@@ -6494,71 +6459,36 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
       `SRO Schedule Numbers: ${comprehensiveSROList.slice(0, 10).join(", ")}${comprehensiveSROList.length > 10 ? "..." : ""}`
     );
 
-    // Build SRO Item lists per SRO Id (for Excel dropdowns) and create comprehensive SRO Item list
-    // ENHANCED: Include specific SRO IDs (383, 384, 385, 439, 391) plus existing SRO IDs
-    const sroItemsBySroId = {};
+    // Build comprehensive SRO Item list from the main SRO Item API
     const allUniqueSROItems = new Set(); // Track all unique SRO Item Numbers
 
     if (token) {
-      // Start with specific SRO IDs as priority, then add existing SRO IDs
-      const uniqueSroIds = new Set();
-      
-      // ALWAYS include specific SRO IDs first (priority)
-      const specificSroIds = ['383', '384', '385', '439', '391'];
-      specificSroIds.forEach(id => uniqueSroIds.add(id));
-      console.log('✅ Specific SRO IDs explicitly included as priority:', specificSroIds);
-      
-      // Add existing SRO IDs from sroByRateId if available
-      if (sroByRateId && Object.keys(sroByRateId).length > 0) {
-        const existingSroIds = new Set();
-        for (const sroMap of Object.values(sroByRateId)) {
-          for (const id of sroMap.values()) existingSroIds.add(String(id));
-        }
-        existingSroIds.forEach(id => uniqueSroIds.add(id));
-        console.log(`Added ${existingSroIds.size} existing SRO IDs from sroByRateId`);
-      }
-      
-      console.log(`Fetching SRO Item data for ${uniqueSroIds.size} SRO IDs...`);
-      console.log('All SRO IDs to fetch:', Array.from(uniqueSroIds).slice(0, 15));
-      
-      let successfulFetches = 0;
-      let failedFetches = 0;
+      try {
+        console.log('Fetching all SRO Items from /pdi/v1/sroitemcode...');
+        
+        // Fetch all SRO Items from the main API endpoint
+        const sroItemsRaw = await fetchData(
+          "pdi/v1/sroitemcode",
+          "sandbox",
+          token
+        );
 
-      for (const sroId of uniqueSroIds) {
-        try {
-          console.log(`Fetching SRO Item data for sro_id=${sroId}...`);
-          
-          // Fetch SRO Item data for each SRO ID
-          const sroItemsRaw = await fetchData(
-            `pdi/v2/SROItem?date=2025-03-25&sro_id=${encodeURIComponent(sroId)}`,
-            "sandbox",
-            token
-          );
+        console.log(`SRO Item API response:`, {
+          isArray: Array.isArray(sroItemsRaw),
+          length: Array.isArray(sroItemsRaw) ? sroItemsRaw.length : 'N/A',
+          sample: Array.isArray(sroItemsRaw) && sroItemsRaw.length > 0 ? sroItemsRaw[0] : 'No data'
+        });
 
-          console.log(`SRO Item API response for sro_id=${sroId}:`, {
-            isArray: Array.isArray(sroItemsRaw),
-            length: Array.isArray(sroItemsRaw) ? sroItemsRaw.length : 'N/A',
-            sample: Array.isArray(sroItemsRaw) && sroItemsRaw.length > 0 ? sroItemsRaw[0] : 'No data'
-          });
-
-          const items = (Array.isArray(sroItemsRaw) ? sroItemsRaw : [])
-            .map((it) => {
+        if (Array.isArray(sroItemsRaw)) {
+          const items = sroItemsRaw
+            .map((item) => {
               // Extract srO_ITEM_DESC from the API response
-              const desc = it.srO_ITEM_DESC || it.SRO_ITEM_DESC || it.desc || null;
+              const desc = item.srO_ITEM_DESC || item.SRO_ITEM_DESC || item.desc || null;
               return desc ? String(desc).trim() : null;
             })
             .filter(Boolean);
 
-          console.log(`Found ${items.length} SRO Item items for sro_id=${sroId}`);
-
-          sroItemsBySroId[sroId] = items;
-          successfulFetches++;
-
-          // Special logging for specific SRO IDs
-          if (specificSroIds.includes(sroId)) {
-            console.log(`✅ SUCCESS: Specific SRO ID ${sroId} fetched ${items.length} SRO Item items`);
-            console.log(`SRO ID ${sroId} Item Descriptions:`, items.slice(0, 5));
-          }
+          console.log(`Found ${items.length} SRO Item items from API`);
 
           // Add all SRO Item descriptions to the comprehensive set
           items.forEach((item) => {
@@ -6567,89 +6497,85 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
             }
           });
 
-        } catch (e) {
-          console.error(`Failed to fetch SRO Item data for sro_id=${sroId}:`, e.message);
-          sroItemsBySroId[sroId] = [];
-          failedFetches++;
-          
-          // Special error logging for specific SRO IDs
-          if (specificSroIds.includes(sroId)) {
-            console.error(`❌ CRITICAL: Failed to fetch specific SRO ID ${sroId} SRO Item data!`);
-          }
+          console.log(`✅ SUCCESS: Fetched ${allUniqueSROItems.size} unique SRO Item descriptions`);
+          console.log('Sample SRO Item Descriptions:', Array.from(allUniqueSROItems).slice(0, 10));
+        } else {
+          console.warn('SRO Item API returned non-array response:', sroItemsRaw);
         }
+        
+        // Force garbage collection after processing large SRO Items data
+        if (global.gc) {
+          global.gc();
+        }
+        
+      } catch (e) {
+        console.error(`Failed to fetch SRO Item data from /pdi/v1/sroitemcode:`, e.message);
       }
-
-      console.log(`SRO Item Fetch Summary: ${successfulFetches} successful, ${failedFetches} failed`);
-      console.log(
-        `Collected ${allUniqueSROItems.size} unique SRO Item Numbers from API across all SRO IDs`
-      );
-      
-      // Verify specific SRO IDs were successfully fetched
-      const specificSroSuccess = specificSroIds.filter(id => 
-        sroItemsBySroId[id] && sroItemsBySroId[id].length > 0
-      );
-      console.log(`✅ CONFIRMED: ${specificSroSuccess.length}/${specificSroIds.length} specific SRO IDs have SRO Item data`);
-      console.log('Successful specific SRO IDs:', specificSroSuccess);
-      
-      // Log sample SRO Item descriptions
-      console.log('Sample SRO Item Descriptions from all SRO IDs:', Array.from(allUniqueSROItems).slice(0, 10));
-      
     } else {
       console.log('No token available for SRO Item fetching');
     }
 
     // Add fallback SRO Item data for comprehensive coverage
     const fallbackSROItemData = [
-      "SRO Item 1",
-      "SRO Item 2",
-      "SRO Item 3",
-      "SRO Item 4",
-      "SRO Item 5",
-      "SRO Item 6",
-      "SRO Item 7",
-      "SRO Item 8",
-      "SRO Item 9",
-      "SRO Item 10",
-      "SRO Item 11",
-      "SRO Item 12",
-      "SRO Item 13",
-      "SRO Item 14",
-      "SRO Item 15",
-      "SRO Item 16",
-      "SRO Item 17",
-      "SRO Item 18",
-      "SRO Item 19",
-      "SRO Item 20",
-      "SRO Item 21",
-      "SRO Item 22",
-      "SRO Item 23",
-      "SRO Item 24",
-      "SRO Item 25",
-      "SRO Item 26",
-      "SRO Item 27",
-      "SRO Item 28",
-      "SRO Item 29",
-      "SRO Item 30",
-      "SRO Item 31",
-      "SRO Item 32",
-      "SRO Item 33",
-      "SRO Item 34",
-      "SRO Item 35",
-      "SRO Item 36",
-      "SRO Item 37",
-      "SRO Item 38",
-      "SRO Item 39",
-      "SRO Item 40",
-      "SRO Item 41",
-      "SRO Item 42",
-      "SRO Item 43",
-      "SRO Item 44",
-      "SRO Item 45",
-      "SRO Item 46",
-      "SRO Item 47",
-      "SRO Item 48",
-      "SRO Item 49",
-      "SRO Item 50",
+      "1",
+      "1(B)",
+      "1(G)",
+      "1(i)",
+      "1(i)(a)",
+      "1(i)(b)",
+      "2",
+      "2(A)",
+      "2(B)",
+      "3",
+      "3(A)",
+      "3(B)",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10",
+      "11",
+      "12",
+      "13",
+      "14",
+      "15",
+      "16",
+      "17",
+      "18",
+      "19",
+      "20",
+      "21",
+      "22",
+      "23",
+      "24",
+      "25",
+      "26",
+      "27",
+      "28",
+      "29",
+      "30",
+      "31",
+      "32",
+      "33",
+      "34",
+      "35",
+      "36",
+      "37",
+      "38",
+      "39",
+      "40",
+      "41",
+      "42",
+      "43",
+      "44",
+      "45",
+      "46",
+      "47",
+      "48",
+      "49",
+      "50",
     ];
 
     // Add fallback SRO Item data to comprehensive set
@@ -6669,6 +6595,23 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
     console.log(
       `SRO Item Numbers: ${comprehensiveSROItemList.slice(0, 10).join(", ")}${comprehensiveSROItemList.length > 10 ? "..." : ""}`
     );
+
+    // Force garbage collection after processing SRO Items
+    if (global.gc) {
+      global.gc();
+    }
+
+    // Check memory usage after SRO Items processing
+    const memoryAfterSRO = MemoryManagementService.getMemoryUsage();
+    console.log(`📊 Memory after SRO Items processing: ${memoryAfterSRO.heapUsed}MB`);
+    
+    if (memoryAfterSRO.heapUsed > MEMORY_LIMIT_MB) {
+      console.warn(`⚠️ Memory usage high after SRO Items: ${memoryAfterSRO.heapUsed}MB. Forcing cleanup...`);
+      MemoryManagementService.forceCleanup();
+      if (global.gc) {
+        global.gc();
+      }
+    }
 
     // Fetch UoM data for HS Codes and create comprehensive UoM list
 
@@ -6855,6 +6798,11 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
       views: [{ state: "frozen", ySplit: 1 }],
     });
 
+    // Force garbage collection after creating workbook
+    if (global.gc) {
+      global.gc();
+    }
+
     // Lists sheet removed - no longer generating dropdown data in Excel template
 
     // Define expected columns (in the same order as CSV uploader expects)
@@ -6873,7 +6821,6 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
       "item_sroScheduleNo",
       "item_sroItemSerialNo",
       "item_saleType",
-      "item_hsCode",
       "item_uoM",
       "item_productName",
       "item_valueSalesExcludingST",
@@ -6900,7 +6847,6 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
       item_sroScheduleNo: "SRO Schedule No",
       item_sroItemSerialNo: "SRO Item No",
       item_saleType: "Sale Type",
-      item_hsCode: "HS Code",
       item_uoM: "Unit Of Measurement",
       item_productName: "Product Name",
       item_valueSalesExcludingST: "Value Sales (Excl ST)",
@@ -6930,14 +6876,7 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
       if (!col.width || col.width < 18) col.width = 20;
     }
 
-    // HS Code formatting: Treat as text to preserve format (e.g., 0101.10.00)
-    const hsCodeIdx = columns.indexOf("item_hsCode") + 1;
-    if (hsCodeIdx > 0) {
-      const col = template.getColumn(hsCodeIdx);
-      col.numFmt = "@";
-      col.alignment = { horizontal: "left" };
-      if (!col.width || col.width < 18) col.width = 20;
-    }
+  
 
     // Rate formatting: Treat as text to preserve rate format (e.g., "17%", "Exempt")
     const rateIdx = columns.indexOf("item_rate") + 1;
@@ -7175,32 +7114,31 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
 
       // Add fallback HSCodes if API fails
 
-      hsCodeValues.push(
-        "0101.10.00 - Live horses, pure-bred breeding animals",
+      // hsCodeValues.push(
+      //   "0101.10.00 - Live horses, pure-bred breeding animals",
 
-        "0101.90.00 - Live horses, other",
+      //   "0101.90.00 - Live horses, other",
 
-        "0102.10.00 - Live asses, pure-bred breeding animals",
+      //   "0102.10.00 - Live asses, pure-bred breeding animals",
 
-        "0102.90.00 - Live asses, other",
+      //   "0102.90.00 - Live asses, other",
 
-        "0103.10.00 - Live swine, pure-bred breeding animals",
+      //   "0103.10.00 - Live swine, pure-bred breeding animals",
 
-        "0103.91.00 - Live swine, weighing less than 50 kg",
+      //   "0103.91.00 - Live swine, weighing less than 50 kg",
 
-        "0103.92.00 - Live swine, weighing 50 kg or more",
+      //   "0103.92.00 - Live swine, weighing 50 kg or more",
 
-        "0104.10.00 - Live sheep, pure-bred breeding animals",
+      //   "0104.10.00 - Live sheep, pure-bred breeding animals",
 
-        "0104.20.00 - Live sheep, other",
+      //   "0104.20.00 - Live sheep, other",
 
-        "0105.11.00 - Live goats, pure-bred breeding animals",
+      //   "0105.11.00 - Live goats, pure-bred breeding animals",
 
-        "0105.12.00 - Live goats, other"
-      );
+      //   "0105.12.00 - Live goats, other"
+      // );
     }
 
-    const hsCodeListRange = writeHiddenList(hsCodeListCol, hsCodeValues);
 
     // Prepare UoM values for hidden list - create a mapping structure
 
@@ -7240,6 +7178,10 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
 
       rates.forEach((rate) => allRatesSet.add(rate));
     }
+
+    // Ensure common rates (18.5% and 25%) are always included
+    allRatesSet.add("18.5%");
+    allRatesSet.add("25%");
 
     const allRates = Array.from(allRatesSet);
 
@@ -7294,7 +7236,6 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
 
     template.getColumn(extractedTypeIdCol).hidden = true;
 
-    template.getColumn(extractedHsCodeCol).hidden = true;
 
     template.getColumn(uomLabelCol).hidden = true;
 
@@ -7477,34 +7418,29 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
     const sroLabelsEndRow = templateSroRow - 1;
 
     // Project SRO Item blocks onto the Template sheet (store SRO Id labels)
+    // Since we now fetch all SRO Items directly, we'll use a simplified approach
 
     let templateSroItemRow = labelsStartRow;
 
-    for (const [sroId, itemDescs] of Object.entries(sroItemsBySroId)) {
-      const items = Array.isArray(itemDescs) ? itemDescs : [];
+    // Get all SRO Items from the comprehensive list
+    const allSROItems = Array.from(allUniqueSROItems);
+    
+    if (allSROItems.length > 0) {
+      // Create a single entry for all SRO Items
+      template.getCell(templateSroItemRow, sroItemLabelCol).value = "All SRO Items";
+      
+      template.getCell(templateSroItemRow, sroItemCountCol).value = allSROItems.length;
 
-      template.getCell(templateSroItemRow, sroItemLabelCol).value =
-        String(sroId);
-
-      template.getCell(templateSroItemRow, sroItemCountCol).value = Math.max(
-        items.length,
-        1
-      );
-
-      if (items.length === 0) {
-        template.getCell(templateSroItemRow + 1, sroItemLabelCol).value =
-          "No SRO Items available";
-
-        templateSroItemRow += 2;
-        continue;
-      }
-
-      items.forEach((desc, idx) => {
-        template.getCell(templateSroItemRow + 1 + idx, sroItemLabelCol).value =
-          desc;
+      // Write all SRO Items to the template
+      allSROItems.forEach((item, index) => {
+        template.getCell(templateSroItemRow + 1 + index, sroItemLabelCol).value = item;
       });
 
-      templateSroItemRow += 1 + items.length;
+      templateSroItemRow += 1 + allSROItems.length;
+    } else {
+      template.getCell(templateSroItemRow, sroItemLabelCol).value = "No SRO Items available";
+      template.getCell(templateSroItemRow, sroItemCountCol).value = 1;
+      templateSroItemRow += 2;
     }
 
     const sroItemLabelsEndRow = templateSroItemRow - 1;
@@ -7992,7 +7928,6 @@ IF($${dscColLetter}${r}="",0,VALUE($${dscColLetter}${r})))`,
       "3. Sales Tax Applicable auto-calculates: Value Sales (Excl. ST) × (rate ÷ 100).",
       "4. Total Values = (Value Excl. ST + Sales Tax + FED + ST W/H + Further Tax) minus Discount Amount.",
       "5. Enter Quantity and Value Sales (Excl. ST) to compute Unit Cost.",
-      "6. HS Code is now free text input. Use dropdowns for validated selections (UoM, Rate, etc.)",
       "7. Rate dropdown now includes ALL available rates from API and hardcoded data.",
       "8. UoM dropdown now includes ALL available UoM values from API and fallback data.",
       "9. SRO Schedule dropdown now includes ALL available SRO Schedule Numbers from API and fallback data.",
@@ -8034,19 +7969,47 @@ IF($${dscColLetter}${r}="",0,VALUE($${dscColLetter}${r})))`,
 
     const arrayBuffer = await wb.xlsx.writeBuffer();
 
+    // Force garbage collection after Excel generation
+    if (global.gc) {
+      global.gc();
+    }
+
     const nodeBuffer = Buffer.from(arrayBuffer);
+
+    // Complete the process and log performance metrics
+    const totalTime = Number(process.hrtime.bigint() - startTime) / 1000000;
+    MemoryManagementService.completeProcess(processId);
+    
+    const memoryUsage = MemoryManagementService.getMemoryUsage();
+    console.log(`✅ Excel template generated successfully in ${totalTime.toFixed(2)}ms`);
+    console.log(`💾 Memory usage: ${memoryUsage.heapUsed}MB heap, ${memoryUsage.activeProcesses} active processes`);
 
     res.status(200).send(nodeBuffer);
   } catch (error) {
-    console.error("Error generating Excel template:", error);
+    const totalTime = Number(process.hrtime.bigint() - startTime) / 1000000;
+    console.error(`❌ Excel template generation failed after ${totalTime.toFixed(2)}ms:`, error);
+
+    // Complete the process even on error
+    MemoryManagementService.completeProcess(processId);
+    
+    // Force garbage collection on error
+    if (global.gc) {
+      global.gc();
+    }
 
     return res.status(500).json({
       success: false,
-
       message: "Failed to generate Excel template",
-
       error: error.message,
+      performance: {
+        timeToFailure: totalTime.toFixed(2),
+      },
     });
+  } finally {
+    // Force cleanup of any remaining resources
+    if (global.gc) {
+      global.gc();
+    }
   }
 };
 
@@ -8159,24 +8122,6 @@ export const bulkPrintInvoices = async (req, res) => {
 
         const plainInvoice = invoice.get({ plain: true });
         plainInvoice.items = plainInvoice.InvoiceItems || [];
-
-        // Debug: Log invoice data for verification
-        console.log(`🔍 Bulk Print Debug - Invoice ${invoice.invoice_number}:`, {
-          invoiceId: plainInvoice.id,
-          invoiceNumber: plainInvoice.invoice_number,
-          status: plainInvoice.status,
-          companyInvoiceRefNo: plainInvoice.companyInvoiceRefNo,
-          itemsCount: plainInvoice.items ? plainInvoice.items.length : 0,
-          firstItem: plainInvoice.items && plainInvoice.items.length > 0 ? {
-            hsCode: plainInvoice.items[0].hsCode,
-            productDescription: plainInvoice.items[0].productDescription,
-            quantity: plainInvoice.items[0].quantity,
-            unitPrice: plainInvoice.items[0].unitPrice,
-            valueSalesExcludingST: plainInvoice.items[0].valueSalesExcludingST,
-            salesTaxApplicable: plainInvoice.items[0].salesTaxApplicable,
-            totalValues: plainInvoice.items[0].totalValues
-          } : null
-        });
 
         // Format the invoice date
         plainInvoice.invoiceDate = formatDate(plainInvoice.invoiceDate);

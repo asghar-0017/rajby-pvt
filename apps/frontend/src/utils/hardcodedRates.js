@@ -3,7 +3,11 @@
 
 export const TRANSACTION_TYPE_RATES = {
   // 75 - Goods at standard rate (default)
-  75: [{ ratE_ID: 728, ratE_DESC: "18%", ratE_VALUE: 18 }],
+  75: [
+    { ratE_ID: 728, ratE_DESC: "18%", ratE_VALUE: 18 },
+    { ratE_ID: 430, ratE_DESC: "18.5%", ratE_VALUE: 18.5 },
+    { ratE_ID: 746, ratE_DESC: "25%", ratE_VALUE: 25 }
+  ],
 
   // 24 - Goods at Reduced Rate
   24: [
@@ -25,6 +29,8 @@ export const TRANSACTION_TYPE_RATES = {
     { ratE_ID: 747, ratE_DESC: "15%", ratE_VALUE: 15 },
     { ratE_ID: 730, ratE_DESC: "17%", ratE_VALUE: 17 },
     { ratE_ID: 732, ratE_DESC: "18%", ratE_VALUE: 18 },
+    { ratE_ID: 430, ratE_DESC: "18.5%", ratE_VALUE: 18.5 },
+    { ratE_ID: 746, ratE_DESC: "25%", ratE_VALUE: 25 },
     { ratE_ID: 722, ratE_DESC: "Rs.700/MT", ratE_VALUE: 700 },
   ],
 

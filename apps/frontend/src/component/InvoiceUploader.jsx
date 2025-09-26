@@ -2073,11 +2073,22 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
               ❌ Upload Errors
             </Typography>
             {errors.slice(0, 3).map((error, index) => {
-              const isBuyerError = error.error.includes('Buyer with NTN');
-              const isProductError = error.error.includes('Product');
+              const isBuyerError = error.error.includes('Buyer with NTN') || error.error.includes('Buyer NTN');
+              const isProductError = error.error.includes('Product') && !error.error.includes('Missing required fields');
+              const isMissingFieldsError = error.error.includes('Missing required fields');
+              const isInvoiceTypeError = error.error.includes('Invoice Type');
+              const isNTNError = error.error.includes('NTN/CNIC');
+              
+              let errorIcon = '';
+              if (isBuyerError || isNTNError) errorIcon = '👥 ';
+              else if (isProductError) errorIcon = '📋 ';
+              else if (isInvoiceTypeError) errorIcon = '📄 ';
+              else if (isMissingFieldsError) errorIcon = '⚠️ ';
+              else errorIcon = '❌ ';
+              
               return (
                 <Typography key={index} variant="body2" sx={{ fontFamily: 'monospace' }}>
-                  Row {error.row}: {isBuyerError ? '👥 ' : isProductError ? '📋 ' : ''}{error.error}
+                  Row {error.row}: {errorIcon}{error.error}
                 </Typography>
               );
             })}
@@ -2434,9 +2445,17 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
                               {invoice.allErrors && invoice.allErrors.length > 1 ? (
                                 // Show multiple errors for the same invoice
                                 invoice.allErrors.map((error, errorIndex) => {
-                                  const isBuyerError = error.error.includes('Buyer with NTN');
-                                  const isProductError = error.error.includes('Product');
-                                  const errorType = isBuyerError ? '👥 Buyer' : isProductError ? '📋 Product' : '❓ Other';
+                                  const isBuyerError = error.error.includes('Buyer with NTN') || error.error.includes('Buyer NTN');
+                                  const isProductError = error.error.includes('Product') && !error.error.includes('Missing required fields');
+                                  const isMissingFieldsError = error.error.includes('Missing required fields');
+                                  const isInvoiceTypeError = error.error.includes('Invoice Type');
+                                  const isNTNError = error.error.includes('NTN/CNIC');
+                                  
+                                  let errorType = '❓ Other';
+                                  if (isBuyerError || isNTNError) errorType = '👥 Buyer';
+                                  else if (isProductError) errorType = '📋 Product';
+                                  else if (isInvoiceTypeError) errorType = '📄 Invoice Type';
+                                  else if (isMissingFieldsError) errorType = '⚠️ Missing Fields';
                                   
                                   return (
                                     <Typography 
