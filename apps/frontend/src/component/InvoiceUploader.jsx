@@ -1759,21 +1759,43 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
             </Alert>
           )}
 
-          {/* Download Template Button - Download from Public Directory */}
+          {/* Download Template Button - Download from API */}
           <Box sx={{ mb: 2 }}>
             <Button
               variant="outlined"
-              onClick={() => {
+              onClick={async () => {
                 try {
                   setDownloadingTemplate(true);
                   
-                  // Create a link to download the static template file from public directory
+                  if (!selectedTenant) {
+                    toast.error("Please select a company before downloading the template");
+                    return;
+                  }
+                  
+                  // Download template from API endpoint
+                  const response = await api.get(
+                    `/tenant/${selectedTenant.tenant_id}/invoices/template.xlsx`,
+                    {
+                      responseType: 'blob',
+                      headers: {
+                        'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                      }
+                    }
+                  );
+                  
+                  // Create blob and download
+                  const blob = new Blob([response.data], {
+                    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                  });
+                  
+                  const url = window.URL.createObjectURL(blob);
                   const link = document.createElement("a");
-                  link.href = "/invoiceTemplate/invoice_template.xlsx";
+                  link.href = url;
                   link.download = "invoice_template.xlsx";
                   document.body.appendChild(link);
                   link.click();
                   document.body.removeChild(link);
+                  window.URL.revokeObjectURL(url);
                   
                   toast.success("Excel template downloaded successfully!");
                 } catch (error) {
@@ -1784,7 +1806,7 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
                 }
               }}
               size="small"
-              disabled={downloadingTemplate}
+              disabled={downloadingTemplate || !selectedTenant}
               startIcon={downloadingTemplate ? <CircularProgress size={16} /> : <Download />}
             >
               {downloadingTemplate ? "Downloading..." : "Download Excel Template"}
