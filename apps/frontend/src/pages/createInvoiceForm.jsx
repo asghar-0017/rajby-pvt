@@ -348,7 +348,25 @@ export default function CreateInvoice() {
             items: prev.items.map(item => {
               // Only auto-calculate if not manually edited
               if (item.isFurtherTaxManual) {
-                return item; // Keep manual value
+                // If manually edited, only recalculate Total Values with current Further Tax
+                const calculatedTotalBeforeDiscount =
+                  parseFloat(item.valueSalesExcludingST || 0) +
+                  parseFloat(item.salesTaxApplicable || 0) +
+                  parseFloat(item.furtherTax || 0) + // Use current Further Tax value
+                  parseFloat(item.fedPayable || 0) +
+                  parseFloat(item.extraTax || 0) +
+                  parseFloat(item.advanceIncomeTax || 0);
+
+                const discountAmount = parseFloat(item.discount || 0);
+                const totalAfterDiscount = calculatedTotalBeforeDiscount - discountAmount;
+                const taxWithheld = parseFloat(item.salesTaxWithheldAtSource || 0);
+                const calculatedTotal = Number((totalAfterDiscount + taxWithheld).toFixed(2));
+                
+                return {
+                  ...item,
+                  totalValues: calculatedTotal.toString(), // Update Total Values
+                  isTotalValuesManual: false // Reset manual flag since it's auto-calculated
+                };
               }
               
               const valueSalesExcludingST = parseFloat(item.valueSalesExcludingST) || 0;
@@ -372,7 +390,7 @@ export default function CreateInvoice() {
                 ...item,
                 furtherTax: furtherTaxAmount.toFixed(2), // Calculate 4% of Value Sales (Excluding ST)
                 totalValues: calculatedTotal.toString(), // Update Total Values
-                isFurtherTaxManual: false, // Reset manual flag since it's auto-calculated
+                // Don't reset isFurtherTaxManual flag - preserve user's manual edits
                 isTotalValuesManual: false // Reset manual flag since it's auto-calculated
               };
             })
@@ -394,7 +412,7 @@ export default function CreateInvoice() {
     checkFbrStatus();
   }, [selectedBuyerId, buyers]);
 
-  // Effect to recalculate Further Tax when Value Sales (Excluding ST) changes
+  // Effect to recalculate Total Values when Further Tax is manually changed
   React.useEffect(() => {
     if (fbrRegistrationStatus.shouldApplyFurtherTax !== null) {
       setFormData(prev => ({
@@ -422,29 +440,47 @@ export default function CreateInvoice() {
             };
           }
           
-          const valueSalesExcludingST = parseFloat(item.valueSalesExcludingST) || 0;
-          const furtherTaxAmount = fbrRegistrationStatus.shouldApplyFurtherTax ? (valueSalesExcludingST * 0.04) : 0;
-          
-          // Recalculate Total Values when Further Tax changes
-          const calculatedTotalBeforeDiscount =
-            parseFloat(item.valueSalesExcludingST || 0) +
-            parseFloat(item.salesTaxApplicable || 0) +
-            furtherTaxAmount + // Use the new Further Tax amount
-            parseFloat(item.fedPayable || 0) +
-            parseFloat(item.extraTax || 0) +
-            parseFloat(item.advanceIncomeTax || 0);
+          // For non-manual further tax, don't recalculate - let user control it
+          return item;
+        })
+      }));
+    }
+  }, [fbrRegistrationStatus.shouldApplyFurtherTax]);
 
-          const discountAmount = parseFloat(item.discount || 0);
-          const totalAfterDiscount = calculatedTotalBeforeDiscount - discountAmount;
-          const taxWithheld = parseFloat(item.salesTaxWithheldAtSource || 0);
-          const calculatedTotal = Number((totalAfterDiscount + taxWithheld).toFixed(2));
+  // Effect to calculate Further Tax when Value Sales changes (for new invoices)
+  React.useEffect(() => {
+    if (fbrRegistrationStatus.shouldApplyFurtherTax !== null) {
+      setFormData(prev => ({
+        ...prev,
+        items: prev.items.map(item => {
+          // Only auto-calculate if not manually edited and FBR status requires further tax
+          if (!item.isFurtherTaxManual && fbrRegistrationStatus.shouldApplyFurtherTax) {
+            const valueSalesExcludingST = parseFloat(item.valueSalesExcludingST) || 0;
+            const furtherTaxAmount = valueSalesExcludingST * 0.04;
+            
+            // Recalculate Total Values when Further Tax changes
+            const calculatedTotalBeforeDiscount =
+              parseFloat(item.valueSalesExcludingST || 0) +
+              parseFloat(item.salesTaxApplicable || 0) +
+              furtherTaxAmount + // Use the new Further Tax amount
+              parseFloat(item.fedPayable || 0) +
+              parseFloat(item.extraTax || 0) +
+              parseFloat(item.advanceIncomeTax || 0);
+
+            const discountAmount = parseFloat(item.discount || 0);
+            const totalAfterDiscount = calculatedTotalBeforeDiscount - discountAmount;
+            const taxWithheld = parseFloat(item.salesTaxWithheldAtSource || 0);
+            const calculatedTotal = Number((totalAfterDiscount + taxWithheld).toFixed(2));
+            
+            return {
+              ...item,
+              furtherTax: furtherTaxAmount.toFixed(2), // Calculate 4% of Value Sales (Excluding ST)
+              totalValues: calculatedTotal.toString(), // Update Total Values
+              isTotalValuesManual: false // Reset manual flag since it's auto-calculated
+            };
+          }
           
-          return {
-            ...item,
-            furtherTax: furtherTaxAmount.toFixed(2),
-            totalValues: calculatedTotal.toString(), // Update Total Values
-            isTotalValuesManual: false // Reset manual flag since it's auto-calculated
-          };
+          return item;
         })
       }));
     }
@@ -994,7 +1030,7 @@ export default function CreateInvoice() {
             isTotalValuesManual: false,
             isSalesTaxManual: false,
             isSalesTaxWithheldManual: false,
-            isFurtherTaxManual: false,
+            isFurtherTaxManual: true, // Mark as manual when editing to preserve user's Further Tax value
             isFedPayableManual: false,
           }));
           setAddedItems(existingItems);
