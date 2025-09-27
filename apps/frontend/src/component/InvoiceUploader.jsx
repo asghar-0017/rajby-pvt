@@ -1759,7 +1759,53 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
             </Alert>
           )}
 
-          {/* Download Template Button - Download from API */}
+          {/* Download Template Button - Download from Public Folder */}
+          <Box sx={{ mb: 2 }}>
+            <Button
+              variant="outlined"
+              onClick={async () => {
+                try {
+                  setDownloadingTemplate(true);
+                  
+                  // Download template from public folder
+                  const templateUrl = '/invoiceTemplate/invoice_template.xlsx';
+                  
+                  // Fetch the template file from public folder
+                  const response = await fetch(templateUrl);
+                  
+                  if (!response.ok) {
+                    throw new Error(`Failed to fetch template: ${response.statusText}`);
+                  }
+                  
+                  // Create blob and download
+                  const blob = await response.blob();
+                  const url = window.URL.createObjectURL(blob);
+                  const link = document.createElement("a");
+                  link.href = url;
+                  link.download = "invoice_template.xlsx";
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  window.URL.revokeObjectURL(url);
+                  
+                  toast.success("Excel template downloaded successfully!");
+                } catch (error) {
+                  console.error("Error downloading template:", error);
+                  toast.error("Could not download Excel template. Please try again.");
+                } finally {
+                  setDownloadingTemplate(false);
+                }
+              }}
+              size="small"
+              disabled={downloadingTemplate}
+              startIcon={downloadingTemplate ? <CircularProgress size={16} /> : <Download />}
+            >
+              {downloadingTemplate ? "Downloading..." : "Download Excel Template"}
+            </Button>
+          </Box>
+
+          {/* COMMENTED OUT: Backend Template Generation Code - Preserved for Future Use */}
+          {/*
           <Box sx={{ mb: 2 }}>
             <Button
               variant="outlined"
@@ -1809,9 +1855,10 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
               disabled={downloadingTemplate || !selectedTenant}
               startIcon={downloadingTemplate ? <CircularProgress size={16} /> : <Download />}
             >
-              {downloadingTemplate ? "Downloading..." : "Download Excel Template"}
+              {downloadingTemplate ? "Downloading..." : "Download Excel Template (Backend)"}
             </Button>
           </Box>
+          */}
 
           {/* File Processing Progress */}
           {isProcessing && (

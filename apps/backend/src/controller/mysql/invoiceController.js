@@ -6482,8 +6482,18 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
         if (Array.isArray(sroItemsRaw)) {
           const items = sroItemsRaw
             .map((item) => {
-              // Extract srO_ITEM_DESC from the API response
-              const desc = item.srO_ITEM_DESC || item.SRO_ITEM_DESC || item.desc || null;
+              // Extract SRO Item description from various possible field names
+              const desc = item.srO_ITEM_DESC || 
+                          item.SRO_ITEM_DESC || 
+                          item.sro_item_desc ||
+                          item.SRO_ITEM_DESCRIPTION ||
+                          item.sroItemDesc ||
+                          item.sroItemDescription ||
+                          item.desc || 
+                          item.description ||
+                          item.item_desc ||
+                          item.ITEM_DESC ||
+                          null;
               return desc ? String(desc).trim() : null;
             })
             .filter(Boolean);
@@ -6492,13 +6502,14 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
 
           // Add all SRO Item descriptions to the comprehensive set
           items.forEach((item) => {
-            if (item) {
+            if (item && item.trim() !== '') {
               allUniqueSROItems.add(item);
             }
           });
 
-          console.log(`✅ SUCCESS: Fetched ${allUniqueSROItems.size} unique SRO Item descriptions`);
-          console.log('Sample SRO Item Descriptions:', Array.from(allUniqueSROItems).slice(0, 10));
+          console.log(`✅ SUCCESS: Fetched ${allUniqueSROItems.size} unique SRO Item descriptions from API`);
+          console.log('Sample SRO Item Descriptions:', Array.from(allUniqueSROItems).slice(0, 15));
+          console.log('All SRO Item Descriptions count:', allUniqueSROItems.size);
         } else {
           console.warn('SRO Item API returned non-array response:', sroItemsRaw);
         }
@@ -6515,73 +6526,7 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
       console.log('No token available for SRO Item fetching');
     }
 
-    // Add fallback SRO Item data for comprehensive coverage
-    const fallbackSROItemData = [
-      "1",
-      "1(B)",
-      "1(G)",
-      "1(i)",
-      "1(i)(a)",
-      "1(i)(b)",
-      "2",
-      "2(A)",
-      "2(B)",
-      "3",
-      "3(A)",
-      "3(B)",
-      "4",
-      "5",
-      "6",
-      "7",
-      "8",
-      "9",
-      "10",
-      "11",
-      "12",
-      "13",
-      "14",
-      "15",
-      "16",
-      "17",
-      "18",
-      "19",
-      "20",
-      "21",
-      "22",
-      "23",
-      "24",
-      "25",
-      "26",
-      "27",
-      "28",
-      "29",
-      "30",
-      "31",
-      "32",
-      "33",
-      "34",
-      "35",
-      "36",
-      "37",
-      "38",
-      "39",
-      "40",
-      "41",
-      "42",
-      "43",
-      "44",
-      "45",
-      "46",
-      "47",
-      "48",
-      "49",
-      "50",
-    ];
-
-    // Add fallback SRO Item data to comprehensive set
-    fallbackSROItemData.forEach((item) => {
-      allUniqueSROItems.add(item);
-    });
+    // No fallback data - use only API data for SRO Items
 
     // Create comprehensive SRO Item list for dropdown (prepend "N/A")
     const comprehensiveSROItemList = Array.from(allUniqueSROItems).sort();
@@ -6593,8 +6538,15 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
       `Total unique SRO Item Numbers available: ${comprehensiveSROItemList.length}`
     );
     console.log(
-      `SRO Item Numbers: ${comprehensiveSROItemList.slice(0, 10).join(", ")}${comprehensiveSROItemList.length > 10 ? "..." : ""}`
+      `SRO Item Numbers: ${comprehensiveSROItemList.slice(0, 15).join(", ")}${comprehensiveSROItemList.length > 15 ? "..." : ""}`
     );
+    
+    // Log if we have SRO Items from API or if the list is empty
+    if (comprehensiveSROItemList.length <= 1) { // Only "N/A"
+      console.warn('⚠️ WARNING: No SRO Items found from API. Only "N/A" option available.');
+    } else {
+      console.log(`✅ SUCCESS: ${comprehensiveSROItemList.length - 1} SRO Items will be available in Excel dropdown (excluding "N/A")`);
+    }
 
     // Force garbage collection after processing SRO Items
     if (global.gc) {
@@ -6951,120 +6903,34 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
     }
     // Lists sheet content removed - no longer generating dropdown data in Excel template
 
-    // Also project lists into hidden columns on Template to avoid cross-sheet/named-range issues
-
-    const typeListCol = columns.length + 5; // hidden list columns start after visible columns
-
+    // Simplified approach - only essential hidden columns for dropdowns
+    const typeListCol = columns.length + 1;
     const provinceListCol = typeListCol + 1;
-
     const ttCombinedCol = provinceListCol + 1;
-
-    const hsCodeListCol = ttCombinedCol + 1;
-
-    const uomListCol = hsCodeListCol + 1;
-
-    const allUoMCol = uomListCol + 1; // New column for comprehensive UoM list
-
+    const allUoMCol = ttCombinedCol + 1;
     const allRatesCol = allUoMCol + 1;
+    const allSROCol = allRatesCol + 1;
+    const allSROItemCol = allSROCol + 1;
 
-    const allSROCol = allRatesCol + 1; // New column for comprehensive SRO Schedule list
-
-    const allSROItemCol = allSROCol + 1; // New column for comprehensive SRO Item list
-
-    const rateDescToIdCol = allSROItemCol + 1; // hidden mapping: rate desc
-
-    const rateIdMapCol = rateDescToIdCol + 1; // hidden mapping: rate id
-
-    const extractedTypeIdCol = rateIdMapCol + 1; // hidden helper column to extract transaction type ID
-
-    const rateLabelCol = extractedTypeIdCol + 1; // hidden projected rate labels per type
-
-    const rateCountCol = rateLabelCol + 1; // hidden projected rate counts per type
-
-    const rateOutputStartCol = rateCountCol + 1; // per-row horizontal output area
-
-    const maxRatesPerType = 40; // allocate space for up to 40 rates per row
-
-    const startIndexCol = rateOutputStartCol + maxRatesPerType; // per-row start index for rates block
-
-    const resolvedCountCol = startIndexCol + 1; // per-row resolved count of rates
-
-    const extractedHsCodeCol = resolvedCountCol + 1; // hidden helper column to extract HS Code
-
-    const uomLabelCol = extractedHsCodeCol + 1; // hidden projected UoM labels per HS Code
-
-    const uomCountCol = uomLabelCol + 1; // hidden projected UoM counts per HS Code
-
-    const uomOutputStartCol = uomCountCol + 1; // per-row horizontal output area for UoM
-
-    const maxUomPerHsCode = 20; // allocate space for up to 20 UoM options per HS Code
-
-    const uomStartIndexCol = uomOutputStartCol + maxUomPerHsCode; // per-row start index for UoM block
-
-    const uomResolvedCountCol = uomStartIndexCol + 1; // per-row resolved count of UoM options
-
-    // SRO Schedule hidden areas
-
-    const extractedRateIdCol = uomResolvedCountCol + 1; // per-row extracted rate id from selected rate desc
-
-    const sroLabelCol = extractedRateIdCol + 1; // hidden projected SRO labels per rate id
-
-    const sroIdCol = sroLabelCol + 1; // hidden projected SRO ids aligned with labels
-
-    const sroCountCol = sroIdCol + 1; // hidden projected SRO counts per rate id
-
-    const sroOutputStartCol = sroCountCol + 1; // per-row horizontal output area for SRO labels
-
-    const sroIdOutputStartCol = sroOutputStartCol + 40; // per-row horizontal output area for SRO ids (align with labels)
-
-    const maxSroPerRate = 40;
-
-    const sroStartIndexCol = sroIdOutputStartCol + maxSroPerRate; // per-row start index for SRO block
-
-    const sroResolvedCountCol = sroStartIndexCol + 1; // per-row resolved count of SRO options
-
-    // Additional hidden columns for SRO Items (appended after SRO schedule areas)
-
-    const selectedSroIndexCol = sroResolvedCountCol + 1; // index of selected SRO within row outputs
-
-    const extractedSroIdCol2 = selectedSroIndexCol + 1; // selected SRO Id per-row
-
-    const sroItemLabelCol = extractedSroIdCol2 + 1; // hidden projected SRO Item labels per SRO Id
-
-    const sroItemCountCol = sroItemLabelCol + 1; // hidden projected SRO Item counts
-
-    const sroItemOutputStartCol = sroItemCountCol + 1; // per-row horizontal output area for SRO Items
-
-    const maxSroItemsPerSro = 60;
-
-    const sroItemStartIndexCol = sroItemOutputStartCol + maxSroItemsPerSro; // per-row start index for SRO Item block
-
-    const sroItemResolvedCountCol = sroItemStartIndexCol + 1; // per-row resolved count of SRO Item options
-
-    // Helper columns for automatic calculations
-
-    const subtotalCol = sroItemResolvedCountCol + 1; // subtotal before discount
-
-    const discountAmountCol = subtotalCol + 1; // calculated discount amount
-
-    const finalTotalCol = discountAmountCol + 1; // final total after discount
-
-    const writeHiddenList = (colIndex, values) => {
+    const writeHiddenList = (colIndex, values, isSROItems = false) => {
       const startRow = 2; // keep row 1 for headers on Template
 
       template.getColumn(colIndex).hidden = true;
 
       if (!Array.isArray(values) || values.length === 0) {
         template.getCell(startRow, colIndex).value = "";
-
         return { startRow, endRow: startRow };
       }
 
-      values.forEach((val, idx) => {
+      // For SRO Items, don't limit the values to get all available items
+      // For other lists, limit to first 100 values to avoid Excel performance issues
+      const limitedValues = isSROItems ? values : values.slice(0, 100);
+      
+      limitedValues.forEach((val, idx) => {
         template.getCell(startRow + idx, colIndex).value = val;
       });
 
-      return { startRow, endRow: startRow + values.length - 1 };
+      return { startRow, endRow: startRow + limitedValues.length - 1 };
     };
 
     const invoiceTypeValues = ["Sale Invoice", "Debit Note"];
@@ -7085,86 +6951,11 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
       transTypeCombinedValues
     );
 
-    // Prepare HSCode values for hidden list
-
-    const hsCodeValues = [];
-
-    try {
-      const hsCodes = await hsCodeCacheService.getHSCodes(
-        "sandbox",
-
-        token,
-
-        false
-      );
-
-      if (hsCodes && Array.isArray(hsCodes) && hsCodes.length > 0) {
-        // Limit to first 1000 HSCodes to avoid Excel performance issues
-
-        const limitedHsCodes = hsCodes.slice(0, 1000);
-
-        limitedHsCodes.forEach((hsCode) => {
-          const displayValue = `${hsCode.hS_CODE || hsCode.hs_code || hsCode.code || ""} - ${hsCode.description || ""}`;
-
-          hsCodeValues.push(displayValue);
-        });
-      }
-    } catch (error) {
-      console.error("Error fetching HS codes for hidden list:", error);
-
-      // Add fallback HSCodes if API fails
-
-      // hsCodeValues.push(
-      //   "0101.10.00 - Live horses, pure-bred breeding animals",
-
-      //   "0101.90.00 - Live horses, other",
-
-      //   "0102.10.00 - Live asses, pure-bred breeding animals",
-
-      //   "0102.90.00 - Live asses, other",
-
-      //   "0103.10.00 - Live swine, pure-bred breeding animals",
-
-      //   "0103.91.00 - Live swine, weighing less than 50 kg",
-
-      //   "0103.92.00 - Live swine, weighing 50 kg or more",
-
-      //   "0104.10.00 - Live sheep, pure-bred breeding animals",
-
-      //   "0104.20.00 - Live sheep, other",
-
-      //   "0105.11.00 - Live goats, pure-bred breeding animals",
-
-      //   "0105.12.00 - Live goats, other"
-      // );
-    }
+    // Simplified HS Code handling - no hidden list needed
+    // Users can input their own HS codes directly
 
 
-    // Prepare UoM values for hidden list - create a mapping structure
-
-    const uomMappingData = [];
-
-    Object.keys(allUomData).forEach((hsCode) => {
-      const uomOptions = allUomData[hsCode];
-
-      if (uomOptions && Array.isArray(uomOptions) && uomOptions.length > 0) {
-        uomOptions.forEach((uom) => {
-          if (uom.description) {
-            uomMappingData.push({
-              hsCode: hsCode,
-
-              uom: uom.description,
-            });
-          }
-        });
-      }
-    });
-
-    // Create a simple list of all unique UoM values for fallback
-
-    const allUomValues = [...new Set(uomMappingData.map((item) => item.uom))];
-
-    const uomListRange = writeHiddenList(uomListCol, allUomValues);
+    // Simplified UoM handling - use comprehensive list directly
 
     // Write comprehensive UoM list for dropdown
     const allUoMRange = writeHiddenList(allUoMCol, comprehensiveUoMList);
@@ -7204,246 +6995,18 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
     // Write comprehensive SRO Schedule list for dropdown
     const allSRORange = writeHiddenList(allSROCol, comprehensiveSROList);
 
-    // Write comprehensive SRO Item list for dropdown
+    // Write comprehensive SRO Item list for dropdown (no limit for SRO Items)
     const allSROItemRange = writeHiddenList(
       allSROItemCol,
-      comprehensiveSROItemList
+      comprehensiveSROItemList,
+      true // isSROItems = true to get all items
     );
 
-    // Write rate desc -> id mapping (two hidden columns: desc, id)
+    // Simplified rate mapping - no complex mapping needed
 
-    const rateMappingStartRow = 2;
+    // Simplified approach - no complex hidden columns needed
 
-    template.getColumn(rateDescToIdCol).hidden = true;
-
-    template.getColumn(rateIdMapCol).hidden = true;
-
-    let rateMapRow = rateMappingStartRow;
-
-    for (const [desc, id] of rateDescToId.entries()) {
-      template.getCell(rateMapRow, rateDescToIdCol).value = desc;
-
-      template.getCell(rateMapRow, rateIdMapCol).value = id;
-
-      rateMapRow++;
-    }
-
-    // Prepare the helper column that extracts the numeric ID from the combined value
-
-    template.getColumn(hsCodeListCol).hidden = true;
-
-    template.getColumn(uomListCol).hidden = true;
-
-    template.getColumn(extractedTypeIdCol).hidden = true;
-
-
-    template.getColumn(uomLabelCol).hidden = true;
-
-    template.getColumn(uomCountCol).hidden = true;
-
-    template.getColumn(uomStartIndexCol).hidden = true;
-
-    template.getColumn(uomResolvedCountCol).hidden = true;
-
-    for (let c = 0; c < maxUomPerHsCode; c++) {
-      template.getColumn(uomOutputStartCol + c).hidden = true;
-    }
-
-    // Hide SRO columns
-
-    template.getColumn(sroLabelCol).hidden = true;
-
-    template.getColumn(sroIdCol).hidden = true;
-
-    template.getColumn(sroCountCol).hidden = true;
-
-    for (let c = 0; c < maxSroPerRate; c++) {
-      template.getColumn(sroOutputStartCol + c).hidden = true;
-
-      template.getColumn(sroIdOutputStartCol + c).hidden = true;
-    }
-
-    template.getColumn(sroStartIndexCol).hidden = true;
-
-    template.getColumn(sroResolvedCountCol).hidden = true;
-
-    // Hide SRO Item columns
-
-    template.getColumn(selectedSroIndexCol).hidden = true;
-
-    template.getColumn(extractedSroIdCol2).hidden = true;
-
-    template.getColumn(sroItemLabelCol).hidden = true;
-
-    template.getColumn(sroItemCountCol).hidden = true;
-
-    for (let c = 0; c < maxSroItemsPerSro; c++) {
-      template.getColumn(sroItemOutputStartCol + c).hidden = true;
-    }
-
-    template.getColumn(sroItemStartIndexCol).hidden = true;
-
-    template.getColumn(sroItemResolvedCountCol).hidden = true;
-
-    // Hide helper calculation columns
-
-    template.getColumn(subtotalCol).hidden = true;
-
-    template.getColumn(discountAmountCol).hidden = true;
-
-    template.getColumn(finalTotalCol).hidden = true;
-
-    template.getColumn(rateLabelCol).hidden = true;
-
-    template.getColumn(rateCountCol).hidden = true;
-
-    template.getColumn(startIndexCol).hidden = true;
-
-    template.getColumn(resolvedCountCol).hidden = true;
-
-    for (let c = 0; c < maxRatesPerType; c++) {
-      template.getColumn(rateOutputStartCol + c).hidden = true;
-    }
-
-    // Project rate blocks onto the Template sheet (store typeId labels as raw IDs)
-
-    // to avoid string parsing issues in data validation formulas
-
-    const labelsStartRow = 2; // start after header
-
-    let templateRatesRow = labelsStartRow; // moving pointer for blocks
-
-    for (const tt of transactionTypes) {
-      const rates = ratesByType[tt.id] || [];
-
-      // Label column holds the transaction type ID as text (ensures exact text MATCH)
-
-      template.getCell(templateRatesRow, rateLabelCol).value = String(tt.id);
-
-      template.getCell(templateRatesRow, rateCountCol).value = Math.max(
-        rates.length,
-
-        1
-      );
-
-      if (rates.length === 0) {
-        template.getCell(templateRatesRow + 1, rateLabelCol).value =
-          "No rates available";
-
-        templateRatesRow += 2;
-
-        continue;
-      }
-
-      rates.forEach((val, idx) => {
-        template.getCell(templateRatesRow + 1 + idx, rateLabelCol).value = val;
-      });
-
-      templateRatesRow += 1 + rates.length;
-    }
-
-    const labelsEndRow = templateRatesRow - 1;
-
-    // Project UoM blocks onto the Template sheet (store HS Code labels)
-
-    let templateUomRow = labelsStartRow; // moving pointer for UoM blocks
-
-    for (const hsCode of Object.keys(allUomData)) {
-      const uomOptions = allUomData[hsCode] || [];
-
-      // Label column holds the HS Code as text (ensures exact text MATCH)
-
-      template.getCell(templateUomRow, uomLabelCol).value = String(hsCode);
-
-      template.getCell(templateUomRow, uomCountCol).value = Math.max(
-        uomOptions.length,
-
-        1
-      );
-
-      if (uomOptions.length === 0) {
-        template.getCell(templateUomRow + 1, uomLabelCol).value =
-          "No UoM options available";
-
-        templateUomRow += 2;
-
-        continue;
-      }
-
-      uomOptions.forEach((uom, idx) => {
-        template.getCell(templateUomRow + 1 + idx, uomLabelCol).value =
-          uom.description;
-      });
-
-      templateUomRow += 1 + uomOptions.length;
-    }
-
-    const uomLabelsEndRow = templateUomRow - 1;
-
-    // Project SRO schedule blocks onto the Template sheet (store rateId labels)
-
-    let templateSroRow = labelsStartRow;
-
-    for (const [rateId, sroMap] of Object.entries(sroByRateId)) {
-      const sroEntries = Array.from(sroMap.entries()); // [desc, id]
-
-      template.getCell(templateSroRow, sroLabelCol).value = String(rateId);
-
-      template.getCell(templateSroRow, sroCountCol).value = Math.max(
-        sroEntries.length,
-
-        1
-      );
-
-      if (sroEntries.length === 0) {
-        template.getCell(templateSroRow + 1, sroLabelCol).value =
-          "No SRO available";
-
-        template.getCell(templateSroRow + 1, sroIdCol).value = "";
-
-        templateSroRow += 2;
-
-        continue;
-      }
-
-      sroEntries.forEach(([desc, id], idx) => {
-        template.getCell(templateSroRow + 1 + idx, sroLabelCol).value = desc;
-
-        template.getCell(templateSroRow + 1 + idx, sroIdCol).value = id;
-      });
-
-      templateSroRow += 1 + sroEntries.length;
-    }
-
-    const sroLabelsEndRow = templateSroRow - 1;
-
-    // Project SRO Item blocks onto the Template sheet (store SRO Id labels)
-    // Since we now fetch all SRO Items directly, we'll use a simplified approach
-
-    let templateSroItemRow = labelsStartRow;
-
-    // Get all SRO Items from the comprehensive list
-    const allSROItems = Array.from(allUniqueSROItems);
-    
-    if (allSROItems.length > 0) {
-      // Create a single entry for all SRO Items
-      template.getCell(templateSroItemRow, sroItemLabelCol).value = "All SRO Items";
-      
-      template.getCell(templateSroItemRow, sroItemCountCol).value = allSROItems.length;
-
-      // Write all SRO Items to the template
-      allSROItems.forEach((item, index) => {
-        template.getCell(templateSroItemRow + 1 + index, sroItemLabelCol).value = item;
-      });
-
-      templateSroItemRow += 1 + allSROItems.length;
-    } else {
-      template.getCell(templateSroItemRow, sroItemLabelCol).value = "No SRO Items available";
-      template.getCell(templateSroItemRow, sroItemCountCol).value = 1;
-      templateSroItemRow += 2;
-    }
-
-    const sroItemLabelsEndRow = templateSroItemRow - 1;
+    // Simplified approach - no complex formula generation needed
 
     // Helper: get column letter by index (1-based)
 
@@ -7465,251 +7028,63 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
 
     const headerIndex = (name) => columns.indexOf(name) + 1; // 1-based
 
-    // Apply data validations for 1000 rows
-
-    const maxRows = 1001; // including header
+    // Simplified data validations for first 100 rows only
+    const maxRows = 101; // including header
 
     for (let r = 2; r <= maxRows; r++) {
-      // Populate extracted transaction type id per-row: handles both "id - desc" and plain id
-
-      const ttColLetter = getColLetter(headerIndex("transctypeId"));
-
-      template.getCell(r, extractedTypeIdCol).value = {
-        formula: `IFERROR(LEFT($${ttColLetter}${r},FIND(" - ",$${ttColLetter}${r})-1),$${ttColLetter}${r})`,
-      };
-
-      // Populate extracted HS Code per-row: handles both "code - desc" and plain code
-
-      const hsCodeColLetter = getColLetter(headerIndex("item_hsCode"));
-
-      template.getCell(r, extractedHsCodeCol).value = {
-        formula: `IFERROR(LEFT($${hsCodeColLetter}${r},FIND(" - ",$${hsCodeColLetter}${r})-1),$${hsCodeColLetter}${r})`,
-      };
-
-      // invoiceType
-
+      // invoiceType dropdown
       template.getCell(r, headerIndex("invoiceType")).dataValidation = {
         type: "list",
-
         allowBlank: true,
-
-        // Reference hidden list placed on this sheet to avoid cross-sheet parsing
-
         formulae: [`"${invoiceTypeValues.join(",")}"`],
-
         showErrorMessage: true,
-
         errorStyle: "warning",
-
         errorTitle: "Invalid value",
-
         error: "Select a value from the dropdown list.",
       };
 
-      // buyerProvince dropdown (uses hidden provinces list on this sheet)
-      if (headerIndex("buyerProvince") > 0) {
-        template.getCell(r, headerIndex("buyerProvince")).dataValidation = {
-          type: "list",
-          allowBlank: true,
-          formulae: [
-            `$${getColLetter(provinceListCol)}$${provinceListRange.startRow}:$${getColLetter(
-              provinceListCol
-            )}$${provinceListRange.endRow}`,
-          ],
-          showErrorMessage: true,
-        };
-      }
-
-      // transctypeId -> list of Combined (ID - Desc) values for better UX
-
+      // transctypeId dropdown
       template.getCell(r, headerIndex("transctypeId")).dataValidation = {
         type: "list",
-
         allowBlank: true,
-
         formulae: [
           `$${getColLetter(ttCombinedCol)}$${ttCombinedRange.startRow}:$${getColLetter(ttCombinedCol)}$${ttCombinedRange.endRow}`,
         ],
-
         showErrorMessage: true,
       };
 
-      // Per-row: compute starting index of selected transaction type's rates block
-
-      template.getCell(r, startIndexCol).value = {
-        formula: `IFERROR(MATCH($${getColLetter(extractedTypeIdCol)}${r},$${getColLetter(rateLabelCol)}$${labelsStartRow}:$${getColLetter(rateLabelCol)}$${labelsEndRow},0)+${labelsStartRow - 1},0)`,
-      };
-
-      // Per-row: resolve number of rates for selected type
-
-      template.getCell(r, resolvedCountCol).value = {
-        formula: `IFERROR(INDEX($${getColLetter(rateCountCol)}$${labelsStartRow}:$${getColLetter(rateCountCol)}$${labelsEndRow},MATCH($${getColLetter(extractedTypeIdCol)}${r},$${getColLetter(rateLabelCol)}$${labelsStartRow}:$${getColLetter(rateLabelCol)}$${labelsEndRow},0)),0)`,
-      };
-
-      // Per-row: project up to maxRatesPerType horizontally
-
-      for (let k = 0; k < maxRatesPerType; k++) {
-        const outCol = rateOutputStartCol + k;
-
-        template.getCell(r, outCol).value = {
-          formula: `IF($${getColLetter(resolvedCountCol)}${r}>=${k + 1},INDEX($${getColLetter(rateLabelCol)}:$${getColLetter(rateLabelCol)},$${getColLetter(startIndexCol)}${r}+${k + 1}),"")`,
-        };
-      }
-
-      // item_rate dropdown - show ALL available rates from all transaction types
+      // item_rate dropdown
       template.getCell(r, headerIndex("item_rate")).dataValidation = {
         type: "list",
-
         allowBlank: true,
-
         formulae: [
-          `$${getColLetter(allRatesCol)}$${allRatesRange.startRow}:$${getColLetter(
-            allRatesCol
-          )}$${allRatesRange.endRow}`,
+          `$${getColLetter(allRatesCol)}$${allRatesRange.startRow}:$${getColLetter(allRatesCol)}$${allRatesRange.endRow}`,
         ],
-
         showErrorMessage: true,
         errorStyle: "warning",
         errorTitle: "Invalid Rate",
         error: "Select a valid rate from the dropdown list.",
       };
 
-      // Extract selected Rate Id using the rate desc -> id mapping table
-
-      const rateDescColLetter = getColLetter(headerIndex("item_rate"));
-
-      template.getCell(r, extractedRateIdCol).value = {
-        formula: `IFERROR(INDEX($${getColLetter(rateIdMapCol)}:$${getColLetter(
-          rateIdMapCol
-        )},MATCH($${rateDescColLetter}${r},$${getColLetter(rateDescToIdCol)}:$${getColLetter(
-          rateDescToIdCol
-        )},0))&"","")`,
-      };
-
-      // SRO per selected Rate Id: compute block start and count
-
-      template.getCell(r, sroStartIndexCol).value = {
-        formula: `IFERROR(MATCH($${getColLetter(extractedRateIdCol)}${r},$${getColLetter(
-          sroLabelCol
-        )}$${labelsStartRow}:$${getColLetter(sroLabelCol)}$${sroLabelsEndRow},0)+${
-          labelsStartRow - 1
-        },0)`,
-      };
-
-      template.getCell(r, sroResolvedCountCol).value = {
-        formula: `IFERROR(INDEX($${getColLetter(sroCountCol)}$${labelsStartRow}:$${getColLetter(
-          sroCountCol
-        )}$${sroLabelsEndRow},MATCH($${getColLetter(extractedRateIdCol)}${r},$${getColLetter(
-          sroLabelCol
-        )}$${labelsStartRow}:$${getColLetter(sroLabelCol)}$${sroLabelsEndRow},0)),0)`,
-      };
-
-      // Project SRO labels and ids horizontally
-
-      for (let k = 0; k < maxSroPerRate; k++) {
-        template.getCell(r, sroOutputStartCol + k).value = {
-          formula: `IF($${getColLetter(sroResolvedCountCol)}${r}>=${k + 1},INDEX($${getColLetter(
-            sroLabelCol
-          )}:$${getColLetter(sroLabelCol)},$${getColLetter(sroStartIndexCol)}${r}+${
-            k + 1
-          }),"")`,
-        };
-
-        template.getCell(r, sroIdOutputStartCol + k).value = {
-          formula: `IF($${getColLetter(sroResolvedCountCol)}${r}>=${k + 1},INDEX($${getColLetter(
-            sroIdCol
-          )}:$${getColLetter(sroIdCol)},$${getColLetter(sroStartIndexCol)}${r}+${
-            k + 1
-          }),"")`,
-        };
-      }
-
-      // item_sroScheduleNo dropdown (shows ALL available SRO Schedule Numbers from API and fallback data)
-
+      // item_sroScheduleNo dropdown
       template.getCell(r, headerIndex("item_sroScheduleNo")).dataValidation = {
         type: "list",
-
         allowBlank: true,
-
         formulae: [
-          `$${getColLetter(allSROCol)}$${allSRORange.startRow}:$${getColLetter(
-            allSROCol
-          )}$${allSRORange.endRow}`,
+          `$${getColLetter(allSROCol)}$${allSRORange.startRow}:$${getColLetter(allSROCol)}$${allSRORange.endRow}`,
         ],
-
         showErrorMessage: true,
-
         errorStyle: "warning",
-
         errorTitle: "Invalid SRO Schedule",
-
         error: "Select a valid SRO Schedule from the dropdown list.",
       };
 
-      // Selected SRO index within the horizontal SRO labels for this row
-
-      template.getCell(r, selectedSroIndexCol).value = {
-        formula: `IFERROR(MATCH($${getColLetter(
-          headerIndex("item_sroScheduleNo")
-        )}${r},$${getColLetter(sroOutputStartCol)}$${r}:$${getColLetter(
-          sroOutputStartCol + maxSroPerRate - 1
-        )}$${r},0),0)`,
-      };
-
-      // Extract selected SRO Id using the aligned SRO Id horizontal outputs
-
-      template.getCell(r, extractedSroIdCol2).value = {
-        formula: `IF($${getColLetter(selectedSroIndexCol)}${r}>0,INDEX($${getColLetter(
-          sroIdOutputStartCol
-        )}$${r}:$${getColLetter(
-          sroIdOutputStartCol + maxSroPerRate - 1
-        )}$${r},$${getColLetter(selectedSroIndexCol)}${r}),"")`,
-      };
-
-      // Per-row: compute starting index of selected SRO Id's SRO Item block
-
-      template.getCell(r, sroItemStartIndexCol).value = {
-        formula: `IFERROR(MATCH($${getColLetter(extractedSroIdCol2)}${r},$${getColLetter(
-          sroItemLabelCol
-        )}$${labelsStartRow}:$${getColLetter(sroItemLabelCol)}$${sroItemLabelsEndRow},0)+${
-          labelsStartRow - 1
-        },0)`,
-      };
-
-      // Resolve number of SRO Item options for selected SRO Id
-
-      template.getCell(r, sroItemResolvedCountCol).value = {
-        formula: `IFERROR(INDEX($${getColLetter(sroItemCountCol)}$${labelsStartRow}:$${getColLetter(
-          sroItemCountCol
-        )}$${sroItemLabelsEndRow},MATCH($${getColLetter(
-          extractedSroIdCol2
-        )}${r},$${getColLetter(sroItemLabelCol)}$${labelsStartRow}:$${getColLetter(
-          sroItemLabelCol
-        )}$${sroItemLabelsEndRow},0)),0)`,
-      };
-
-      // Project SRO Items horizontally
-
-      for (let k = 0; k < maxSroItemsPerSro; k++) {
-        template.getCell(r, sroItemOutputStartCol + k).value = {
-          formula: `IF($${getColLetter(sroItemResolvedCountCol)}${r}>=${
-            k + 1
-          },INDEX($${getColLetter(sroItemLabelCol)}:$${getColLetter(
-            sroItemLabelCol
-          )},$${getColLetter(sroItemStartIndexCol)}${r}+${k + 1}),"")`,
-        };
-      }
-
-      // item_sroItemSerialNo dropdown (shows ALL available SRO Item Numbers from API and fallback data)
-
-      template.getCell(r, headerIndex("item_sroItemSerialNo")).dataValidation =
-        {
+      // item_sroItemSerialNo dropdown
+      template.getCell(r, headerIndex("item_sroItemSerialNo")).dataValidation = {
           type: "list",
           allowBlank: true,
           formulae: [
-            `$${getColLetter(allSROItemCol)}$${allSROItemRange.startRow}:$${getColLetter(
-              allSROItemCol
-            )}$${allSROItemRange.endRow}`,
+          `$${getColLetter(allSROItemCol)}$${allSROItemRange.startRow}:$${getColLetter(allSROItemCol)}$${allSROItemRange.endRow}`,
           ],
           showErrorMessage: true,
           errorStyle: "warning",
@@ -7717,214 +7092,102 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
           error: "Select a valid SRO Item from the dropdown list.",
         };
 
-      // Per-row: compute starting index of selected HS Code's UoM block
-
-      template.getCell(r, uomStartIndexCol).value = {
-        formula: `IFERROR(MATCH($${getColLetter(extractedHsCodeCol)}${r},$${getColLetter(uomLabelCol)}$${labelsStartRow}:$${getColLetter(uomLabelCol)}$${uomLabelsEndRow},0)+${labelsStartRow - 1},0)`,
-      };
-
-      // Per-row: resolve number of UoM options for selected HS Code
-
-      template.getCell(r, uomResolvedCountCol).value = {
-        formula: `IFERROR(INDEX($${getColLetter(uomCountCol)}$${labelsStartRow}:$${getColLetter(uomCountCol)}$${uomLabelsEndRow},MATCH($${getColLetter(extractedHsCodeCol)}${r},$${getColLetter(uomLabelCol)}$${labelsStartRow}:$${getColLetter(uomLabelCol)}$${uomLabelsEndRow},0)),0)`,
-      };
-
-      // Per-row: project up to maxUomPerHsCode horizontally
-
-      for (let k = 0; k < maxUomPerHsCode; k++) {
-        const outCol = uomOutputStartCol + k;
-
-        template.getCell(r, outCol).value = {
-          formula: `IF($${getColLetter(uomResolvedCountCol)}${r}>=${k + 1},INDEX($${getColLetter(uomLabelCol)}:$${getColLetter(uomLabelCol)},$${getColLetter(uomStartIndexCol)}${r}+${k + 1}),"")`,
-        };
-      }
-
-      // Auto-populate salesType with transaction type description
-
-      // Extract description from the combined transaction type value (e.g., "1 - Sale" -> "Sale")
-
-      const ttColLetterForSalesType = getColLetter(headerIndex("transctypeId"));
-
-      template.getCell(r, headerIndex("item_saleType")).value = {
-        formula: `IFERROR(IF(FIND(" - ",$${ttColLetterForSalesType}${r})>0,MID($${ttColLetterForSalesType}${r},FIND(" - ",$${ttColLetterForSalesType}${r})+3,LEN($${ttColLetterForSalesType}${r})),""),"")`,
-      };
-
-      // buyerRegistrationType dropdown (Registered / Unregistered)
-      if (headerIndex("buyerRegistrationType") > 0) {
-        template.getCell(
-          r,
-          headerIndex("buyerRegistrationType")
-        ).dataValidation = {
-          type: "list",
-          allowBlank: true,
-          formulae: ['"Registered,Unregistered"'],
-          showErrorMessage: true,
-          errorStyle: "warning",
-          errorTitle: "Invalid Registration Type",
-          error: "Select Registered or Unregistered from the dropdown list.",
-        };
-      }
-
-      // item_hsCode - Free text input (dropdown removed)
-      // Users can now input their own HS Code values
-
-      // item_uoM - UoM dropdown (shows ALL available UoM values from API and fallback data)
-
+      // item_uoM dropdown
       template.getCell(r, headerIndex("item_uoM")).dataValidation = {
         type: "list",
-
         allowBlank: true,
-
         formulae: [
-          `$${getColLetter(allUoMCol)}$${allUoMRange.startRow}:$${getColLetter(
-            allUoMCol
-          )}$${allUoMRange.endRow}`,
+          `$${getColLetter(allUoMCol)}$${allUoMRange.startRow}:$${getColLetter(allUoMCol)}$${allUoMRange.endRow}`,
         ],
-
         showErrorMessage: true,
-
         errorStyle: "warning",
-
         errorTitle: "Invalid UoM",
-
         error: "Select a valid Unit of Measurement from the dropdown list.",
       };
 
-      // Add data validation for numeric fields to ensure calculations work properly
-
-      // item_quantity - must be positive number
-
+      // Simple numeric validations
       template.getCell(r, headerIndex("item_quantity")).dataValidation = {
         type: "decimal",
-
         operator: "greaterThan",
-
         formulae: [0],
-
         allowBlank: true,
-
         showErrorMessage: true,
-
         errorStyle: "warning",
-
         errorTitle: "Invalid Quantity",
-
         error: "Quantity must be a positive number.",
       };
 
-      // item_valueSalesExcludingST - must be positive number
-
-      template.getCell(
-        r,
-
-        headerIndex("item_valueSalesExcludingST")
-      ).dataValidation = {
+      template.getCell(r, headerIndex("item_valueSalesExcludingST")).dataValidation = {
         type: "decimal",
-
         operator: "greaterThan",
-
         formulae: [0],
-
         allowBlank: true,
-
         showErrorMessage: true,
-
         errorStyle: "warning",
-
         errorTitle: "Invalid Value (Excl. ST)",
-
         error: "Value (Excl. ST) must be a positive number.",
       };
 
-      // item_discount - must be a positive number (amount, not percentage)
-
       template.getCell(r, headerIndex("item_discount")).dataValidation = {
         type: "decimal",
-
         operator: "greaterThanOrEqual",
-
         formulae: [0],
-
         allowBlank: true,
-
         showErrorMessage: true,
-
         errorStyle: "warning",
-
         errorTitle: "Invalid Discount",
-
         error: "Discount must be a positive number (amount).",
       };
 
-      // item_extraTax - must be a positive number
-
       template.getCell(r, headerIndex("item_extraTax")).dataValidation = {
         type: "decimal",
-
         operator: "greaterThanOrEqual",
-
         formulae: [0],
-
         allowBlank: true,
-
         showErrorMessage: true,
-
         errorStyle: "warning",
-
         errorTitle: "Invalid Extra Tax",
-
         error: "Extra Tax must be a positive number.",
       };
 
-      // item_furtherTax - free input field (no validation constraints)
-      // Further tax can be any value or left empty
+      // Auto-populate Sales Type based on Transaction Type selection
+      const transctypeColLetter = getColLetter(headerIndex("transctypeId"));
+      
+      template.getCell(r, headerIndex("item_saleType")).value = {
+        formula: `IF($${transctypeColLetter}${r}="","",TRIM(MID($${transctypeColLetter}${r},FIND(" - ",$${transctypeColLetter}${r})+3,LEN($${transctypeColLetter}${r}))))`,
+      };
 
-      // Auto-calculate Unit Price as Retail Price ÷ Quantity; leave other calculated cells empty
+      // Add automatic calculations
       const qtyColLetter = getColLetter(headerIndex("item_quantity"));
-      const retailColLetter = getColLetter(
-        headerIndex("item_valueSalesExcludingST")
-      );
-      // Only first data row shows 0 by default; others stay blank until inputs are provided
-      if (r === 2) {
-        template.getCell(r, headerIndex("item_unitPrice")).value = {
-          formula: `IFERROR($${retailColLetter}${r}/$${qtyColLetter}${r},0)`,
-        };
-      } else {
-        template.getCell(r, headerIndex("item_unitPrice")).value = {
-          formula: `IF(OR($${retailColLetter}${r}="",$${qtyColLetter}${r}=""),"",IFERROR($${retailColLetter}${r}/$${qtyColLetter}${r},0))`,
-        };
-      }
-      // Value Sales (Excl. ST) is user-provided; no auto-copy
-      template.getCell(r, headerIndex("item_valueSalesExcludingST")).value = "";
-      // Auto-calculate Sales Tax Applicable = Value (Excl. ST) × (Rate ÷ 100)
+      const retailColLetter = getColLetter(headerIndex("item_valueSalesExcludingST"));
       const rateColLetter = getColLetter(headerIndex("item_rate"));
+      const vsColLetter = getColLetter(headerIndex("item_valueSalesExcludingST"));
+      const staColLetter = getColLetter(headerIndex("item_salesTaxApplicable"));
+      const fedColLetter = getColLetter(headerIndex("item_fedPayable"));
+      const stwColLetter = getColLetter(headerIndex("item_salesTaxWithheldAtSource"));
+      const ftrColLetter = getColLetter(headerIndex("item_furtherTax"));
+      const extColLetter = getColLetter(headerIndex("item_extraTax"));
+      const dscColLetter = getColLetter(headerIndex("item_discount"));
+
+      // Auto-calculate Unit Price = Value Sales (Excl. ST) ÷ Quantity
+      template.getCell(r, headerIndex("item_unitPrice")).value = {
+        formula: `IF(OR($${retailColLetter}${r}="",$${qtyColLetter}${r}=""),"",IFERROR($${retailColLetter}${r}/$${qtyColLetter}${r},0))`,
+      };
+
+      // Auto-calculate Sales Tax Applicable = Value Sales (Excl. ST) × (Rate ÷ 100)
       template.getCell(r, headerIndex("item_salesTaxApplicable")).value = {
         formula: `IF($${retailColLetter}${r}="","",
 IF($${rateColLetter}${r}="","",
 IF(ISNUMBER(SEARCH("exempt",LOWER($${rateColLetter}${r}))),0,
 $${retailColLetter}${r}*(VALUE(SUBSTITUTE($${rateColLetter}${r},"%",""))/100))))`,
       };
+
       // Auto-calculate Total Values = (Value Excl. ST + Sales Tax + FED + ST W/H + Further Tax + Extra Tax) minus Discount Amount
-      const vsColLetter = getColLetter(
-        headerIndex("item_valueSalesExcludingST")
-      );
-      const staColLetter = getColLetter(headerIndex("item_salesTaxApplicable"));
-      const fedColLetter = getColLetter(headerIndex("item_fedPayable"));
-      const stwColLetter = getColLetter(
-        headerIndex("item_salesTaxWithheldAtSource")
-      );
-      const ftrColLetter = getColLetter(headerIndex("item_furtherTax"));
-      const extColLetter = getColLetter(headerIndex("item_extraTax"));
-      const dscColLetter = getColLetter(headerIndex("item_discount"));
       template.getCell(r, headerIndex("item_totalValues")).value = {
         formula: `IF($${retailColLetter}${r}="","",
 SUM($${vsColLetter}${r},$${staColLetter}${r},$${fedColLetter}${r},$${stwColLetter}${r},$${ftrColLetter}${r},$${extColLetter}${r})-
 IF($${dscColLetter}${r}="",0,VALUE($${dscColLetter}${r})))`,
       };
-
-      // Also clear helper columns to avoid hidden computed values
-      template.getCell(r, subtotalCol).value = "";
-      template.getCell(r, discountAmountCol).value = "";
     }
 
     // Summary totals removed (no auto-calculation)
@@ -7947,18 +7210,17 @@ IF($${dscColLetter}${r}="",0,VALUE($${dscColLetter}${r})))`,
     };
 
     const instructions = [
-      "1. Unit Cost auto-calculates as Value Sales (Excl. ST) ÷ Quantity.",
-      "2. Enter Value Sales (Excl. ST); it is used to compute Unit Cost.",
-      "3. Sales Tax Applicable auto-calculates: Value Sales (Excl. ST) × (rate ÷ 100).",
-      "4. Total Values = (Value Excl. ST + Sales Tax + FED + ST W/H + Further Tax + Extra Tax) minus Discount Amount.",
-      "5. Enter Quantity and Value Sales (Excl. ST) to compute Unit Cost.",
-      "6. Extra Tax column accepts numeric values and is included in Total Values calculation.",
-      "7. Further Tax must be exactly 4% of Value Sales (Excluding ST) or left empty - validation enforced.",
-      "8. Rate dropdown now includes ALL available rates from API and hardcoded data.",
-      "9. UoM dropdown now includes ALL available UoM values from API and fallback data.",
-      "10. SRO Schedule dropdown now includes ALL available SRO Schedule Numbers from API and fallback data.",
-      "11. SRO Item dropdown now includes ALL available SRO Item Numbers from API and fallback data.",
-      "12. All transaction types and their corresponding rates are included for comprehensive coverage.",
+      "1. This Excel template includes automatic calculations and dropdown validations.",
+      "2. Fill in the required fields: Invoice Type, Invoice Date, Company Invoice Ref No, Buyer NTN/CNIC.",
+      "3. Select Transaction Type from the dropdown list - Sales Type will auto-populate.",
+      "4. Enter Product Name, HS Code, Quantity, and Value Sales (Excl. ST).",
+      "5. Select Rate, SRO Schedule No, SRO Item No, and UoM from dropdown lists.",
+      "6. Unit Price auto-calculates as Value Sales (Excl. ST) ÷ Quantity.",
+      "7. Sales Tax Applicable auto-calculates: Value Sales (Excl. ST) × (Rate ÷ 100).",
+      "8. Total Values auto-calculates: (Value Excl. ST + Sales Tax + FED + ST W/H + Further Tax + Extra Tax) minus Discount.",
+      "9. Extra Tax, Further Tax, FED Payable, and Discount are optional fields.",
+      "10. All dropdown lists contain values from the FBR API system.",
+      "11. For best results, save the file as .xlsx format before uploading.",
     ];
 
     instructions.forEach((instruction, idx) => {
