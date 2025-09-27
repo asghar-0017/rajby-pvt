@@ -7856,6 +7856,29 @@ export const downloadInvoiceTemplateExcel = async (req, res) => {
         error: "Discount must be a positive number (amount).",
       };
 
+      // item_extraTax - must be a positive number
+
+      template.getCell(r, headerIndex("item_extraTax")).dataValidation = {
+        type: "decimal",
+
+        operator: "greaterThanOrEqual",
+
+        formulae: [0],
+
+        allowBlank: true,
+
+        showErrorMessage: true,
+
+        errorStyle: "warning",
+
+        errorTitle: "Invalid Extra Tax",
+
+        error: "Extra Tax must be a positive number.",
+      };
+
+      // item_furtherTax - free input field (no validation constraints)
+      // Further tax can be any value or left empty
+
       // Auto-calculate Unit Price as Retail Price ÷ Quantity; leave other calculated cells empty
       const qtyColLetter = getColLetter(headerIndex("item_quantity"));
       const retailColLetter = getColLetter(
@@ -7881,7 +7904,7 @@ IF($${rateColLetter}${r}="","",
 IF(ISNUMBER(SEARCH("exempt",LOWER($${rateColLetter}${r}))),0,
 $${retailColLetter}${r}*(VALUE(SUBSTITUTE($${rateColLetter}${r},"%",""))/100))))`,
       };
-      // Auto-calculate Total Values = (Value Excl. ST + Sales Tax + FED + ST W/H + Further Tax) minus Discount Amount
+      // Auto-calculate Total Values = (Value Excl. ST + Sales Tax + FED + ST W/H + Further Tax + Extra Tax) minus Discount Amount
       const vsColLetter = getColLetter(
         headerIndex("item_valueSalesExcludingST")
       );
@@ -7891,10 +7914,11 @@ $${retailColLetter}${r}*(VALUE(SUBSTITUTE($${rateColLetter}${r},"%",""))/100))))
         headerIndex("item_salesTaxWithheldAtSource")
       );
       const ftrColLetter = getColLetter(headerIndex("item_furtherTax"));
+      const extColLetter = getColLetter(headerIndex("item_extraTax"));
       const dscColLetter = getColLetter(headerIndex("item_discount"));
       template.getCell(r, headerIndex("item_totalValues")).value = {
         formula: `IF($${retailColLetter}${r}="","",
-SUM($${vsColLetter}${r},$${staColLetter}${r},$${fedColLetter}${r},$${stwColLetter}${r},$${ftrColLetter}${r})-
+SUM($${vsColLetter}${r},$${staColLetter}${r},$${fedColLetter}${r},$${stwColLetter}${r},$${ftrColLetter}${r},$${extColLetter}${r})-
 IF($${dscColLetter}${r}="",0,VALUE($${dscColLetter}${r})))`,
       };
 
@@ -7926,13 +7950,15 @@ IF($${dscColLetter}${r}="",0,VALUE($${dscColLetter}${r})))`,
       "1. Unit Cost auto-calculates as Value Sales (Excl. ST) ÷ Quantity.",
       "2. Enter Value Sales (Excl. ST); it is used to compute Unit Cost.",
       "3. Sales Tax Applicable auto-calculates: Value Sales (Excl. ST) × (rate ÷ 100).",
-      "4. Total Values = (Value Excl. ST + Sales Tax + FED + ST W/H + Further Tax) minus Discount Amount.",
+      "4. Total Values = (Value Excl. ST + Sales Tax + FED + ST W/H + Further Tax + Extra Tax) minus Discount Amount.",
       "5. Enter Quantity and Value Sales (Excl. ST) to compute Unit Cost.",
-      "7. Rate dropdown now includes ALL available rates from API and hardcoded data.",
-      "8. UoM dropdown now includes ALL available UoM values from API and fallback data.",
-      "9. SRO Schedule dropdown now includes ALL available SRO Schedule Numbers from API and fallback data.",
-      "10. SRO Item dropdown now includes ALL available SRO Item Numbers from API and fallback data.",
-      "11. All transaction types and their corresponding rates are included for comprehensive coverage.",
+      "6. Extra Tax column accepts numeric values and is included in Total Values calculation.",
+      "7. Further Tax must be exactly 4% of Value Sales (Excluding ST) or left empty - validation enforced.",
+      "8. Rate dropdown now includes ALL available rates from API and hardcoded data.",
+      "9. UoM dropdown now includes ALL available UoM values from API and fallback data.",
+      "10. SRO Schedule dropdown now includes ALL available SRO Schedule Numbers from API and fallback data.",
+      "11. SRO Item dropdown now includes ALL available SRO Item Numbers from API and fallback data.",
+      "12. All transaction types and their corresponding rates are included for comprehensive coverage.",
     ];
 
     instructions.forEach((instruction, idx) => {

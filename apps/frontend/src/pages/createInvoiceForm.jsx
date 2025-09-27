@@ -49,7 +49,7 @@ import IconButton from "@mui/material/IconButton";
 import { FaTrash, FaEdit } from "react-icons/fa";
 import { IoIosAddCircle } from "react-icons/io";
 import dayjs from "dayjs";
-import { getTransactionTypes } from "../API/FBRService";
+import { getTransactionTypes, checkRegistrationStatusWithDate } from "../API/FBRService";
 import { fetchData, postData } from "../API/GetApi";
 import RateSelector from "../component/RateSelector";
 import SROScheduleNumber from "../component/SROScheduleNumber";
@@ -276,6 +276,15 @@ export default function CreateInvoice() {
   const [transactionTypeDropdownOpen, setTransactionTypeDropdownOpen] =
     React.useState(false);
 
+  // State for FBR registration status
+  const [fbrRegistrationStatus, setFbrRegistrationStatus] = React.useState({
+    loading: false,
+    isActive: null,
+    shouldApplyFurtherTax: null,
+    message: "",
+    error: null
+  });
+
   // Debug effect to monitor transactionTypes state
   React.useEffect(() => {
     console.log("TransactionTypes state changed:", transactionTypes);
@@ -289,6 +298,172 @@ export default function CreateInvoice() {
     if (selectedBuyerId && buyers.length > 0) {
       const buyer = buyers.find((b) => b.id === selectedBuyerId);
       console.log("Selected buyer details:", buyer);
+    }
+  }, [selectedBuyerId, buyers]);
+
+  // Effect to handle buyer selection and call FBR API for registration status
+  React.useEffect(() => {
+    if (!selectedBuyerId || buyers.length === 0) {
+      // Reset FBR status when no buyer is selected
+      setFbrRegistrationStatus({
+        loading: false,
+        isActive: null,
+        shouldApplyFurtherTax: null,
+        message: "",
+        error: null
+      });
+      return;
+    }
+
+    const buyer = buyers.find((b) => b.id === selectedBuyerId);
+    if (!buyer || !buyer.buyerNTNCNIC) {
+      console.log("No buyer found or buyer has no NTN/CNIC");
+      return;
+    }
+
+    // Call FBR API to check registration status
+    const checkFbrStatus = async () => {
+      try {
+        setFbrRegistrationStatus(prev => ({ ...prev, loading: true, error: null }));
+        
+        const currentDate = dayjs().format('YYYY-MM-DD');
+        console.log(`Checking FBR status for NTN: ${buyer.buyerNTNCNIC}, Date: ${currentDate}`);
+        
+        const result = await checkRegistrationStatusWithDate(buyer.buyerNTNCNIC, currentDate);
+        
+        console.log("FBR API result:", result);
+        
+        setFbrRegistrationStatus({
+          loading: false,
+          isActive: result.isActive,
+          shouldApplyFurtherTax: result.shouldApplyFurtherTax,
+          message: result.message,
+          error: null
+        });
+
+        // Update Further Tax for all items based on FBR status
+        if (result.shouldApplyFurtherTax !== null) {
+          setFormData(prev => ({
+            ...prev,
+            items: prev.items.map(item => {
+              // Only auto-calculate if not manually edited
+              if (item.isFurtherTaxManual) {
+                return item; // Keep manual value
+              }
+              
+              const valueSalesExcludingST = parseFloat(item.valueSalesExcludingST) || 0;
+              const furtherTaxAmount = result.shouldApplyFurtherTax ? (valueSalesExcludingST * 0.04) : 0;
+              
+              // Recalculate Total Values when Further Tax changes
+              const calculatedTotalBeforeDiscount =
+                parseFloat(item.valueSalesExcludingST || 0) +
+                parseFloat(item.salesTaxApplicable || 0) +
+                furtherTaxAmount + // Use the new Further Tax amount
+                parseFloat(item.fedPayable || 0) +
+                parseFloat(item.extraTax || 0) +
+                parseFloat(item.advanceIncomeTax || 0);
+
+              const discountAmount = parseFloat(item.discount || 0);
+              const totalAfterDiscount = calculatedTotalBeforeDiscount - discountAmount;
+              const taxWithheld = parseFloat(item.salesTaxWithheldAtSource || 0);
+              const calculatedTotal = Number((totalAfterDiscount + taxWithheld).toFixed(2));
+              
+              return {
+                ...item,
+                furtherTax: furtherTaxAmount.toFixed(2), // Calculate 4% of Value Sales (Excluding ST)
+                totalValues: calculatedTotal.toString(), // Update Total Values
+                isFurtherTaxManual: false, // Reset manual flag since it's auto-calculated
+                isTotalValuesManual: false // Reset manual flag since it's auto-calculated
+              };
+            })
+          }));
+        }
+
+      } catch (error) {
+        console.error("Error checking FBR registration status:", error);
+        setFbrRegistrationStatus({
+          loading: false,
+          isActive: null,
+          shouldApplyFurtherTax: null,
+          message: "",
+          error: error.message
+        });
+      }
+    };
+
+    checkFbrStatus();
+  }, [selectedBuyerId, buyers]);
+
+  // Effect to recalculate Further Tax when Value Sales (Excluding ST) changes
+  React.useEffect(() => {
+    if (fbrRegistrationStatus.shouldApplyFurtherTax !== null) {
+      setFormData(prev => ({
+        ...prev,
+        items: prev.items.map(item => {
+          if (item.isFurtherTaxManual) {
+            // If manually edited, only recalculate Total Values with current Further Tax
+            const calculatedTotalBeforeDiscount =
+              parseFloat(item.valueSalesExcludingST || 0) +
+              parseFloat(item.salesTaxApplicable || 0) +
+              parseFloat(item.furtherTax || 0) + // Use current Further Tax value
+              parseFloat(item.fedPayable || 0) +
+              parseFloat(item.extraTax || 0) +
+              parseFloat(item.advanceIncomeTax || 0);
+
+            const discountAmount = parseFloat(item.discount || 0);
+            const totalAfterDiscount = calculatedTotalBeforeDiscount - discountAmount;
+            const taxWithheld = parseFloat(item.salesTaxWithheldAtSource || 0);
+            const calculatedTotal = Number((totalAfterDiscount + taxWithheld).toFixed(2));
+            
+            return {
+              ...item,
+              totalValues: calculatedTotal.toString(), // Update Total Values
+              isTotalValuesManual: false // Reset manual flag since it's auto-calculated
+            };
+          }
+          
+          const valueSalesExcludingST = parseFloat(item.valueSalesExcludingST) || 0;
+          const furtherTaxAmount = fbrRegistrationStatus.shouldApplyFurtherTax ? (valueSalesExcludingST * 0.04) : 0;
+          
+          // Recalculate Total Values when Further Tax changes
+          const calculatedTotalBeforeDiscount =
+            parseFloat(item.valueSalesExcludingST || 0) +
+            parseFloat(item.salesTaxApplicable || 0) +
+            furtherTaxAmount + // Use the new Further Tax amount
+            parseFloat(item.fedPayable || 0) +
+            parseFloat(item.extraTax || 0) +
+            parseFloat(item.advanceIncomeTax || 0);
+
+          const discountAmount = parseFloat(item.discount || 0);
+          const totalAfterDiscount = calculatedTotalBeforeDiscount - discountAmount;
+          const taxWithheld = parseFloat(item.salesTaxWithheldAtSource || 0);
+          const calculatedTotal = Number((totalAfterDiscount + taxWithheld).toFixed(2));
+          
+          return {
+            ...item,
+            furtherTax: furtherTaxAmount.toFixed(2),
+            totalValues: calculatedTotal.toString(), // Update Total Values
+            isTotalValuesManual: false // Reset manual flag since it's auto-calculated
+          };
+        })
+      }));
+    }
+  }, [formData.items.map(item => item.valueSalesExcludingST).join(','), fbrRegistrationStatus.shouldApplyFurtherTax]);
+
+  // Effect to update form data when buyer is selected
+  React.useEffect(() => {
+    if (!selectedBuyerId || buyers.length === 0) return;
+    
+    const buyer = buyers.find((b) => b.id === selectedBuyerId);
+    if (buyer) {
+      setFormData((prev) => ({
+        ...prev,
+        buyerNTNCNIC: buyer.buyerNTNCNIC || "",
+        buyerBusinessName: buyer.buyerBusinessName || "",
+        buyerProvince: buyer.buyerProvince || "",
+        buyerAddress: buyer.buyerAddress || "",
+        buyerRegistrationType: buyer.buyerRegistrationType || "",
+      }));
     }
   }, [selectedBuyerId, buyers]);
 
@@ -4348,6 +4523,43 @@ export default function CreateInvoice() {
               </Box>
             </Box>
           </Box>
+
+          {/* FBR Registration Status Indicator */}
+          {selectedBuyerId && (
+            <Box sx={{ mt: 2, p: 2, borderRadius: 2, backgroundColor: "#f8f9fa", border: "1px solid #e9ecef" }}>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600, color: "#495057" }}>
+                FBR Registration Status
+              </Typography>
+              {fbrRegistrationStatus.loading ? (
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <CircularProgress size={16} />
+                  <Typography variant="body2" color="text.secondary">
+                    Checking registration status...
+                  </Typography>
+                </Box>
+              ) : fbrRegistrationStatus.error ? (
+                <Alert severity="warning" sx={{ py: 1 }}>
+                  <Typography variant="body2">
+                    Unable to verify registration status: {fbrRegistrationStatus.error}
+                  </Typography>
+                </Alert>
+              ) : fbrRegistrationStatus.isActive !== null ? (
+                <Box>
+                  <Alert 
+                    severity={fbrRegistrationStatus.isActive ? "success" : "info"} 
+                    sx={{ py: 1, mb: 1 }}
+                  >
+                    <Typography variant="body2">
+                      <strong>Status:</strong> {fbrRegistrationStatus.status}
+                    </Typography>
+                    <Typography variant="body2">
+                      <strong>Further Tax:</strong> {fbrRegistrationStatus.shouldApplyFurtherTax ? "4% (Applied - Registration Inactive)" : "0% (Not Applied - Registration Active)"}
+                    </Typography>
+                  </Alert>
+                </Box>
+              ) : null}
+            </Box>
+          )}
 
           {/* Only keeping Select Buyer field; removing other buyer detail fields */}
         </Box>

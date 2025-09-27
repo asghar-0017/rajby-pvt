@@ -683,3 +683,100 @@ export const submitInvoiceDataFromBackend = async (tenantId, invoiceData) => {
     }
   }
 };
+
+// New function to check registration status with NTN and date for Further Tax calculation
+export const checkRegistrationStatusWithDate = async (ntn, date) => {
+  try {
+    // Get current token dynamically from context
+    let token = API_CONFIG.getCurrentToken("sandbox");
+
+    if (!token) {
+      // Fallback to production token if sandbox is not available
+      token = API_CONFIG.getCurrentToken("production");
+    }
+
+    // Also try localStorage fallback
+    if (!token) {
+      token = localStorage.getItem("sandboxProductionToken");
+    }
+
+    if (!token) {
+      throw new Error(
+        "No FBR token found. Please ensure the Company is selected and credentials are loaded."
+      );
+    }
+
+    const config = {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        "Cookie": "cookiesession1=678B2A2DC4E5F1CDD65FEA0006F56D56"
+      },
+    };
+
+    // Use POST request to check registration status with date
+    const response = await axios({
+      method: "POST",
+      url: `${FBR_API_BASE_URL}/statl`,
+      headers: config.headers,
+      data: {
+        regno: ntn,
+        date: date
+      },
+      timeout: 10000, // 10 second timeout
+    });
+
+    console.log("FBR Registration Status with Date API Response:", response.data);
+    
+    // Parse the response to determine if registration is active
+    if (response.data && response.data["status code"] === "01") {
+      const isActive = response.data.status === "Active";
+      return {
+        success: true,
+        isActive: isActive,
+        status: response.data.status,
+        message: `Registration status: ${response.data.status}`,
+        shouldApplyFurtherTax: !isActive // Apply Further Tax if NOT active
+      };
+    } else {
+      return {
+        success: false,
+        isActive: false,
+        status: "Unknown",
+        message: "Unable to determine registration status",
+        shouldApplyFurtherTax: true // Default to applying Further Tax if status unknown
+      };
+    }
+  } catch (error) {
+    console.error("Error checking registration status with date:", error);
+
+    // Handle specific error cases
+    if (error.response?.status === 401) {
+      throw new Error(
+        "Authentication failed. Please check your FBR credentials."
+      );
+    } else if (error.response?.status === 404) {
+      throw new Error("Registration number not found in FBR system.");
+    } else if (error.response?.status === 500) {
+      throw new Error(
+        "FBR system is temporarily unavailable. Please try again later or contact support."
+      );
+    } else if (error.response?.data) {
+      throw new Error(
+        error.response.data.message || "Error checking registration status."
+      );
+    } else if (error.code === "ECONNABORTED") {
+      throw new Error(
+        "Request timeout. FBR system may be slow. Please try again."
+      );
+    } else if (error.code === "ERR_NETWORK") {
+      throw new Error(
+        "Network error. Please check your internet connection and try again."
+      );
+    } else {
+      throw new Error(
+        "Unable to connect to FBR system. Please try again later."
+      );
+    }
+  }
+};
