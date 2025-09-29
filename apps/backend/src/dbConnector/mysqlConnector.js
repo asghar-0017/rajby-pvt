@@ -77,7 +77,6 @@ const initializeAdminUser = async () => {
     console.error("Error initializing admin user:", error);
   }
 };
-
 // Graceful shutdown
 const gracefulShutdown = async () => {
   try {
