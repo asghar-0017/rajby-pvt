@@ -8010,7 +8010,32 @@ export const bulkPrintInvoices = async (req, res) => {
 
     const pakistanGumLogoBase64 = fs
       .readFileSync(
-        path.join(process.cwd(), "public", "images", "Pakprogressive.png")
+        path.join(process.cwd(), "public", "images", "rajbyLogo.jpg")
+      )
+      .toString("base64");
+
+    // Base64 encode social media logos
+    const whiteLinkedinLogoBase64 = fs
+      .readFileSync(
+        path.join(process.cwd(), "public", "images", "WhiteLinkedinLogo.png")
+      )
+      .toString("base64");
+
+    const whiteInstagramLogoBase64 = fs
+      .readFileSync(
+        path.join(process.cwd(), "public", "images", "WhiteInstagramLogo.png")
+      )
+      .toString("base64");
+
+    const whiteFacebookLogoBase64 = fs
+      .readFileSync(
+        path.join(process.cwd(), "public", "images", "WhiteFacebookLogo.png")
+      )
+      .toString("base64");
+
+    const whiteBrowserLogoBase64 = fs
+      .readFileSync(
+        path.join(process.cwd(), "public", "images", "WhiteBrowserLogo.png")
       )
       .toString("base64");
 
@@ -8051,10 +8076,14 @@ export const bulkPrintInvoices = async (req, res) => {
     // Generate QR codes for each invoice and process data like single print
     const invoicesWithQR = await Promise.all(
       invoices.map(async (invoice) => {
-        const qrData = await QRCode.toDataURL(invoice.invoice_number, {
-          errorCorrectionLevel: "M",
-          width: 96,
-        });
+        // Only generate QR code for posted invoices
+        let qrData = null;
+        if (invoice.status === "posted") {
+          qrData = await QRCode.toDataURL(invoice.invoice_number, {
+            errorCorrectionLevel: "M",
+            width: 96,
+          });
+        }
 
         const plainInvoice = invoice.get({ plain: true });
         plainInvoice.items = plainInvoice.InvoiceItems || [];
@@ -8085,6 +8114,10 @@ export const bulkPrintInvoices = async (req, res) => {
         fbrLogoBase64,
         companyLogoBase64,
         pakistanGumLogoBase64,
+        whiteLinkedinLogoBase64,
+        whiteInstagramLogoBase64,
+        whiteFacebookLogoBase64,
+        whiteBrowserLogoBase64,
         convertToWords: (amount) => {
           if (!amount || isNaN(amount)) return "Zero Rupees Only";
 
