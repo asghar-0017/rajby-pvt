@@ -34,4 +34,4 @@ jobs:
 
           cd ${{ github.workspace }}/apps/backend
 
-          /usr/bin/pm2 start index.js --name dystar || /usr/bin/pm2 restart dystar
+          /usr/bin/pm2 start index.js --name rajbytextilepvt || /usr/bin/pm2 restart rajbytextilepvt
