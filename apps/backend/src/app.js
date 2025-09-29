@@ -137,8 +137,28 @@ app.post("/api/buyer-check", async (req, res) => {
   }
 });
 
-// Catch-all route for SPA - must be last
+// Serve static files from frontend build with proper MIME types
+app.use(express.static(path.join(__dirname, "dist"), {
+  setHeaders: (res, path) => {
+    if (path.endsWith('.css')) {
+      res.setHeader('Content-Type', 'text/css');
+    } else if (path.endsWith('.js')) {
+      res.setHeader('Content-Type', 'application/javascript');
+    } else if (path.endsWith('.html')) {
+      res.setHeader('Content-Type', 'text/html');
+    }
+  }
+}));
+
+// Catch-all route for SPA - must be last (exclude API routes and static assets)
 app.get("*", (req, res) => {
+  // Skip API routes and static assets
+  if (req.path.startsWith("/api/") || 
+      req.path.startsWith("/assets/") || 
+      req.path.includes(".")) {
+    return res.status(404).json({ error: "Not found" });
+  }
+  
   res.sendFile(path.join(__dirname, "dist", "index.html"));
 });
 
