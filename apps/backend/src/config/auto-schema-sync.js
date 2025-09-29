@@ -155,6 +155,7 @@ class AutoSchemaSync {
       
       // Business-related columns
       { table: 'invoices', column: 'internal_invoice_no', type: 'VARCHAR(100)', allowNull: true },
+      { table: 'invoices', column: 'buyerTelephone', type: 'VARCHAR(20)', allowNull: true },
       { table: 'buyers', column: 'created_by_user_id', type: 'INT', allowNull: true },
       { table: 'buyers', column: 'created_by_email', type: 'VARCHAR(255)', allowNull: true },
       { table: 'buyers', column: 'created_by_name', type: 'VARCHAR(255)', allowNull: true },
@@ -230,6 +231,69 @@ class AutoSchemaSync {
     await sequelize.query(sql);
   }
 
+  async checkTenantSpecificColumns(sequelize, databaseType) {
+    const tenantColumns = [
+      // Invoice-specific columns
+      { table: 'invoices', column: 'buyerTelephone', type: 'VARCHAR(20)', allowNull: true },
+      { table: 'invoices', column: 'internal_invoice_no', type: 'VARCHAR(100)', allowNull: true },
+      { table: 'invoices', column: 'created_by_user_id', type: 'INT', allowNull: true },
+      { table: 'invoices', column: 'created_by_email', type: 'VARCHAR(255)', allowNull: true },
+      { table: 'invoices', column: 'created_by_name', type: 'VARCHAR(255)', allowNull: true },
+      
+      // Invoice Items-specific columns
+      { table: 'invoice_items', column: 'dcDocId', type: 'VARCHAR(100)', allowNull: true },
+      { table: 'invoice_items', column: 'dcDocDate', type: 'DATE', allowNull: true },
+      { table: 'invoice_items', column: 'uoM', type: 'VARCHAR(50)', allowNull: true },
+      { table: 'invoice_items', column: 'quantity', type: 'DECIMAL(10,2)', allowNull: true },
+      { table: 'invoice_items', column: 'unitPrice', type: 'DECIMAL(10,2)', allowNull: true },
+      { table: 'invoice_items', column: 'totalValues', type: 'DECIMAL(10,2)', allowNull: true },
+      { table: 'invoice_items', column: 'valueSalesExcludingST', type: 'DECIMAL(10,2)', allowNull: true },
+      { table: 'invoice_items', column: 'fixedNotifiedValueOrRetailPrice', type: 'DECIMAL(10,2)', allowNull: true },
+      { table: 'invoice_items', column: 'salesTaxApplicable', type: 'DECIMAL(10,2)', allowNull: true },
+      { table: 'invoice_items', column: 'salesTaxWithheldAtSource', type: 'DECIMAL(10,2)', allowNull: true },
+      { table: 'invoice_items', column: 'extraTax', type: 'DECIMAL(10,2)', allowNull: true },
+      { table: 'invoice_items', column: 'furtherTax', type: 'DECIMAL(10,2)', allowNull: true },
+      { table: 'invoice_items', column: 'sroScheduleNo', type: 'VARCHAR(50)', allowNull: true },
+      { table: 'invoice_items', column: 'fedPayable', type: 'DECIMAL(10,2)', allowNull: true },
+      { table: 'invoice_items', column: 'advanceIncomeTax', type: 'DECIMAL(10,2)', allowNull: true },
+      { table: 'invoice_items', column: 'discount', type: 'DECIMAL(10,2)', allowNull: true },
+      { table: 'invoice_items', column: 'cartages', type: 'DECIMAL(10,2)', allowNull: true },
+      { table: 'invoice_items', column: 'others', type: 'DECIMAL(10,2)', allowNull: true },
+      { table: 'invoice_items', column: 'saleType', type: 'VARCHAR(50)', allowNull: true },
+      { table: 'invoice_items', column: 'sroItemSerialNo', type: 'VARCHAR(50)', allowNull: true },
+      { table: 'invoice_items', column: 'billOfLadingUoM', type: 'VARCHAR(50)', allowNull: true },
+      
+      // Buyer-specific columns
+      { table: 'buyers', column: 'created_by_user_id', type: 'INT', allowNull: true },
+      { table: 'buyers', column: 'created_by_email', type: 'VARCHAR(255)', allowNull: true },
+      { table: 'buyers', column: 'created_by_name', type: 'VARCHAR(255)', allowNull: true },
+      
+      // Product-specific columns
+      { table: 'products', column: 'created_by_user_id', type: 'INT', allowNull: true },
+      { table: 'products', column: 'created_by_email', type: 'VARCHAR(255)', allowNull: true },
+      { table: 'products', column: 'created_by_name', type: 'VARCHAR(255)', allowNull: true }
+    ];
+
+    for (const { table, column, type, allowNull } of tenantColumns) {
+      try {
+        const tableExists = await this.tableExists(sequelize, table);
+        if (tableExists) {
+          const columnExists = await this.columnExists(sequelize, table, column);
+          if (!columnExists) {
+            await this.addMissingColumn(sequelize, table, column, type, allowNull);
+            this.results.columnsAdded++;
+            this.log(`Added column: ${table}.${column} (${databaseType})`);
+          }
+        }
+      } catch (error) {
+        // Ignore duplicate column errors
+        if (!error.message.includes('Duplicate column name')) {
+          this.log(`Error checking column ${table}.${column}: ${error.message}`, 'warn');
+        }
+      }
+    }
+  }
+
   async syncTenantDatabases() {
     try {
       const tenants = await Tenant.findAll({
@@ -254,6 +318,9 @@ class AutoSchemaSync {
           
           // Check for common missing columns in tenant databases
           await this.checkCommonMissingColumns(tenantSequelize, `tenant: ${tenant.seller_business_name}`);
+          
+          // Check for tenant-specific missing columns
+          await this.checkTenantSpecificColumns(tenantSequelize, `tenant: ${tenant.seller_business_name}`);
           
           // Ensure backup tables exist in tenant databases
           await this.ensureBackupTablesExist(tenantSequelize, `tenant: ${tenant.seller_business_name}`);

@@ -35,6 +35,14 @@ export const createInvoiceItemModel = (sequelize) => {
         type: DataTypes.STRING(50),
         allowNull: true,
       },
+      dcDocId: {
+        type: DataTypes.STRING(100),
+        allowNull: true,
+      },
+      dcDocDate: {
+        type: DataTypes.DATE,
+        allowNull: true,
+      },
       uoM: {
         type: DataTypes.STRING(50),
         allowNull: true,
@@ -88,6 +96,14 @@ export const createInvoiceItemModel = (sequelize) => {
         allowNull: true,
       },
       discount: {
+        type: DataTypes.DECIMAL(10, 2),
+        allowNull: true,
+      },
+      cartages: {
+        type: DataTypes.DECIMAL(10, 2),
+        allowNull: true,
+      },
+      others: {
         type: DataTypes.DECIMAL(10, 2),
         allowNull: true,
       },

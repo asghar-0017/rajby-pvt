@@ -48,7 +48,8 @@ export default function BuyerTable({
       (buyer.buyerBusinessName || "").toLowerCase().includes(searchLower) ||
       (buyer.buyerProvince || "").toLowerCase().includes(searchLower) ||
       (buyer.buyerAddress || "").toLowerCase().includes(searchLower) ||
-      (buyer.buyerRegistrationType || "").toLowerCase().includes(searchLower)
+      (buyer.buyerRegistrationType || "").toLowerCase().includes(searchLower) ||
+      (buyer.buyerTelephone || "").toLowerCase().includes(searchLower)
     );
   });
 
@@ -106,7 +107,7 @@ export default function BuyerTable({
             >
               <TableHead>
                 <TableRow sx={{ background: "#EDEDED" }}>
-                  {[...Array(7)].map((_, index) => (
+                  {[...Array(8)].map((_, index) => (
                     <TableCell key={index}>
                       <Skeleton variant="text" width={80} height={20} />
                     </TableCell>
@@ -116,11 +117,11 @@ export default function BuyerTable({
               <TableBody>
                 {[...Array(5)].map((_, rowIndex) => (
                   <TableRow key={rowIndex}>
-                    {[...Array(7)].map((_, colIndex) => (
+                    {[...Array(8)].map((_, colIndex) => (
                       <TableCell key={`${rowIndex}-${colIndex}`}>
                         <Skeleton
                           variant="text"
-                          width={colIndex === 6 ? 120 : 100}
+                          width={colIndex === 7 ? 120 : 100}
                           height={16}
                         />
                       </TableCell>
@@ -389,6 +390,7 @@ export default function BuyerTable({
                         "Province",
                         "Address",
                         "Registration Type",
+                        "Telephone No",
                         "Created By",
                         "Actions",
                       ].map((heading) => (
@@ -462,6 +464,9 @@ export default function BuyerTable({
                         </TableCell>
                         <TableCell align="center" sx={{ fontWeight: 500 }}>
                           {buyer.buyerRegistrationType}
+                        </TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 500 }}>
+                          {buyer.buyerTelephone || "-"}
                         </TableCell>
                         <TableCell align="center" sx={{ fontWeight: 500 }}>
                           {buyer.created_by_name

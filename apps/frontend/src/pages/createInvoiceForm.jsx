@@ -208,6 +208,8 @@ export default function CreateInvoice() {
         hsCode: "",
         productDescription: "",
         rate: "",
+        dcDocId: "",
+        dcDocDate: "",
         quantity: "1",
         unitPrice: "0.00", // Calculated field: Retail Price ÷ Quantity
         retailPrice: "0", // User input field
@@ -227,6 +229,8 @@ export default function CreateInvoice() {
         fedPayable: "0",
         discount: "0",
         advanceIncomeTax: "0",
+        cartages: "0",
+        others: "0",
         isValueSalesManual: false,
         isTotalValuesManual: false,
         isSalesTaxManual: false,
@@ -1005,6 +1009,8 @@ export default function CreateInvoice() {
             hsCode: item.hsCode || "",
             productDescription: item.productDescription || "",
             rate: item.rate || "",
+            dcDocId: item.dcDocId || "",
+            dcDocDate: item.dcDocDate || "",
             quantity: item.quantity || "1",
             unitPrice: item.unitPrice
               ? parseFloat(item.unitPrice).toFixed(2)
@@ -1026,6 +1032,9 @@ export default function CreateInvoice() {
             furtherTax: item.furtherTax || "0",
             fedPayable: item.fedPayable || "0",
             discount: item.discount || "0",
+            advanceIncomeTax: item.advanceIncomeTax || "0",
+            cartages: item.cartages || "0",
+            others: item.others || "0",
             isValueSalesManual: false,
             isTotalValuesManual: false,
             isSalesTaxManual: false,
@@ -1094,6 +1103,8 @@ export default function CreateInvoice() {
             hsCode: item.hsCode || "",
             billOfLadingUoM: item.billOfLadingUoM || "",
             uoM: item.uoM || "",
+            dcDocId: item.dcDocId || "",
+            dcDocDate: item.dcDocDate || "",
             // Store additional fields that might help with product matching
             quantity: item.quantity || "",
             rate: item.rate || "",
@@ -1705,6 +1716,7 @@ export default function CreateInvoice() {
         buyerProvince: buyerData.buyerProvince,
         buyerAddress: buyerData.buyerAddress,
         buyerRegistrationType: buyerData.buyerRegistrationType,
+        buyerTelephone: buyerData.buyerTelephone,
       };
 
       // Create new buyer
@@ -1885,6 +1897,8 @@ export default function CreateInvoice() {
           "furtherTax",
           "fedPayable",
           "discount",
+          "cartages",
+          "others",
         ].includes(field)
       ) {
         // Store the raw string value for display
@@ -2050,7 +2064,9 @@ export default function CreateInvoice() {
           parseFloat(item.furtherTax || 0) +
           parseFloat(item.fedPayable || 0) +
           parseFloat(item.extraTax || 0) +
-          parseFloat(item.advanceIncomeTax || 0);
+          parseFloat(item.advanceIncomeTax || 0) +
+          parseFloat(item.cartages || 0) +
+          parseFloat(item.others || 0);
 
         const discountAmount = parseFloat(item.discount || 0);
 
@@ -2824,6 +2840,8 @@ export default function CreateInvoice() {
         fedPayable: Number(Number(item.fedPayable || 0).toFixed(2)),
         discount: Number(Number(item.discount || 0).toFixed(2)),
         advanceIncomeTax: Number(Number(item.advanceIncomeTax || 0).toFixed(2)), // Keep in database
+        cartages: Number(Number(item.cartages || 0).toFixed(2)),
+        others: Number(Number(item.others || 0).toFixed(2)),
       }));
 
       const backendData = {
@@ -3041,6 +3059,10 @@ export default function CreateInvoice() {
               isFurtherTaxManual,
               isFedPayableManual,
               advanceIncomeTax, // Remove from FBR API payload
+              dcDocId, // Remove from FBR API payload
+              dcDocDate, // Remove from FBR API payload
+              cartages, // Remove from FBR API payload
+              others, // Remove from FBR API payload
               ...rest
             },
             index
@@ -3444,6 +3466,10 @@ export default function CreateInvoice() {
             isFurtherTaxManual,
             isFedPayableManual,
             advanceIncomeTax, // Remove from FBR API payload
+            dcDocId, // Remove from FBR API payload
+            dcDocDate, // Remove from FBR API payload
+            cartages, // Remove from FBR API payload
+            others, // Remove from FBR API payload
             ...rest
           },
           index
@@ -3605,6 +3631,8 @@ export default function CreateInvoice() {
         fedPayable: Number(Number(item.fedPayable || 0).toFixed(2)),
         discount: Number(Number(item.discount || 0).toFixed(2)),
         advanceIncomeTax: Number(Number(item.advanceIncomeTax || 0).toFixed(2)), // Keep in database
+        cartages: Number(Number(item.cartages || 0).toFixed(2)),
+        others: Number(Number(item.others || 0).toFixed(2)),
       }));
 
       const backendData = {
@@ -4890,6 +4918,48 @@ export default function CreateInvoice() {
                     "& .MuiInputLabel-root": { color: "#6b7280" },
                   }}
                 />
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="DC Doc Id"
+                  value={item.dcDocId || ""}
+                  onChange={(e) =>
+                    handleItemChange(index, "dcDocId", e.target.value)
+                  }
+                  variant="outlined"
+                  sx={{
+                    "& .MuiOutlinedInput-root": {
+                      "& fieldset": { borderColor: "#e5e7eb" },
+                    },
+                    "& .MuiInputLabel-root": { color: "#6b7280" },
+                  }}
+                />
+                <LocalizationProvider dateAdapter={AdapterDayjs}>
+                  <DatePicker
+                    label="DC Doc Date"
+                    value={item.dcDocDate ? dayjs(item.dcDocDate) : null}
+                    onChange={(date) =>
+                      handleItemChange(
+                        index,
+                        "dcDocDate",
+                        date ? date.format("YYYY-MM-DD") : ""
+                      )
+                    }
+                    slotProps={{
+                      textField: {
+                        size: "small",
+                        fullWidth: true,
+                        variant: "outlined",
+                        sx: {
+                          "& .MuiOutlinedInput-root": {
+                            "& fieldset": { borderColor: "#e5e7eb" },
+                          },
+                          "& .MuiInputLabel-root": { color: "#6b7280" },
+                        },
+                      },
+                    }}
+                  />
+                </LocalizationProvider>
               </Box>
 
               <Box
@@ -5262,6 +5332,84 @@ export default function CreateInvoice() {
                     variant="outlined"
                   />
                 </Box>
+                <Box sx={{ flex: "1 1 18%", minWidth: "150px" }}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Cartages"
+                    type="text"
+                    value={
+                      item.cartages === "0.00" || item.cartages === "0"
+                        ? ""
+                        : formatWithCommasWhileTyping(item.cartages)
+                    }
+                    onChange={(e) => {
+                      const newValue = handleFloatingNumberInput(
+                        e.target.value,
+                        true
+                      );
+                      if (newValue !== null) {
+                        handleItemChange(index, "cartages", newValue);
+                      }
+                    }}
+                    onBlur={(e) => {
+                      const value = e.target.value;
+                      if (value) {
+                        // Remove commas and get the raw numeric value
+                        const cleanValue = value.replace(/,/g, "");
+                        const numValue = parseFloat(cleanValue);
+                        if (!isNaN(numValue)) {
+                          // Store the raw numeric value, not the formatted one
+                          handleItemChange(
+                            index,
+                            "cartages",
+                            numValue.toString()
+                          );
+                        }
+                      }
+                    }}
+                    variant="outlined"
+                  />
+                </Box>
+                <Box sx={{ flex: "1 1 18%", minWidth: "150px" }}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Others"
+                    type="text"
+                    value={
+                      item.others === "0.00" || item.others === "0"
+                        ? ""
+                        : formatWithCommasWhileTyping(item.others)
+                    }
+                    onChange={(e) => {
+                      const newValue = handleFloatingNumberInput(
+                        e.target.value,
+                        true
+                      );
+                      if (newValue !== null) {
+                        handleItemChange(index, "others", newValue);
+                      }
+                    }}
+                    onBlur={(e) => {
+                      const value = e.target.value;
+                      if (value) {
+                        // Remove commas and get the raw numeric value
+                        const cleanValue = value.replace(/,/g, "");
+                        const numValue = parseFloat(cleanValue);
+                        if (!isNaN(numValue)) {
+                          // Store the raw numeric value, not the formatted one
+                          handleItemChange(
+                            index,
+                            "others",
+                            numValue.toString()
+                          );
+                        }
+                      }
+                    }}
+                    variant="outlined"
+                  />
+                </Box>
               </Box>
 
               <Box
@@ -5399,6 +5547,12 @@ export default function CreateInvoice() {
                       <TableCell sx={{ fontWeight: 700, fontSize: "0.875rem" }}>
                         Rate
                       </TableCell>
+                      <TableCell sx={{ fontWeight: 700, fontSize: "0.875rem" }}>
+                        DC Doc Id
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: 700, fontSize: "0.875rem" }}>
+                        DC Doc Date
+                      </TableCell>
 
                       <TableCell sx={{ fontWeight: 700, fontSize: "0.875rem" }}>
                         Quantity
@@ -5440,6 +5594,12 @@ export default function CreateInvoice() {
                         </TableCell>
                         <TableCell sx={{ fontSize: "0.875rem" }}>
                           {item.rate}
+                        </TableCell>
+                        <TableCell sx={{ fontSize: "0.875rem" }}>
+                          {item.dcDocId || ""}
+                        </TableCell>
+                        <TableCell sx={{ fontSize: "0.875rem" }}>
+                          {item.dcDocDate || ""}
                         </TableCell>
 
                         <TableCell sx={{ fontSize: "0.875rem" }}>

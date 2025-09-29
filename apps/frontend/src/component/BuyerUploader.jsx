@@ -89,6 +89,7 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     "buyerBusinessName",
     "buyerProvince",
     "buyerAddress",
+    "buyerTelephone",
   ];
 
   // Map display headers (as shown in Excel) back to internal keys
@@ -97,6 +98,7 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     "Buyer Buisness Name": "buyerBusinessName",
     "Buyer Province": "buyerProvince",
     "Buyer Address": "buyerAddress",
+    "Buyer Telephone": "buyerTelephone",
   };
 
   const downloadTemplate = async () => {
@@ -114,6 +116,7 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         "Buyer Buisness Name",
         "Buyer Province",
         "Buyer Address",
+        "Buyer Telephone",
       ];
       worksheet.addRow(visualHeaders);
       worksheet.getRow(1).font = { bold: true };
@@ -125,6 +128,15 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         col.numFmt = "@";
         col.alignment = { horizontal: "left" };
         if (!col.width || col.width < 18) col.width = 20;
+      }
+
+      // Ensure Telephone column is treated as text and readable
+      const telephoneIdx = visualHeaders.indexOf("Buyer Telephone") + 1;
+      if (telephoneIdx > 0) {
+        const col = worksheet.getColumn(telephoneIdx);
+        col.numFmt = "@";
+        col.alignment = { horizontal: "left" };
+        if (!col.width || col.width < 15) col.width = 18;
       }
 
       // Lists kept on a hidden worksheet to power dropdowns (not visible to user)

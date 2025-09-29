@@ -45,6 +45,7 @@ const Buyers = () => {
         buyerProvince: buyerData.buyerProvince,
         buyerAddress: buyerData.buyerAddress,
         buyerRegistrationType: buyerData.buyerRegistrationType,
+        buyerTelephone: buyerData.buyerTelephone,
       };
 
       if (selectedBuyer) {
@@ -194,10 +195,14 @@ const Buyers = () => {
         const response = await api.get(
           `/tenant/${selectedTenant.tenant_id}/buyers/all`
         );
-        
+
         if (response.data.success) {
           setBuyers(response.data.data.buyers || []);
-          console.log("BUYERS loaded:", response.data.data.buyers?.length || 0, "records");
+          console.log(
+            "BUYERS loaded:",
+            response.data.data.buyers?.length || 0,
+            "records"
+          );
         } else {
           console.error("Failed to fetch buyers:", response.data.message);
           setBuyers([]);

@@ -25,6 +25,7 @@ export default function ProfileMenuMount({ open, setOpen }) {
           sellerFullNTN: data.sellerFullNTN,
           sellerProvince: data.sellerProvince,
           sellerAddress: data.sellerAddress,
+          sellerTelephoneNo: data.sellerTelephoneNo,
         });
         if (resp.data?.success && resp.data?.data) {
           // refresh selected tenant in context

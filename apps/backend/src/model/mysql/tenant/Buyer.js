@@ -31,6 +31,14 @@ export const createBuyerModel = (sequelize) => {
         len: [1, 100]
       }
     },
+    buyerCity: {
+      type: DataTypes.STRING(100),
+      allowNull: true,
+      field: 'buyer_city',
+      validate: {
+        len: [0, 100]
+      }
+    },
     buyerAddress: {
       type: DataTypes.TEXT,
       allowNull: true
@@ -41,6 +49,14 @@ export const createBuyerModel = (sequelize) => {
       validate: {
         notEmpty: true,
         len: [1, 100]
+      }
+    },
+    buyerPhoneNumber: {
+      type: DataTypes.STRING(20),
+      allowNull: true,
+      field: 'buyer_phone_number',
+      validate: {
+        len: [0, 20]
       }
     },
     // Creator tracking

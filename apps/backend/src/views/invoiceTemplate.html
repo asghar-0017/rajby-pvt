@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rajby Invoice</title>
+    <style>
+      body {
+        padding: 20px;
+        font-family: "Kumbh Sans", sans-serif;
+      }
+      p {
+        font-size: 12px;
+      }
+      .header {
+        display: flex;
+        flex-direction: row;
+        justify-content: space-around;
+        align-items: center;
+        padding-left: 200px;
+        border-bottom: 1px solid black;
+        border-top: 1px solid black;
+        position: relative;
+        top: -60px;
+      }
+      .invoice-section {
+        display: flex;
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+        position: relative;
+        top: -60px;
+        border-bottom: 1px solid black;
+      }
+
+      .info-container {
+        max-width: 900px;
+        margin: 0 auto;
+        display: flex;
+        gap: 2px;
+        position: relative;
+        top: -40px;
+      }
+
+      .supplier-container,
+      .buyer-container {
+        background-color: white;
+        border: 2px solid #000;
+        flex: 1;
+      }
+
+      .supplier-header,
+      .buyer-header {
+        padding: 8px 12px;
+        width: 50%;
+        font-weight: bold;
+        background-color: #e0e0e0;
+        border: 2px solid #000;
+        text-align: center;
+        position: relative;
+        left: 10px;
+        top: -17px;
+        border-radius: 5px;
+      }
+
+      .supplier-section,
+      .buyer-section {
+        padding: 15px;
+        min-height: 100px;
+      }
+
+      .info-row {
+        display: flex;
+        margin-bottom: 12px;
+        align-items: flex-start;
+      }
+
+      .label {
+        font-weight: bold;
+        font-size: 12px;
+        min-width: 120px;
+        padding-right: 10px;
+      }
+
+      .value {
+        flex: 1;
+        line-height: 1.4;
+        font-size: 12px;
+      }
+
+      /* Table Styles */
+      .table-container {
+        margin-top: 20px;
+        max-width: 900px;
+        margin-left: auto;
+        margin-right: auto;
+        position: relative;
+        top: -55px;
+      }
+
+      .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        border: 2px solid #000;
+        font-size: 12px;
+      }
+
+      .data-table th,
+      .data-table td {
+        border: 1px solid #000;
+        padding: 8px;
+        text-align: center;
+      }
+
+      .data-table th {
+        background-color: #f0f0f0;
+        font-weight: bold;
+      }
+
+      .data-table tr:nth-child(even) {
+        background-color: #f9f9f9;
+      }
+
+      .total-row {
+        background-color: #e0e0e0 !important;
+        font-weight: bold;
+      }
+
+      .text-left {
+        text-align: left;
+      }
+
+      .text-right {
+        text-align: right;
+      }
+
+      /* Grand Total Section Styles */
+      .grand-total-container {
+        max-width: 900px;
+        margin-left: auto;
+        margin-right: auto;
+        display: flex;
+        justify-content: flex-end;
+        position: relative;
+        top: -54px;
+      }
+
+      .grand-total-table {
+        width: 300px;
+        border-collapse: collapse;
+        font-size: 12px;
+      }
+
+      .grand-total-table td {
+        padding: 3px 6px;
+        border: none;
+      }
+
+      .grand-total-label {
+        font-weight: bold;
+        text-align: left;
+        background-color: transparent;
+      }
+
+      .grand-total-value {
+        text-align: right;
+        background-color: transparent;
+      }
+
+      .amount-incl-tax-row {
+        /* background-color: #d0d0d0 !important; */
+        font-weight: bold;
+      }
+
+      .amount-incl-tax-label,
+      .amount-incl-tax-value {
+        background-color: #d0d0d0 !important;
+        border-bottom: 3px double #000;
+        padding: 10px 12px;
+      }
+      .amount-incl-tax-value {
+        text-align: right;
+      }
+
+      .amount-in-words-section {
+        margin-top: 20px;
+        max-width: 900px;
+        margin-left: auto;
+        margin-right: auto;
+        position: relative;
+        top: -90px;
+      }
+
+      .amount-in-words-label {
+        font-weight: bold;
+        font-size: 12px;
+      }
+      .amount-in-words {
+        font-size: 12px;
+        font-weight: bold;
+      }
+      .footer-section{
+        background-color: #000;
+        padding: 0;
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+        gap: 20px;
+        margin-top: 20px;
+        color: white;
+        width: 93%;
+        page-break-inside: avoid;
+      }
+
+      /* Print styles for footer on every page */
+      @media print {
+        .footer-section {
+          position: fixed;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          width: 100%;
+          z-index: 1000;
+        }
+        
+        /* Ensure content doesn't overlap with footer */
+        body {
+          margin-bottom: 80px;
+        }
+        
+        /* Page break handling */
+        .page-break {
+          page-break-before: always;
+        }
+        
+        /* Avoid breaking important sections */
+        .table-container,
+        .grand-total-container,
+        .amount-in-words-section {
+          page-break-inside: avoid;
+        }
+      }
+      
+    </style>
+  </head>
+  <body>
+    <div>
+      <!-- Information Section -->
+      <div>
+        <div style="display: flex; flex-direction: row; justify-content: space-between; align-items: start;">
+            <img
+            src="data:image/jpeg;base64,{{pakistanGumLogoBase64}}"
+            alt="Rajby Logo"
+            class="rajby-logo"
+            style="width: 100px; height: 50px"
+            />
+            <div style="display: flex; flex-direction: row; align-items: center; justify-content: flex-end; gap: 30px;">
+                {{companyLogoBase64}}
+                {{qrData}}
+            </div>
+        </div>
+        <h3
+          style="
+            font-size: 13px;
+            font-weight: bold;
+            position: relative;
+            top: -15px;
+          "
+        >
+          Manufacturer & Exporter of Denim Fabric
+        </h3>
+        <p style="position: relative; top: -18px">
+          Survey No. 54, Deh Landhi (Kohi Goth), Bin Qasim Town, Karachi,
+          Pakistan.
+        </p>
+        <div
+          style="
+            display: flex;
+            flex-direction: row;
+            gap: 12px;
+            position: relative;
+            top: -35px;
+          "
+        >
+          <p>Tel: (92-21)35001671-79</p>
+          <p>Fax: (92-21)35001680</p>
+        </div>
+        <div
+          style="
+            position: relative;
+            top: -53px;
+            display: flex;
+            flex-direction: row;
+            gap: 22px;
+          "
+        >
+          <p>Email : billing@rajbytextiles.com</p>
+          <p style="font-weight: bold">NTN: 4398063-5</p>
+          <p style="font-weight: bold">STRN: 17-00-4398-063-13</p>
+        </div>
+      </div>
+
+      <!-- Header   -->
+      <div class="header">
+        <h1 style="font-size: 18px; font-weight: bold">SALES TAX INVOICE</h1>
+        <p style="font-size: medium; font-weight: bold">Original</p>
+      </div>
+
+      <!-- Invoice Section -->
+      <div class="invoice-section">
+        <p style="font-size: medium">
+          <span style="font-weight: bold">Invoice Number:</span> {{invoice.invoice_number}}
+        </p>
+        <p style="font-size: medium">
+          <span style="font-weight: bold">Invoice Date:</span> {{invoice.invoice_date}}
+        </p>
+      </div>
+
+      <!-- Seller/Buyer Details  -->
+      <div class="info-container">
+        <!-- Supplier Information Box -->
+        <div class="supplier-container">
+          <div class="supplier-header">Supplier's Information</div>
+          <div class="supplier-section">
+            <div class="info-row">
+              <div class="label">Name</div>
+              <div class="value">{{invoice.seller_name}}</div>
+            </div>
+
+            <div class="info-row">
+              <div class="label">Address</div>
+              <div class="value">{{invoice.seller_address}}</div>
+            </div>
+
+            <div class="info-row">
+              <div class="label">Telephone No</div>
+              <div class="value">{{invoice.seller_phone}}</div>
+            </div>
+
+            <div class="info-row">
+              <div class="label">NTN No.</div>
+              <div class="value">{{invoice.seller_ntn}}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Buyer Information Box -->
+        <div class="buyer-container">
+          <div class="buyer-header">Buyer's Information</div>
+          <div class="buyer-section">
+            <div class="info-row">
+              <div class="label">Name</div>
+              <div class="value">{{invoice.buyer_name}}</div>
+            </div>
+
+            <div class="info-row">
+              <div class="label">Address</div>
+              <div class="value">{{invoice.buyer_address}}</div>
+            </div>
+
+            <div class="info-row">
+              <div class="label">Telephone No</div>
+              <div class="value">{{invoice.buyer_phone}}</div>
+            </div>
+
+            <div class="info-row">
+              <div class="label">NTN No.</div>
+              <div class="value">{{invoice.buyer_ntn}}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Table Section -->
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>DC Doc Id</th>
+              <th>DC Doc Dt</th>
+              <th>Product Name</th>
+              <th>Type</th>
+              <th>HS Code</th>
+              <th>Quantity</th>
+              <th>Unit</th>
+              <th>Unit Price</th>
+              <th>Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Items will be populated dynamically -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Grand Total Section -->
+      <div class="grand-total-container">
+        <table class="grand-total-table">
+          <tr>
+            <td class="grand-total-label">Sales Tax %</td>
+            <td class="grand-total-value">{{salesTaxRate}}.00%</td>
+          </tr>
+          <tr>
+            <td class="grand-total-label">Sales Tax Amount</td>
+            <td class="grand-total-value">{{totalSalesTax}}</td>
+          </tr>
+          <tr>
+            <td class="grand-total-label">Add Cartage</td>
+            <td class="grand-total-value">{{totalCartage}}</td>
+          </tr>
+          <tr>
+            <td class="grand-total-label">Add Others</td>
+            <td class="grand-total-value">{{totalOthers}}</td>
+          </tr>
+          <tr class="amount-incl-tax-row">
+            <td class="amount-incl-tax-label">Amount Incl. Sales Tax</td>
+            <td class="amount-incl-tax-value">{{totalAmountInclTax}}</td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- Amount in Words Section -->
+      <div class="amount-in-words-section">
+        <span class="amount-in-words-label">Amount In Words:</span> </br>
+        <span class="amount-in-words">{{amountInWords}}</span>
+      </div>
+
+      <!-- Signature Section  -->
+       <div style="display: flex; flex-direction: row; justify-content: space-between; align-items: center; position: relative; top: -5px;">
+        <div style="border-top: 1px solid black; width: 20%;">
+
+            <p style="text-align: center;"><strong>Prepared By</strong></p>
+        </div>
+        <div style="border-top: 1px solid black; width: 20%;">
+
+            <p style="text-align: center;"><strong>Authorized Signature</strong></p>
+        </div>
+       </div>
+
+       <!-- Footer Section  -->
+        <div class="footer-section">
+            <div style="display: flex; align-items: center; justify-content: center; gap: 2px;">
+                <img style="width: 55px; height: 55px;" src="data:image/png;base64,{{whiteLinkedinLogoBase64}}" alt="LinkedIn"/>
+                <p>rajbytextiles</p>
+            </div>
+            <div style="display: flex; align-items: center; justify-content: center; gap: 2px;">
+                <img style="width: 55px; height: 55px;" src="data:image/png;base64,{{whiteInstagramLogoBase64}}" alt="Instagram"/>
+                <p>rajbytextiles</p>
+            </div>
+            <div style="display: flex; align-items: center; justify-content: center; gap: 2px;">
+                <img style="width: 55px; height: 55px;" src="data:image/png;base64,{{whiteFacebookLogoBase64}}" alt="Facebook"/>
+                <p>rajbytextiles</p>
+            </div>
+            <div style="display: flex; align-items: center; justify-content: center; gap: 2px;">
+                <img style="width: 25px; height: 25px;" src="data:image/png;base64,{{whiteBrowserLogoBase64}}" alt="Website"/>
+                <p>rajbytextiles.com</p>
+            </div>
+        </div>
+    </div>
+  </body>
+</html>

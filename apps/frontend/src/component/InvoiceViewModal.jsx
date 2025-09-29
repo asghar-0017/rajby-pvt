@@ -345,6 +345,11 @@ const InvoiceViewModal = ({ open, onClose, invoice, onPrint }) => {
               <Typography variant="body2">
                 TYPE: {invoice.buyerRegistrationType}
               </Typography>
+              {invoice.buyerTelephone && (
+                <Typography variant="body2">
+                  TEL: {invoice.buyerTelephone}
+                </Typography>
+              )}
             </Box>
 
             {/* Seller Section */}

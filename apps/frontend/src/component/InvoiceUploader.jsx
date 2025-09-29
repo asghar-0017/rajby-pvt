@@ -21,6 +21,7 @@ import {
   Link,
   LinearProgress,
 } from "@mui/material";
+import { useTenantSelection } from "../Context/TenantSelectionProvider";
 import {
   CloudUpload,
   FileUpload,
@@ -132,6 +133,7 @@ const convertExcelDateToYYYYMMDD = (excelDate) => {
 };
 
 const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
+  const { getSelectedTenantId } = useTenantSelection();
   const [file, setFile] = useState(null);
   const [previewData, setPreviewData] = useState([]);
   const [uploading, setUploading] = useState(false);
@@ -198,6 +200,8 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     "item_rate",
     "item_sroScheduleNo",
     "item_sroItemSerialNo",
+    "item_dcDocId",
+    "item_dcDocDate",
     "item_saleType",
     "item_hsCode",
     "item_uoM",
@@ -230,6 +234,8 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     Rate: "item_rate",
     "SRO Schedule No": "item_sroScheduleNo",
     "SRO Item No": "item_sroItemSerialNo",
+    "DC Doc Id": "item_dcDocId",
+    "DC Doc Date": "item_dcDocDate",
     "Sale Type": "item_saleType",
     "HS Code": "item_hsCode",
     "Unit Of Measurement": "item_uoM",
@@ -243,6 +249,8 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
     "Further Tax": "item_furtherTax",
     "FED Payable": "item_fedPayable",
     Discount: "item_discount",
+    Cartages: "item_cartages",
+    Others: "item_others",
     "Total Values": "item_totalValues",
     // Additional mappings for common variations
     "dn_invoice_ref_no": "invoiceRefNo",
@@ -294,6 +302,8 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
       Transactio: "transctypeId",
       "SRO Sched": "item_sroScheduleNo",
       "SRO Item": "item_sroItemSerialNo",
+      "DC Doc I": "item_dcDocId",
+      "DC Doc Da": "item_dcDocDate",
       "Product Na": "item_productName",
       "Value Sale": "item_valueSalesExcludingST",
       "Unit Of Me": "item_uoM",
@@ -509,22 +519,15 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
 
     const stringValue = String(value).trim();
 
-    console.log(
-      "🔍 cleanHsCode input:",
-      stringValue.substring(0, 100) + (stringValue.length > 100 ? "..." : "")
-    );
-
     // If it contains " - ", extract the part before the first " - "
     if (stringValue.includes(" - ")) {
       const parts = stringValue.split(" - ");
       const codePart = parts[0].trim();
-      console.log("🔍 cleanHsCode output:", codePart);
       // Return the code part if it's not empty
       return codePart;
     }
 
     // If no " - " found, assume the entire string is the code
-    console.log("🔍 cleanHsCode output (no dash):", stringValue);
     return stringValue;
   };
 
@@ -682,10 +685,6 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
 
         // Get headers from first row and normalize
         const headers = jsonData[0].map((header) => normalizeHeader(header));
-
-        // Log available headers for debugging
-        console.log("Available headers in Excel file:", headers);
-        console.log("Expected columns:", expectedColumns);
 
         // Log missing headers but don't throw error - process whatever columns are available
         const missingHeaders = expectedColumns.filter(
@@ -846,8 +845,6 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
   };
 
   const validateAndSetPreview = async (data) => {
-    console.log(`Raw data rows received: ${data.length}`);
-
     // Filter out completely empty rows and special rows
     let validData = data
       .filter((row, index) => {
@@ -894,15 +891,6 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         });
         return processedRow;
       });
-
-    console.log(`Valid data rows after filtering: ${validData.length}`);
-
-    // Log details about filtered rows for debugging
-    const filteredOutCount = data.length - validData.length;
-    if (filteredOutCount > 0) {
-      console.log(`🚫 Filtered out ${filteredOutCount} empty/invalid rows`);
-      console.log(`✅ Kept ${validData.length} rows with meaningful data`);
-    }
 
     // Populate seller details from selected tenant
     if (selectedTenant) {
@@ -1023,7 +1011,6 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
 
       if (isAlreadyGrouped) {
         // Data is already grouped by worker, use it directly
-        console.log("🔍 Using already-grouped invoices from worker");
         invoicesToUpload = previewData.map((invoice) => ({
           ...invoice,
           // Ensure seller details are populated from selected tenant
@@ -1035,7 +1022,6 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         }));
       } else {
         // Data is individual rows, need to group them
-        console.log("🔍 Grouping individual rows");
         const groupedInvoices = new Map();
         const groupingErrors = [];
 
@@ -1057,30 +1043,13 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
 
           // Map Excel field names to backend expected field names
           // Backend expects productName or name, but Excel sends item_productName
-          console.log("🔍 Frontend Debug: Before mapping:", {
-            item_productName: cleanedItem.item_productName,
-            name: cleanedItem.name,
-            productName: cleanedItem.productName,
-          });
-
           if (
             cleanedItem.item_productName &&
             cleanedItem.item_productName.trim() !== ""
           ) {
             cleanedItem.productName = cleanedItem.item_productName;
             cleanedItem.name = cleanedItem.item_productName;
-            console.log(
-              "✅ Frontend: Mapped product name:",
-              cleanedItem.item_productName
-            );
-          } else {
-            console.log("❌ Frontend: No valid item_productName found");
           }
-
-          console.log("🔍 Frontend Debug: After mapping:", {
-            name: cleanedItem.name,
-            productName: cleanedItem.productName,
-          });
 
           // Map other item fields to remove the 'item_' prefix
           if (cleanedItem.item_hsCode) {
@@ -1134,6 +1103,12 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
           if (cleanedItem.item_sroItemSerialNo) {
             cleanedItem.sroItemSerialNo = cleanedItem.item_sroItemSerialNo;
           }
+          if (cleanedItem.item_dcDocId) {
+            cleanedItem.dcDocId = cleanedItem.item_dcDocId;
+          }
+          if (cleanedItem.item_dcDocDate) {
+            cleanedItem.dcDocDate = cleanedItem.item_dcDocDate;
+          }
 
           // Get the companyInvoiceRefNo for grouping (changed from internalInvoiceNo)
           const companyInvoiceRefNo =
@@ -1174,10 +1149,66 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
               });
             }
 
-            existingInvoice.items.push(cleanedItem);
+            // Create item object with only item-specific fields (exclude buyer and invoice fields)
+            const itemData = {
+              // Product/item fields
+              productName: cleanedItem.productName,
+              name: cleanedItem.name,
+              hsCode: cleanedItem.hsCode,
+              productDescription: cleanedItem.productDescription,
+              rate: cleanedItem.rate,
+              dcDocId: cleanedItem.dcDocId,
+              dcDocDate: cleanedItem.dcDocDate,
+              uoM: cleanedItem.uoM,
+              quantity: cleanedItem.quantity,
+              unitPrice: cleanedItem.unitPrice,
+              totalValues: cleanedItem.totalValues,
+              valueSalesExcludingST: cleanedItem.valueSalesExcludingST,
+              fixedNotifiedValueOrRetailPrice:
+                cleanedItem.fixedNotifiedValueOrRetailPrice,
+              salesTaxApplicable: cleanedItem.salesTaxApplicable,
+              extraTax: cleanedItem.extraTax,
+              furtherTax: cleanedItem.furtherTax,
+              sroScheduleNo: cleanedItem.sroScheduleNo,
+              fedPayable: cleanedItem.fedPayable,
+              discount: cleanedItem.discount,
+              saleType: cleanedItem.saleType,
+              sroItemSerialNo: cleanedItem.sroItemSerialNo,
+              // Item fields with item_ prefix
+              item_rate: cleanedItem.item_rate,
+              item_sroScheduleNo: cleanedItem.item_sroScheduleNo,
+              item_sroItemSerialNo: cleanedItem.item_sroItemSerialNo,
+              item_dcDocId: cleanedItem.item_dcDocId,
+              item_dcDocDate: cleanedItem.item_dcDocDate,
+              item_saleType: cleanedItem.item_saleType,
+              item_hsCode: cleanedItem.item_hsCode,
+              item_uoM: cleanedItem.item_uoM,
+              item_productName: cleanedItem.item_productName,
+              item_productDescription: cleanedItem.item_productDescription,
+              item_valueSalesExcludingST:
+                cleanedItem.item_valueSalesExcludingST,
+              item_quantity: cleanedItem.item_quantity,
+              item_unitPrice: cleanedItem.item_unitPrice,
+              item_salesTaxApplicable: cleanedItem.item_salesTaxApplicable,
+              item_salesTaxWithheldAtSource:
+                cleanedItem.item_salesTaxWithheldAtSource,
+              item_extraTax: cleanedItem.item_extraTax,
+              item_furtherTax: cleanedItem.item_furtherTax,
+              item_fedPayable: cleanedItem.item_fedPayable,
+              item_discount: cleanedItem.item_discount,
+              item_totalValues: cleanedItem.item_totalValues,
+              item_fixedNotifiedValueOrRetailPrice:
+                cleanedItem.item_fixedNotifiedValueOrRetailPrice,
+              // Transaction field
+              transctypeId: cleanedItem.transctypeId,
+              // Row tracking
+              _row: cleanedItem._row,
+            };
+
+            existingInvoice.items.push(itemData);
           } else {
             // Create new invoice group
-            groupedInvoices.set(companyInvoiceRefNo, {
+            const newInvoice = {
               invoiceType: cleanedItem.invoiceType,
               invoiceDate: cleanedItem.invoiceDate,
               invoiceRefNo: cleanedItem.invoiceRefNo,
@@ -1193,7 +1224,9 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
               buyerNTNCNIC: cleanedItem.buyerNTNCNIC,
               items: [cleanedItem],
               _row: index + 1, // Track the first row for this invoice
-            });
+            };
+
+            groupedInvoices.set(companyInvoiceRefNo, newInvoice);
           }
         });
 
@@ -1220,32 +1253,11 @@ const InvoiceUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         );
       }
 
-      // Log seller details being populated
-      console.log("🔍 Debug: Seller details populated from tenant:", {
-        tenantName: selectedTenant?.sellerBusinessName,
-        sellerNTNCNIC: selectedTenant?.sellerNTNCNIC,
-        sellerProvince: selectedTenant?.sellerProvince,
-        sellerAddress: selectedTenant?.sellerAddress,
-        totalInvoices: invoicesToUpload.length,
-      });
-
-      console.log("🔍 Debug: Grouped invoices for backend:", {
-        totalInvoices: invoicesToUpload.length,
-        totalRows: previewData.length,
-        sampleInvoice: invoicesToUpload[0],
-        sampleInvoiceItems: invoicesToUpload[0]?.items?.length || 0,
-        sampleCompanyInvoiceRefNo: invoicesToUpload[0]?.companyInvoiceRefNo,
-        hasCompanyInvoiceRefNo: !!invoicesToUpload[0]?.companyInvoiceRefNo,
-        sampleInternalInvoiceNo: invoicesToUpload[0]?.internalInvoiceNo, // Still logged for reference
-        groupingSummary: invoicesToUpload.map((inv) => ({
-          companyInvoiceRefNo: inv.companyInvoiceRefNo,
-          internalInvoiceNo: inv.internalInvoiceNo, // Still included for reference
-          itemCount: inv.items.length,
-          rows: inv.items.map((item) => item._row),
-        })),
-      });
-
       // Use streaming upload for large files, regular upload for small files
+      let uploadSuccess = false;
+      let successCount = 0;
+      let failedCount = 0;
+
       if (invoicesToUpload.length > 100) {
         // Estimate upload time
         const estimate = estimateUploadTime(invoicesToUpload.length);

@@ -40,7 +40,6 @@ app.set("views", path.join(__dirname, "views"));
 
 app.use(express.urlencoded({ extended: false }));
 app.use(express.static("public"));
-app.use(express.static(path.join(__dirname, "dist")));
 
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
@@ -55,7 +54,7 @@ app.use(
         connectSrc: [
           "'self'",
           "https://gw.fbr.gov.pk",
-          "https://rajbytextilepvt.inplsoftwares.online",
+          "http://localhost:5150",
         ],
         scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
@@ -69,8 +68,8 @@ app.use(
   cors({
     origin: [
       "http://localhost:5174",
-      "https://rajbytextilepvt.inplsoftwares.online",
-      "https://rajbytextilepvt.inplsoftwares.online",
+      "http://localhost:5150",
+      "http://localhost:5150",
       "https://fbrtestcase.inplsoftwares.online",
       "*",
     ],

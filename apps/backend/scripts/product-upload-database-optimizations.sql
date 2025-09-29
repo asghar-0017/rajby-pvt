@@ -65,13 +65,12 @@ SET GLOBAL max_heap_table_size = 268435456; -- 256MB heap table size
 -- Create composite indexes for ultra-fast product lookups
 CREATE INDEX IF NOT EXISTS idx_products_name_hscode ON products(name, hsCode);
 CREATE INDEX IF NOT EXISTS idx_products_hscode_name ON products(hsCode, name);
-CREATE INDEX IF NOT EXISTS idx_products_bulk_lookup ON products(name, hsCode, uom);
+CREATE INDEX IF NOT EXISTS idx_products_bulk_lookup ON products(name, hsCode);
 CREATE INDEX IF NOT EXISTS idx_products_created_at ON products(createdAt);
 
 -- Create indexes for specific product operations
 CREATE INDEX IF NOT EXISTS idx_products_name_lookup ON products(name);
 CREATE INDEX IF NOT EXISTS idx_products_hscode_lookup ON products(hsCode);
-CREATE INDEX IF NOT EXISTS idx_products_uom_lookup ON products(uom);
 
 -- ============================================================================
 -- PERFORMANCE MONITORING QUERIES

@@ -22,6 +22,7 @@ export default function ProfileUpdateModal({
   const [sellerFullNTN, setSellerFullNTN] = useState("");
   const [sellerProvince, setSellerProvince] = useState("");
   const [sellerAddress, setSellerAddress] = useState("");
+  const [sellerTelephoneNo, setSellerTelephoneNo] = useState("");
 
   useEffect(() => {
     if (initialTenant) {
@@ -29,6 +30,7 @@ export default function ProfileUpdateModal({
       setSellerFullNTN(initialTenant.sellerFullNTN || "");
       setSellerProvince(initialTenant.sellerProvince || "");
       setSellerAddress(initialTenant.sellerAddress || "");
+      setSellerTelephoneNo(initialTenant.sellerTelephoneNo || "");
     }
   }, [initialTenant]);
 
@@ -39,6 +41,7 @@ export default function ProfileUpdateModal({
       sellerFullNTN: sellerFullNTN?.trim(),
       sellerProvince: sellerProvince?.trim(),
       sellerAddress: sellerAddress?.trim(),
+      sellerTelephoneNo: sellerTelephoneNo?.trim(),
     });
   };
 
@@ -73,6 +76,12 @@ export default function ProfileUpdateModal({
               fullWidth
               multiline
               minRows={2}
+            />
+            <TextField
+              label="Telephone No"
+              value={sellerTelephoneNo}
+              onChange={(e) => setSellerTelephoneNo(e.target.value)}
+              fullWidth
             />
           </Stack>
         </DialogContent>
