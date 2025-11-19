@@ -9,6 +9,20 @@ export const createProductModel = (sequelize) => {
         autoIncrement: true,
         primaryKey: true,
       },
+      itemId: {
+        type: DataTypes.STRING(50),
+        allowNull: true,
+        field: 'item_id',
+      },
+      itemCode: {
+        type: DataTypes.STRING(100),
+        allowNull: true,
+        field: 'item_code',
+      },
+      type: {
+        type: DataTypes.STRING(100),
+        allowNull: true,
+      },
       name: {
         type: DataTypes.STRING(255),
         allowNull: false,
@@ -18,6 +32,10 @@ export const createProductModel = (sequelize) => {
         allowNull: true,
       },
       hsCode: {
+        type: DataTypes.STRING(50),
+        allowNull: true,
+      },
+      uom: {
         type: DataTypes.STRING(50),
         allowNull: true,
       },
@@ -40,6 +58,13 @@ export const createProductModel = (sequelize) => {
       timestamps: true,
       createdAt: "created_at",
       updatedAt: "updated_at",
+      indexes: [
+        {
+          unique: true,
+          fields: ['item_id', 'item_code'],
+          name: 'unique_item_id_item_code',
+        },
+      ],
     }
   );
 };

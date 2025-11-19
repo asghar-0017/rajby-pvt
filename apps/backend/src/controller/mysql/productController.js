@@ -28,6 +28,9 @@ export const listProducts = async (req, res) => {
     if (typeof search === "string" && search.trim() !== "") {
       const like = `%${search.trim()}%`;
       where[Op.or] = [
+        { itemId: { [Op.like]: like } },
+        { itemCode: { [Op.like]: like } },
+        { type: { [Op.like]: like } },
         { name: { [Op.like]: like } },
         { description: { [Op.like]: like } },
         { hsCode: { [Op.like]: like } },
@@ -73,6 +76,9 @@ export const getAllProductsWithoutPagination = async (req, res) => {
     // Add search functionality
     if (search) {
       whereClause[req.tenantDb.Sequelize.Op.or] = [
+        { itemId: { [req.tenantDb.Sequelize.Op.like]: `%${search}%` } },
+        { itemCode: { [req.tenantDb.Sequelize.Op.like]: `%${search}%` } },
+        { type: { [req.tenantDb.Sequelize.Op.like]: `%${search}%` } },
         { name: { [req.tenantDb.Sequelize.Op.like]: `%${search}%` } },
         { description: { [req.tenantDb.Sequelize.Op.like]: `%${search}%` } },
         { hsCode: { [req.tenantDb.Sequelize.Op.like]: `%${search}%` } },
@@ -105,7 +111,7 @@ export const getAllProductsWithoutPagination = async (req, res) => {
 export const createProduct = async (req, res) => {
   try {
     const { Product } = req.tenantModels;
-    const { name, description, hsCode, uom } = req.body;
+    const { itemId, itemCode, type, name, description, hsCode, uom } = req.body;
     
     // Validate required fields
     if (!name)
@@ -118,9 +124,29 @@ export const createProduct = async (req, res) => {
         .status(400)
         .json({ success: false, message: "HS Code is required" });
 
+    // Check for duplicate item_id + item_code combination
+    if (itemId && itemCode) {
+      const existingProduct = await Product.findOne({
+        where: {
+          itemId: itemId,
+          itemCode: itemCode,
+        },
+      });
+
+      if (existingProduct) {
+        return res.status(409).json({
+          success: false,
+          message: `Product with Item ID "${itemId}" and Item Code "${itemCode}" already exists.`,
+        });
+      }
+    }
+
     // Note: HS code duplicates are now allowed as per business requirements
 
     const product = await Product.create({
+      itemId: itemId || null,
+      itemCode: itemCode || null,
+      type: type || null,
       name,
       description,
       hsCode: hsCode.trim(),
@@ -160,9 +186,16 @@ export const createProduct = async (req, res) => {
   } catch (err) {
     // Handle specific database errors
     if (err.name === "SequelizeUniqueConstraintError") {
+      // Check if it's the item_id + item_code constraint
+      if (err.errors && err.errors.some(e => e.path === 'unique_item_id_item_code' || e.type === 'unique violation')) {
+        return res.status(409).json({
+          success: false,
+          message: `Product with Item ID "${req.body.itemId}" and Item Code "${req.body.itemCode}" already exists.`,
+        });
+      }
       return res.status(409).json({
         success: false,
-        message: "Database constraint error occurred",
+        message: "A product with this combination already exists.",
       });
     }
     
@@ -190,7 +223,7 @@ export const updateProduct = async (req, res) => {
   try {
     const { Product } = req.tenantModels;
     const { id } = req.params;
-    const { name, description, hsCode } = req.body;
+    const { itemId, itemCode, type, name, description, hsCode, uom } = req.body;
 
     const product = await Product.findByPk(id);
     if (!product) {
@@ -205,6 +238,24 @@ export const updateProduct = async (req, res) => {
         .json({ success: false, message: "name is required" });
     }
 
+    // Check for duplicate item_id + item_code combination (excluding current product)
+    if (itemId && itemCode) {
+      const existingProduct = await Product.findOne({
+        where: {
+          itemId: itemId,
+          itemCode: itemCode,
+          id: { [Op.ne]: id }, // Exclude current product
+        },
+      });
+
+      if (existingProduct) {
+        return res.status(409).json({
+          success: false,
+          message: `Product with Item ID "${itemId}" and Item Code "${itemCode}" already exists.`,
+        });
+      }
+    }
+
     // Capture old values for audit
     const oldValues = {
       id: product.id,
@@ -215,9 +266,13 @@ export const updateProduct = async (req, res) => {
     };
 
     await product.update({
+      itemId: itemId || null,
+      itemCode: itemCode || null,
+      type: type || null,
       name,
       description,
       hsCode,
+      uom: uom || product.uom,
     });
 
     // Log audit event for product update
@@ -241,6 +296,21 @@ export const updateProduct = async (req, res) => {
 
     res.json({ success: true, data: product });
   } catch (err) {
+    // Handle specific database errors
+    if (err.name === "SequelizeUniqueConstraintError") {
+      // Check if it's the item_id + item_code constraint
+      if (err.errors && err.errors.some(e => e.path === 'unique_item_id_item_code' || e.type === 'unique violation')) {
+        return res.status(409).json({
+          success: false,
+          message: `Product with Item ID "${req.body.itemId}" and Item Code "${req.body.itemCode}" already exists.`,
+        });
+      }
+      return res.status(409).json({
+        success: false,
+        message: "A product with this combination already exists.",
+      });
+    }
+    
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -465,32 +535,78 @@ export const bulkCreateProducts = async (req, res) => {
 
     // Phase 2: Batch duplicate checking (single query instead of individual queries)
     const duplicateStart = process.hrtime.bigint();
-    const names = [...new Set(validProducts.map((p) => p.name))];
+    
+    // Filter products that have both itemId and itemCode for duplicate checking
+    const productsWithIdentifiers = validProducts.filter(
+      (p) => p.itemId && p.itemCode
+    );
 
-    const existingProducts = await Product.findAll({
-      where: {
-        name: { [Op.in]: names },
-      },
-      attributes: ["name"],
+    // Check for duplicates within the batch itself
+    const batchDuplicateMap = new Map();
+    const seenInBatch = new Set();
+    const batchDuplicateErrors = [];
+
+    productsWithIdentifiers.forEach((product) => {
+      const key = `${product.itemId}|${product.itemCode}`;
+      if (seenInBatch.has(key)) {
+        batchDuplicateErrors.push({
+          row: product._row,
+          error: `Product with Item ID "${product.itemId}" and Item Code "${product.itemCode}" appears multiple times in the upload.`,
+        });
+      } else {
+        seenInBatch.add(key);
+        batchDuplicateMap.set(key, product);
+      }
     });
 
-    // Create lookup map for O(1) performance
-    const existingByName = new Set(existingProducts.map((p) => p.name));
+    // Query existing products in database with item_id + item_code combinations
+    const itemIdItemCodePairs = Array.from(batchDuplicateMap.keys()).map(
+      (key) => {
+        const [itemId, itemCode] = key.split("|");
+        return { itemId, itemCode };
+      }
+    );
 
-    const duplicateErrors = [];
+    let existingProducts = [];
+    if (itemIdItemCodePairs.length > 0) {
+      // Build query conditions for all item_id + item_code combinations
+      const whereConditions = itemIdItemCodePairs.map((pair) => ({
+        itemId: pair.itemId,
+        itemCode: pair.itemCode,
+      }));
+
+      existingProducts = await Product.findAll({
+        where: {
+          [Op.or]: whereConditions,
+        },
+        attributes: ["itemId", "itemCode"],
+      });
+    }
+
+    // Create lookup map for O(1) performance
+    const existingByItemIdCode = new Set(
+      existingProducts.map((p) => `${p.itemId}|${p.itemCode}`)
+    );
+
+    const duplicateErrors = [...batchDuplicateErrors];
     const uniqueProducts = [];
 
     validProducts.forEach((product) => {
-      // BUSINESS LOGIC: Product is duplicate only if name already exists
-      // HS code duplicates are now allowed as per business requirements
-      const isDuplicate = existingByName.has(product.name);
+      // BUSINESS LOGIC: Product is duplicate if item_id + item_code combination already exists
+      if (product.itemId && product.itemCode) {
+        const key = `${product.itemId}|${product.itemCode}`;
+        const isDuplicate = existingByItemIdCode.has(key);
 
-      if (isDuplicate) {
-        duplicateErrors.push({
-          row: product._row,
-          error: `Product with name "${product.name}" already exists. Please use a different name.`,
-        });
+        if (isDuplicate) {
+          duplicateErrors.push({
+            row: product._row,
+            error: `Product with Item ID "${product.itemId}" and Item Code "${product.itemCode}" already exists.`,
+          });
+        } else {
+          uniqueProducts.push(product);
+        }
       } else {
+        // Products without both itemId and itemCode can be created (no duplicate check)
         uniqueProducts.push(product);
       }
     });
@@ -515,9 +631,13 @@ export const bulkCreateProducts = async (req, res) => {
 
       // Prepare chunk data for bulk insert
       const chunkData = chunk.map((product) => ({
+        itemId: product.itemId || null,
+        itemCode: product.itemCode || null,
+        type: product.type || null,
         name: product.name,
         description: product.description || product.productDescription || null,
         hsCode: product.hsCode,
+        uom: product.uom || null,
         createdAt: new Date(),
         updatedAt: new Date(),
       }));

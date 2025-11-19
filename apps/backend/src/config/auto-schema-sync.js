@@ -231,6 +231,85 @@ class AutoSchemaSync {
     await sequelize.query(sql);
   }
 
+  async dropUniqueConstraintOnBuyerNTN(sequelize, databaseType) {
+    try {
+      // Check if buyers table exists
+      const buyersTableExists = await this.tableExists(sequelize, 'buyers');
+      if (!buyersTableExists) {
+        return;
+      }
+
+      // First, get all existing indexes on buyerNTNCNIC column
+      const [existingIndexes] = await sequelize.query(
+        `SHOW INDEX FROM buyers WHERE Column_name = 'buyerNTNCNIC'`
+      );
+
+      if (existingIndexes.length > 0) {
+        this.log(`Found ${existingIndexes.length} index(es) on buyerNTNCNIC column (${databaseType})`);
+        
+        // Drop each existing index
+        for (const index of existingIndexes) {
+          const indexName = index.Key_name;
+          try {
+            await sequelize.query(`ALTER TABLE buyers DROP INDEX \`${indexName}\``);
+            this.log(`✓ Dropped index '${indexName}' on buyers.buyerNTNCNIC (${databaseType})`);
+          } catch (error) {
+            if (!error.message.includes("check that column/key exists") && 
+                !error.message.includes("Can't DROP")) {
+              this.log(`Failed to drop index ${indexName}: ${error.message}`, 'warn');
+            }
+          }
+        }
+      }
+
+      // Also try common constraint names just in case
+      const possibleConstraintNames = [
+        'buyerNTNCNIC',
+        'buyerNTNCNIC_2',
+        'buyerNTNCNIC_3',
+        'buyers_buyerNTNCNIC_key',
+        'buyers_ibfk_1',
+        'buyerNTNCNIC_unique',
+        'idx_buyerNTNCNIC'
+      ];
+
+      for (const constraintName of possibleConstraintNames) {
+        try {
+          await sequelize.query(`ALTER TABLE buyers DROP INDEX IF EXISTS \`${constraintName}\``);
+        } catch (error) {
+          // Silently ignore - using IF EXISTS so it's safe
+        }
+      }
+
+      // Create composite index if it doesn't exist
+      try {
+        const [indexes] = await sequelize.query(
+          `SHOW INDEX FROM buyers WHERE Key_name = 'idx_buyer_composite'`
+        );
+        
+        if (indexes.length === 0) {
+          await sequelize.query(`
+            CREATE INDEX idx_buyer_composite ON buyers (
+              buyerId, 
+              buyerMainName, 
+              buyerBusinessName, 
+              buyerNTNCNIC, 
+              buyerProvince, 
+              buyerAddress(255)
+            )
+          `);
+          this.log(`Created composite index on buyers table (${databaseType})`);
+        }
+      } catch (error) {
+        if (!error.message.includes('Duplicate key name')) {
+          this.log(`Error creating composite index: ${error.message}`, 'warn');
+        }
+      }
+    } catch (error) {
+      this.log(`Error in dropUniqueConstraintOnBuyerNTN: ${error.message}`, 'warn');
+    }
+  }
+
   async checkTenantSpecificColumns(sequelize, databaseType) {
     const tenantColumns = [
       // Invoice-specific columns
@@ -264,11 +343,17 @@ class AutoSchemaSync {
       { table: 'invoice_items', column: 'billOfLadingUoM', type: 'VARCHAR(50)', allowNull: true },
       
       // Buyer-specific columns
+      { table: 'buyers', column: 'buyer_id', type: 'VARCHAR(50)', allowNull: true },
+      { table: 'buyers', column: 'buyer_main_name', type: 'VARCHAR(255)', allowNull: true },
       { table: 'buyers', column: 'created_by_user_id', type: 'INT', allowNull: true },
       { table: 'buyers', column: 'created_by_email', type: 'VARCHAR(255)', allowNull: true },
       { table: 'buyers', column: 'created_by_name', type: 'VARCHAR(255)', allowNull: true },
       
       // Product-specific columns
+      { table: 'products', column: 'item_id', type: 'VARCHAR(50)', allowNull: true },
+      { table: 'products', column: 'item_code', type: 'VARCHAR(100)', allowNull: true },
+      { table: 'products', column: 'type', type: 'VARCHAR(100)', allowNull: true },
+      { table: 'products', column: 'uom', type: 'VARCHAR(50)', allowNull: true },
       { table: 'products', column: 'created_by_user_id', type: 'INT', allowNull: true },
       { table: 'products', column: 'created_by_email', type: 'VARCHAR(255)', allowNull: true },
       { table: 'products', column: 'created_by_name', type: 'VARCHAR(255)', allowNull: true }
@@ -321,6 +406,9 @@ class AutoSchemaSync {
           
           // Check for tenant-specific missing columns
           await this.checkTenantSpecificColumns(tenantSequelize, `tenant: ${tenant.seller_business_name}`);
+          
+          // Drop unique constraint on buyerNTNCNIC (allows composite key checking)
+          await this.dropUniqueConstraintOnBuyerNTN(tenantSequelize, `tenant: ${tenant.seller_business_name}`);
           
           // Ensure backup tables exist in tenant databases
           await this.ensureBackupTablesExist(tenantSequelize, `tenant: ${tenant.seller_business_name}`);

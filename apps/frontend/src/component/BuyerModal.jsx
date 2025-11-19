@@ -30,6 +30,8 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
   const { tokensLoaded, retryTokenFetch, validateAndRefreshToken } =
     useTenantSelection();
   const [formData, setFormData] = useState({
+    buyerId: "",
+    buyerMainName: "",
     buyerNTNCNIC: "",
     buyerBusinessName: "",
     buyerProvince: "",
@@ -78,6 +80,8 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
         console.log("Document type determined:", documentType);
 
         setFormData({
+          buyerId: buyer.buyerId || "",
+          buyerMainName: buyer.buyerMainName || "",
           buyerNTNCNIC: buyer.buyerNTNCNIC || "",
           buyerBusinessName: buyer.buyerBusinessName || "",
           buyerProvince: buyer.buyerProvince || "",
@@ -93,6 +97,8 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
       } else {
         // If adding a new buyer, reset the form to empty
         setFormData({
+          buyerId: "",
+          buyerMainName: "",
           buyerNTNCNIC: "",
           buyerBusinessName: "",
           buyerProvince: "",
@@ -336,7 +342,7 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
       setBuyerRegistrationHint("");
 
       const response = await fetch(
-        "https://rajbytextilepvt.inplsoftwares.online/api/buyer-check",
+        "http://localhost:5150/api/buyer-check",
         {
           method: "POST",
           headers: {
@@ -577,6 +583,60 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
             sx={{ width: "100%" }}
           >
             <Stack spacing={{ xs: 1, sm: 1.5 }}>
+              <TextField
+                label="Buyer ID"
+                name="buyerId"
+                value={formData.buyerId}
+                onChange={handleChange}
+                fullWidth
+                variant="outlined"
+                size="small"
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    backgroundColor: "rgba(255, 255, 255, 0.6)",
+                    backdropFilter: "blur(10px)",
+                    borderRadius: 2,
+                    "& fieldset": {
+                      borderColor: "rgba(0, 0, 0, 0.12)",
+                    },
+                    "&:hover fieldset": {
+                      borderColor: "rgba(0, 0, 0, 0.2)",
+                    },
+                    "&.Mui-focused fieldset": {
+                      borderColor: "#007AFF",
+                      borderWidth: 2,
+                    },
+                  },
+                }}
+              />
+
+              <TextField
+                label="Buyer Main Name"
+                name="buyerMainName"
+                value={formData.buyerMainName}
+                onChange={handleChange}
+                fullWidth
+                variant="outlined"
+                size="small"
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    backgroundColor: "rgba(255, 255, 255, 0.6)",
+                    backdropFilter: "blur(10px)",
+                    borderRadius: 2,
+                    "& fieldset": {
+                      borderColor: "rgba(0, 0, 0, 0.12)",
+                    },
+                    "&:hover fieldset": {
+                      borderColor: "rgba(0, 0, 0, 0.2)",
+                    },
+                    "&.Mui-focused fieldset": {
+                      borderColor: "#007AFF",
+                      borderWidth: 2,
+                    },
+                  },
+                }}
+              />
+
               {/* Document Type Radio Buttons */}
               <FormControl component="fieldset">
                 <RadioGroup

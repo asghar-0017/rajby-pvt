@@ -32,6 +32,7 @@ export default function ProductTable({
   selectedTenant,
   onBulkDeleted,
   onUpload,
+  onSync,
 }) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -44,6 +45,9 @@ export default function ProductTable({
   const filteredProducts = products.filter((product) => {
     const searchLower = search.trim().toLowerCase();
     return (
+      (product.itemId || "").toLowerCase().includes(searchLower) ||
+      (product.itemCode || "").toLowerCase().includes(searchLower) ||
+      (product.type || "").toLowerCase().includes(searchLower) ||
       (product.name || "").toLowerCase().includes(searchLower) ||
       (product.description || "").toLowerCase().includes(searchLower) ||
       (product.hsCode || "").toLowerCase().includes(searchLower)
@@ -160,6 +164,16 @@ export default function ProductTable({
           Products Management
         </Typography>
         <Box sx={{ flexGrow: 1 }} />
+        {onSync && (
+          <Button
+            variant="outlined"
+            color="secondary"
+            onClick={() => onSync()}
+            sx={{ mr: 1 }}
+          >
+            Sync
+          </Button>
+        )}
         <PermissionGate permission="product.view">
           <Button
             variant="outlined"
@@ -378,6 +392,9 @@ export default function ProductTable({
                   )}
                   {[
                     "S.No",
+                    "Item ID",
+                    "Item Code",
+                    "Type",
                     "Name",
                     "Description",
                     "HS Code",
@@ -435,6 +452,15 @@ export default function ProductTable({
                       sx={{ fontWeight: 700, fontSize: 13 }}
                     >
                       {rowsPerPage === "All" ? index + 1 : (page - 1) * rowsPerPage + index + 1}
+                    </TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 500 }}>
+                      {product.itemId || "-"}
+                    </TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 500 }}>
+                      {product.itemCode || "-"}
+                    </TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 500 }}>
+                      {product.type || "-"}
                     </TableCell>
                     <TableCell
                       component="th"

@@ -285,6 +285,7 @@ export default function CreateInvoice() {
     loading: false,
     isActive: null,
     shouldApplyFurtherTax: null,
+    status: "",
     message: "",
     error: null
   });
@@ -313,6 +314,7 @@ export default function CreateInvoice() {
         loading: false,
         isActive: null,
         shouldApplyFurtherTax: null,
+        status: "",
         message: "",
         error: null
       });
@@ -341,6 +343,7 @@ export default function CreateInvoice() {
           loading: false,
           isActive: result.isActive,
           shouldApplyFurtherTax: result.shouldApplyFurtherTax,
+          status: result.status ?? "",
           message: result.message,
           error: null
         });
@@ -407,6 +410,7 @@ export default function CreateInvoice() {
           loading: false,
           isActive: null,
           shouldApplyFurtherTax: null,
+          status: "",
           message: "",
           error: error.message
         });
@@ -2972,6 +2976,16 @@ export default function CreateInvoice() {
   };
 
   const handleSaveAndValidate = async () => {
+    if (fbrRegistrationStatus.isActive !== true) {
+      Swal.fire({
+        icon: "warning",
+        title: "Active ATL Required",
+        text: "Save & Validate is available only when the selected buyer is a registered and active taxpayer (ATL Active).",
+        confirmButtonColor: "#d33",
+      });
+      return;
+    }
+
     setSaveValidateLoading(true);
     try {
       // Basic validation for save and validate
@@ -5719,37 +5733,51 @@ export default function CreateInvoice() {
                     "Save Draft"
                   )}
                 </Button>
-                <Button
-                  onClick={handleSaveAndValidate}
-                  variant="outlined"
-                  color="warning"
-                  size="small"
-                  sx={{
-                    borderRadius: 1.5,
-                    fontWeight: 600,
-                    px: 1.5,
-                    py: 0.3,
-                    fontSize: 11,
-                    letterSpacing: 0.3,
-                    boxShadow: 1,
-                    transition: "all 0.2s",
-                    minWidth: "auto",
-                    "&:hover": {
-                      background: "#f57c00",
-                      color: "white",
-                      boxShadow: 2,
-                    },
-                  }}
-                  disabled={saveValidateLoading}
-                >
-                  {saveValidateLoading ? (
-                    <CircularProgress size={16} color="inherit" />
-                  ) : (
-                    "Save & Validate"
-                  )}
-                </Button>
+                {fbrRegistrationStatus.isActive === true && (
+                  <Button
+                    onClick={handleSaveAndValidate}
+                    variant="outlined"
+                    color="warning"
+                    size="small"
+                    sx={{
+                      borderRadius: 1.5,
+                      fontWeight: 600,
+                      px: 1.5,
+                      py: 0.3,
+                      fontSize: 11,
+                      letterSpacing: 0.3,
+                      boxShadow: 1,
+                      transition: "all 0.2s",
+                      minWidth: "auto",
+                      "&:hover": {
+                        background: "#f57c00",
+                        color: "white",
+                        boxShadow: 2,
+                      },
+                    }}
+                    disabled={saveValidateLoading}
+                  >
+                    {saveValidateLoading ? (
+                      <CircularProgress size={16} color="inherit" />
+                    ) : (
+                      "Save & Validate"
+                    )}
+                  </Button>
+                )}
               </>
             )}
+            {addedItems.length > 0 &&
+              !fbrRegistrationStatus.loading &&
+              fbrRegistrationStatus.isActive !== true && (
+                <Typography
+                  variant="caption"
+                  color="error"
+                  sx={{ fontWeight: 500 }}
+                >
+                  Save & Validate is available only when the selected buyer is
+                  an active taxpayer (ATL Active).
+                </Typography>
+              )}
             {isSubmitVisible && (
               <Button
                 onClick={handleSubmitChange}

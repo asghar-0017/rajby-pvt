@@ -14,6 +14,9 @@ import OptimizedHSCodeSelector from "./OptimizedHSCodeSelector";
 
 const ProductModal = ({ isOpen, onClose, onSave, initialProduct }) => {
   const [formData, setFormData] = useState({
+    itemId: "",
+    itemCode: "",
+    type: "",
     name: "",
     description: "",
     hsCode: "",
@@ -26,11 +29,14 @@ const ProductModal = ({ isOpen, onClose, onSave, initialProduct }) => {
       setFormData(
         initialProduct
           ? {
+              itemId: initialProduct.itemId || "",
+              itemCode: initialProduct.itemCode || "",
+              type: initialProduct.type || "",
               name: initialProduct.name || "",
               description: initialProduct.description || "",
               hsCode: initialProduct.hsCode || "",
             }
-          : { name: "", description: "", hsCode: "" }
+          : { itemId: "", itemCode: "", type: "", name: "", description: "", hsCode: "" }
       );
     }
   }, [isOpen, initialProduct]);
@@ -188,6 +194,93 @@ const ProductModal = ({ isOpen, onClose, onSave, initialProduct }) => {
           >
             <Stack spacing={{ xs: 1, sm: 1.5 }}>
               {/* Modern text fields with frosted styling */}
+              <TextField
+                fullWidth
+                size="small"
+                label="Item ID"
+                value={formData.itemId}
+                onChange={(e) =>
+                  setFormData((p) => ({ ...p, itemId: e.target.value }))
+                }
+                variant="outlined"
+                placeholder="Enter item ID"
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    backgroundColor: "rgba(255, 255, 255, 0.6)",
+                    backdropFilter: "blur(10px)",
+                    borderRadius: 2,
+                    "& fieldset": {
+                      borderColor: "rgba(0, 0, 0, 0.12)",
+                    },
+                    "&:hover fieldset": {
+                      borderColor: "rgba(0, 0, 0, 0.2)",
+                    },
+                    "&.Mui-focused fieldset": {
+                      borderColor: "#007AFF",
+                      borderWidth: 2,
+                    },
+                  },
+                }}
+              />
+
+              <TextField
+                fullWidth
+                size="small"
+                label="Item Code"
+                value={formData.itemCode}
+                onChange={(e) =>
+                  setFormData((p) => ({ ...p, itemCode: e.target.value }))
+                }
+                variant="outlined"
+                placeholder="Enter item code"
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    backgroundColor: "rgba(255, 255, 255, 0.6)",
+                    backdropFilter: "blur(10px)",
+                    borderRadius: 2,
+                    "& fieldset": {
+                      borderColor: "rgba(0, 0, 0, 0.12)",
+                    },
+                    "&:hover fieldset": {
+                      borderColor: "rgba(0, 0, 0, 0.2)",
+                    },
+                    "&.Mui-focused fieldset": {
+                      borderColor: "#007AFF",
+                      borderWidth: 2,
+                    },
+                  },
+                }}
+              />
+
+              <TextField
+                fullWidth
+                size="small"
+                label="Type"
+                value={formData.type}
+                onChange={(e) =>
+                  setFormData((p) => ({ ...p, type: e.target.value }))
+                }
+                variant="outlined"
+                placeholder="Enter product type"
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    backgroundColor: "rgba(255, 255, 255, 0.6)",
+                    backdropFilter: "blur(10px)",
+                    borderRadius: 2,
+                    "& fieldset": {
+                      borderColor: "rgba(0, 0, 0, 0.12)",
+                    },
+                    "&:hover fieldset": {
+                      borderColor: "rgba(0, 0, 0, 0.2)",
+                    },
+                    "&.Mui-focused fieldset": {
+                      borderColor: "#007AFF",
+                      borderWidth: 2,
+                    },
+                  },
+                }}
+              />
+
               <TextField
                 fullWidth
                 size="small"

@@ -36,6 +36,21 @@ const UserLogin = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
 
+  // Function to call external API and store Rajbytoken
+  const callExternalLoginAPI = async () => {
+    try {
+      const response = await api.post("/rajby-login");
+
+      if (response.data && response.data.token) {
+        localStorage.setItem("Rajbytoken", response.data.token);
+        console.log("External API login successful, token stored as Rajbytoken");
+      }
+    } catch (error) {
+      console.error("External API login error:", error);
+      // Don't throw error - allow login to proceed even if external API fails
+    }
+  };
+
   const handleChange = (e) => {
     setFormData({
       ...formData,
@@ -61,6 +76,9 @@ const UserLogin = () => {
 
         // Update auth context
         login(sanitizeUser(user), token);
+
+        // Call external API after successful login
+        await callExternalLoginAPI();
 
         Swal.fire({
           icon: "success",

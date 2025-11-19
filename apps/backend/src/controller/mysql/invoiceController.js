@@ -221,11 +221,25 @@ export const createInvoice = async (req, res) => {
       });
     }
 
+    // Normalize NTN/CNIC by taking only the part before the dash (7 digits for NTN)
+    const normalizeNTNCNIC = (ntnCnic) => {
+      if (!ntnCnic) return null;
+      const trimmed = ntnCnic.toString().trim();
+      // If there's a dash, take only the part before the dash
+      // Example: "1431771-7" becomes "1431771"
+      if (trimmed.includes('-')) {
+        return trimmed.split('-')[0].trim() || null;
+      }
+      // If no dash, return the trimmed value
+      return trimmed || null;
+    };
+
     // Auto-create/validate buyer before creating invoice
     try {
       if (buyerNTNCNIC && String(buyerNTNCNIC).trim()) {
+        const normalizedNTN = normalizeNTNCNIC(buyerNTNCNIC);
         const existingBuyer = await Buyer.findOne({
-          where: { buyerNTNCNIC: String(buyerNTNCNIC).trim() },
+          where: { buyerNTNCNIC: normalizedNTN },
         });
         if (existingBuyer) {
           if (
@@ -242,7 +256,7 @@ export const createInvoice = async (req, res) => {
           }
         } else {
           await Buyer.create({
-            buyerNTNCNIC: String(buyerNTNCNIC).trim(),
+            buyerNTNCNIC: normalizedNTN, // Save normalized (no dashes)
             buyerBusinessName: buyerBusinessName || null,
             buyerProvince: buyerProvince || "",
             buyerAddress: buyerAddress || null,

@@ -3,11 +3,58 @@
 
 import { logAuditEvent } from "../../middleWare/auditMiddleware.js";
 
+// Helper function to normalize NTN (remove dashes, keep 7 alphanumeric characters)
+const normalizeNTN = (ntn) => {
+  if (!ntn) return null;
+  
+  // Remove spaces, dashes, and other special characters but keep alphanumeric
+  const cleaned = ntn.replace(/[\s\-]/g, "").trim();
+  
+  // If it's all digits (common case), take first 7 digits
+  if (/^\d+$/.test(cleaned)) {
+    return cleaned.length >= 7 ? cleaned.substring(0, 7) : cleaned;
+  }
+  
+  // If it has letters (like A917166, E146838, F655242), keep as-is up to 7 chars
+  // Just take the first 7 alphanumeric characters
+  return cleaned.substring(0, Math.min(7, cleaned.length));
+};
+
+// Helper function to normalize province to uppercase for consistency
+const normalizeProvince = (province) => {
+  const provinceMap = {
+    Punjab: "PUNJAB",
+    Sindh: "SINDH",
+    "Khyber Pakhtunkhwa": "KHYBER PAKHTUNKHWA",
+    Balochistan: "BALOCHISTAN",
+    "Capital Territory": "CAPITAL TERRITORY",
+    "Gilgit Baltistan": "GILGIT BALTISTAN",
+    "Azad Jammu and Kashmir": "AZAD JAMMU AND KASHMIR",
+    // Also handle any mixed case variations
+    punjab: "PUNJAB",
+    sindh: "SINDH",
+    "khyber pakhtunkhwa": "KHYBER PAKHTUNKHWA",
+    balochistan: "BALOCHISTAN",
+    "capital territory": "CAPITAL TERRITORY",
+    "gilgit baltistan": "GILGIT BALTISTAN",
+    "azad jammu and kashmir": "AZAD JAMMU AND KASHMIR",
+  };
+  const trimmedProvince = province.trim();
+  return provinceMap[trimmedProvince] || trimmedProvince.toUpperCase();
+};
+
+// Helper function to normalize string for comparison (trim and lowercase)
+const normalizeForComparison = (str) => {
+  return str ? String(str).trim().toLowerCase() : null;
+};
+
 // Create new buyer
 export const createBuyer = async (req, res) => {
   try {
     const { Buyer } = req.tenantModels;
     const {
+      buyerId,
+      buyerMainName,
       buyerNTNCNIC,
       buyerBusinessName,
       buyerProvince,
@@ -29,9 +76,15 @@ export const createBuyer = async (req, res) => {
       });
     }
 
-    // Validate NTN/CNIC length
+    // Normalize NTN (remove dashes, keep only 7 digits)
+    let normalizedNTN = buyerNTNCNIC;
     if (buyerNTNCNIC) {
-      const trimmedNTNCNIC = buyerNTNCNIC.trim();
+      normalizedNTN = normalizeNTN(buyerNTNCNIC);
+    }
+
+    // Validate NTN/CNIC length
+    if (normalizedNTN) {
+      const trimmedNTNCNIC = normalizedNTN.trim();
       if (trimmedNTNCNIC.length === 13) {
         // CNIC: exactly 13 digits
         if (!/^\d{13}$/.test(trimmedNTNCNIC)) {
@@ -41,7 +94,7 @@ export const createBuyer = async (req, res) => {
           });
         }
       } else if (trimmedNTNCNIC.length === 7) {
-        // NTN: exactly 7 alphanumeric characters
+        // NTN: exactly 7 alphanumeric characters (can include letters)
         if (!/^[a-zA-Z0-9]{7}$/.test(trimmedNTNCNIC)) {
           return res.status(400).json({
             success: false,
@@ -52,53 +105,67 @@ export const createBuyer = async (req, res) => {
         return res.status(400).json({
           success: false,
           message:
-            "NTN must be 7 characters or CNIC must be 13 characters long.",
+            "NTN must be 7 alphanumeric characters or CNIC must be 13 digits long.",
         });
       }
     }
 
-    // Normalize province to uppercase for consistency
-    const normalizeProvince = (province) => {
-      const provinceMap = {
-        Punjab: "PUNJAB",
-        Sindh: "SINDH",
-        "Khyber Pakhtunkhwa": "KHYBER PAKHTUNKHWA",
-        Balochistan: "BALOCHISTAN",
-        "Capital Territory": "CAPITAL TERRITORY",
-        "Gilgit Baltistan": "GILGIT BALTISTAN",
-        "Azad Jammu and Kashmir": "AZAD JAMMU AND KASHMIR",
-        // Also handle any mixed case variations
-        punjab: "PUNJAB",
-        sindh: "SINDH",
-        "khyber pakhtunkhwa": "KHYBER PAKHTUNKHWA",
-        balochistan: "BALOCHISTAN",
-        "capital territory": "CAPITAL TERRITORY",
-        "gilgit baltistan": "GILGIT BALTISTAN",
-        "azad jammu and kashmir": "AZAD JAMMU AND KASHMIR",
-      };
-      const trimmedProvince = province.trim();
-      return provinceMap[trimmedProvince] || trimmedProvince.toUpperCase();
-    };
-
     const normalizedProvince = normalizeProvince(buyerProvince);
 
-    // Check if buyer with same NTN already exists
-    if (buyerNTNCNIC) {
-      const existingBuyer = await Buyer.findOne({
-        where: { buyerNTNCNIC: buyerNTNCNIC },
-      });
+    // Normalize values for comparison
+    const normalizedBuyerId = normalizeForComparison(buyerId);
+    const normalizedBuyerMainName = normalizeForComparison(buyerMainName);
+    const normalizedBuyerBusinessName = normalizeForComparison(buyerBusinessName);
+    const normalizedBuyerAddress = normalizeForComparison(buyerAddress);
+    const normalizedBuyerProvince = normalizeForComparison(normalizedProvince);
+    const normalizedBuyerNTN = normalizeForComparison(normalizedNTN);
 
-      if (existingBuyer) {
-        return res.status(409).json({
-          success: false,
-          message: `Buyer with NTN/CNIC "${buyerNTNCNIC}" already exists. Please use a different NTN/CNIC or update the existing buyer.`,
-        });
-      }
+    // Check for composite key match (all fields must match)
+    // Fetch all buyers and compare in memory for accurate composite key matching
+    const existingBuyers = await Buyer.findAll({
+      attributes: [
+        "id",
+        "buyerId",
+        "buyerMainName",
+        "buyerNTNCNIC",
+        "buyerBusinessName",
+        "buyerProvince",
+        "buyerAddress",
+      ],
+    });
+
+    // Check if any existing buyer matches ALL provided fields
+    const duplicateBuyer = existingBuyers.find((existing) => {
+      const existingBuyerId = normalizeForComparison(existing.buyerId);
+      const existingBuyerMainName = normalizeForComparison(existing.buyerMainName);
+      const existingBuyerBusinessName = normalizeForComparison(existing.buyerBusinessName);
+      const existingBuyerAddress = normalizeForComparison(existing.buyerAddress);
+      const existingBuyerProvince = normalizeForComparison(existing.buyerProvince);
+      const existingBuyerNTN = normalizeForComparison(existing.buyerNTNCNIC);
+
+      // Check if all provided fields match
+      const idMatch = !normalizedBuyerId || existingBuyerId === normalizedBuyerId;
+      const mainNameMatch = !normalizedBuyerMainName || existingBuyerMainName === normalizedBuyerMainName;
+      const businessNameMatch = !normalizedBuyerBusinessName || existingBuyerBusinessName === normalizedBuyerBusinessName;
+      const addressMatch = !normalizedBuyerAddress || existingBuyerAddress === normalizedBuyerAddress;
+      const provinceMatch = !normalizedBuyerProvince || existingBuyerProvince === normalizedBuyerProvince;
+      const ntnMatch = !normalizedBuyerNTN || existingBuyerNTN === normalizedBuyerNTN;
+
+      return idMatch && mainNameMatch && businessNameMatch && addressMatch && provinceMatch && ntnMatch;
+    });
+
+    if (duplicateBuyer) {
+      return res.status(409).json({
+        success: false,
+        message: "Duplicate buyer: A buyer with the same details already exists.",
+      });
     }
 
     // Create buyer
     const buyer = await Buyer.create({
-      buyerNTNCNIC,
+      buyerId: buyerId || null,
+      buyerMainName: buyerMainName || null,
+      buyerNTNCNIC: normalizedNTN, // Use normalized NTN (no dashes, 7 digits)
       buyerBusinessName,
       buyerProvince: normalizedProvince,
       buyerAddress,
@@ -181,6 +248,8 @@ export const getAllBuyers = async (req, res) => {
     // Add search functionality
     if (search) {
       whereClause[req.tenantDb.Sequelize.Op.or] = [
+        { buyerId: { [req.tenantDb.Sequelize.Op.like]: `%${search}%` } },
+        { buyerMainName: { [req.tenantDb.Sequelize.Op.like]: `%${search}%` } },
         { buyerNTNCNIC: { [req.tenantDb.Sequelize.Op.like]: `%${search}%` } },
         {
           buyerBusinessName: {
@@ -231,6 +300,8 @@ export const getAllBuyersWithoutPagination = async (req, res) => {
     // Add search functionality
     if (search) {
       whereClause[req.tenantDb.Sequelize.Op.or] = [
+        { buyerId: { [req.tenantDb.Sequelize.Op.like]: `%${search}%` } },
+        { buyerMainName: { [req.tenantDb.Sequelize.Op.like]: `%${search}%` } },
         { buyerNTNCNIC: { [req.tenantDb.Sequelize.Op.like]: `%${search}%` } },
         {
           buyerBusinessName: {
@@ -298,6 +369,8 @@ export const updateBuyer = async (req, res) => {
     const { Buyer } = req.tenantModels;
     const { id } = req.params;
     const {
+      buyerId,
+      buyerMainName,
       buyerNTNCNIC,
       buyerBusinessName,
       buyerProvince,
@@ -320,9 +393,15 @@ export const updateBuyer = async (req, res) => {
       });
     }
 
-    // Validate NTN/CNIC length
+    // Normalize NTN (remove dashes, keep 7 alphanumeric characters)
+    let normalizedNTN = buyerNTNCNIC;
     if (buyerNTNCNIC) {
-      const trimmedNTNCNIC = buyerNTNCNIC.trim();
+      normalizedNTN = normalizeNTN(buyerNTNCNIC);
+    }
+
+    // Validate NTN/CNIC length
+    if (normalizedNTN) {
+      const trimmedNTNCNIC = normalizedNTN.trim();
       if (trimmedNTNCNIC.length === 13) {
         // CNIC: exactly 13 digits
         if (!/^\d{13}$/.test(trimmedNTNCNIC)) {
@@ -332,7 +411,7 @@ export const updateBuyer = async (req, res) => {
           });
         }
       } else if (trimmedNTNCNIC.length === 7) {
-        // NTN: exactly 7 alphanumeric characters
+        // NTN: exactly 7 alphanumeric characters (can include letters)
         if (!/^[a-zA-Z0-9]{7}$/.test(trimmedNTNCNIC)) {
           return res.status(400).json({
             success: false,
@@ -343,52 +422,64 @@ export const updateBuyer = async (req, res) => {
         return res.status(400).json({
           success: false,
           message:
-            "NTN must be 7 characters or CNIC must be 13 characters long.",
+            "NTN must be 7 alphanumeric characters or CNIC must be 13 digits long.",
         });
       }
     }
-
-    // Check if the new NTN already exists with another buyer
-    if (buyerNTNCNIC && buyerNTNCNIC !== buyer.buyerNTNCNIC) {
-      const existingBuyer = await Buyer.findOne({
-        where: {
-          buyerNTNCNIC: buyerNTNCNIC,
-          id: { [req.tenantDb.Sequelize.Op.ne]: id }, // Exclude current buyer from check
-        },
-      });
-
-      if (existingBuyer) {
-        return res.status(409).json({
-          success: false,
-          message: `Buyer with NTN/CNIC "${buyerNTNCNIC}" already exists. Please use a different NTN/CNIC.`,
-        });
-      }
-    }
-
-    // Normalize province to uppercase for consistency
-    const normalizeProvince = (province) => {
-      const provinceMap = {
-        Punjab: "PUNJAB",
-        Sindh: "SINDH",
-        "Khyber Pakhtunkhwa": "KHYBER PAKHTUNKHWA",
-        Balochistan: "BALOCHISTAN",
-        "Capital Territory": "CAPITAL TERRITORY",
-        "Gilgit Baltistan": "GILGIT BALTISTAN",
-        "Azad Jammu and Kashmir": "AZAD JAMMU AND KASHMIR",
-        // Also handle any mixed case variations
-        punjab: "PUNJAB",
-        sindh: "SINDH",
-        "khyber pakhtunkhwa": "KHYBER PAKHTUNKHWA",
-        balochistan: "BALOCHISTAN",
-        "capital territory": "CAPITAL TERRITORY",
-        "gilgit baltistan": "GILGIT BALTISTAN",
-        "azad jammu and kashmir": "AZAD JAMMU AND KASHMIR",
-      };
-      const trimmedProvince = province.trim();
-      return provinceMap[trimmedProvince] || trimmedProvince.toUpperCase();
-    };
 
     const normalizedProvince = normalizeProvince(buyerProvince);
+
+    // Normalize values for comparison
+    const normalizedBuyerId = normalizeForComparison(buyerId);
+    const normalizedBuyerMainName = normalizeForComparison(buyerMainName);
+    const normalizedBuyerBusinessName = normalizeForComparison(buyerBusinessName);
+    const normalizedBuyerAddress = normalizeForComparison(buyerAddress);
+    const normalizedBuyerProvince = normalizeForComparison(normalizedProvince);
+    const normalizedBuyerNTN = normalizeForComparison(normalizedNTN);
+
+    // Check for composite key match (all fields must match) - exclude current buyer
+    // Fetch all buyers and compare in memory for accurate composite key matching
+    const existingBuyers = await Buyer.findAll({
+      where: {
+        id: { [req.tenantDb.Sequelize.Op.ne]: id }, // Exclude current buyer from check
+      },
+      attributes: [
+        "id",
+        "buyerId",
+        "buyerMainName",
+        "buyerNTNCNIC",
+        "buyerBusinessName",
+        "buyerProvince",
+        "buyerAddress",
+      ],
+    });
+
+    // Check if any existing buyer matches ALL provided fields
+    const duplicateBuyer = existingBuyers.find((existing) => {
+      const existingBuyerId = normalizeForComparison(existing.buyerId);
+      const existingBuyerMainName = normalizeForComparison(existing.buyerMainName);
+      const existingBuyerBusinessName = normalizeForComparison(existing.buyerBusinessName);
+      const existingBuyerAddress = normalizeForComparison(existing.buyerAddress);
+      const existingBuyerProvince = normalizeForComparison(existing.buyerProvince);
+      const existingBuyerNTN = normalizeForComparison(existing.buyerNTNCNIC);
+
+      // Check if all provided fields match
+      const idMatch = !normalizedBuyerId || existingBuyerId === normalizedBuyerId;
+      const mainNameMatch = !normalizedBuyerMainName || existingBuyerMainName === normalizedBuyerMainName;
+      const businessNameMatch = !normalizedBuyerBusinessName || existingBuyerBusinessName === normalizedBuyerBusinessName;
+      const addressMatch = !normalizedBuyerAddress || existingBuyerAddress === normalizedBuyerAddress;
+      const provinceMatch = !normalizedBuyerProvince || existingBuyerProvince === normalizedBuyerProvince;
+      const ntnMatch = !normalizedBuyerNTN || existingBuyerNTN === normalizedBuyerNTN;
+
+      return idMatch && mainNameMatch && businessNameMatch && addressMatch && provinceMatch && ntnMatch;
+    });
+
+    if (duplicateBuyer) {
+      return res.status(409).json({
+        success: false,
+        message: "Duplicate buyer: A buyer with the same details already exists.",
+      });
+    }
 
     // Capture old values for audit
     const oldValues = {
@@ -401,7 +492,9 @@ export const updateBuyer = async (req, res) => {
     };
 
     await buyer.update({
-      buyerNTNCNIC,
+      buyerId: buyerId || null,
+      buyerMainName: buyerMainName || null,
+      buyerNTNCNIC: normalizedNTN, // Use normalized NTN (no dashes, 7 digits)
       buyerBusinessName,
       buyerProvince: normalizedProvince,
       buyerAddress,
@@ -632,11 +725,25 @@ export const bulkCreateBuyers = async (req, res) => {
         );
       }
 
-      // NTN/CNIC format validation
+      // Normalize NTN (remove dashes, keep only 7 digits)
+      let normalizedNTN = null;
       if (buyerData.buyerNTNCNIC && buyerData.buyerNTNCNIC.trim()) {
-        const ntnCnic = buyerData.buyerNTNCNIC.trim();
-        if (ntnCnic.length < 7 || ntnCnic.length > 15) {
-          rowErrors.push("NTN/CNIC should be between 7-15 characters");
+        normalizedNTN = normalizeNTN(buyerData.buyerNTNCNIC);
+        // Validate NTN/CNIC length after normalization
+        if (normalizedNTN) {
+          if (normalizedNTN.length === 13) {
+            // CNIC: exactly 13 digits
+            if (!/^\d{13}$/.test(normalizedNTN)) {
+              rowErrors.push("CNIC must contain exactly 13 digits");
+            }
+          } else if (normalizedNTN.length === 7) {
+            // NTN: exactly 7 alphanumeric characters (can include letters)
+            if (!/^[a-zA-Z0-9]{7}$/.test(normalizedNTN)) {
+              rowErrors.push("NTN must contain exactly 7 alphanumeric characters");
+            }
+          } else {
+            rowErrors.push("NTN must be 7 alphanumeric characters or CNIC must be 13 digits long");
+          }
         }
       }
 
@@ -644,6 +751,9 @@ export const bulkCreateBuyers = async (req, res) => {
         validationErrors.push({
           index,
           row: index + 1,
+          buyerId: buyerData.buyerId,
+          buyerName: buyerData.buyerBusinessName,
+          ntn: normalizedNTN,
           error: rowErrors.join(", "),
         });
       } else {
@@ -651,61 +761,105 @@ export const bulkCreateBuyers = async (req, res) => {
           ...buyerData,
           index,
           normalizedProvince: normalizeProvince(buyerData.buyerProvince),
+          normalizedNTN: normalizedNTN || null,
         });
       }
     });
 
-    // PHASE 2: Batch duplicate checking (single database query)
-    console.log("🔍 Phase 2: Checking for existing buyers (batch query)...");
-    const ntnCnicValues = validBuyers
-      .filter((buyer) => buyer.buyerNTNCNIC && buyer.buyerNTNCNIC.trim())
-      .map((buyer) => buyer.buyerNTNCNIC.trim());
+    // PHASE 2: Batch duplicate checking using composite key
+    console.log("🔍 Phase 2: Checking for existing buyers (composite key check)...");
+    
+    // Get all existing buyers to check against (we'll filter in memory for composite key matching)
+    const existingBuyers = await Buyer.findAll({
+      attributes: [
+        "id",
+        "buyerId",
+        "buyerMainName",
+        "buyerNTNCNIC",
+        "buyerBusinessName",
+        "buyerProvince",
+        "buyerAddress",
+      ],
+      raw: true,
+      benchmark: false,
+      logging: false,
+    });
 
-    let existingBuyers = [];
-    if (ntnCnicValues.length > 0) {
-      // Single optimized query for all NTN/CNIC values
-      existingBuyers = await Buyer.findAll({
-        where: { buyerNTNCNIC: ntnCnicValues },
-        attributes: ["buyerNTNCNIC"],
-        raw: true,
-        benchmark: false,
-        logging: false,
-      });
-    }
-
-    const existingSet = new Set(existingBuyers.map((b) => b.buyerNTNCNIC));
-
-    // Filter out existing buyers and duplicates within batch
+    // Filter out existing buyers and duplicates within batch using composite key
     const finalBuyers = [];
-    const seenNTN = new Set();
+    const seenCompositeKeys = new Set();
 
     validBuyers.forEach((buyer) => {
-      const ntnCnic = buyer.buyerNTNCNIC?.trim();
+      // Normalize values for comparison
+      const normalizedBuyerId = normalizeForComparison(buyer.buyerId);
+      const normalizedBuyerMainName = normalizeForComparison(buyer.buyerMainName);
+      const normalizedBuyerBusinessName = normalizeForComparison(buyer.buyerBusinessName);
+      const normalizedBuyerAddress = normalizeForComparison(buyer.buyerAddress);
+      const normalizedBuyerProvince = normalizeForComparison(buyer.normalizedProvince);
+      const normalizedBuyerNTN = normalizeForComparison(buyer.normalizedNTN);
 
-      if (ntnCnic) {
-        if (existingSet.has(ntnCnic)) {
-          results.errors.push({
-            index: buyer.index,
-            row: buyer.index + 1,
-            error: `Buyer with NTN/CNIC "${ntnCnic}" already exists in database`,
-          });
-          return;
-        }
+      // Create composite key string for duplicate detection within batch
+      const compositeKey = JSON.stringify({
+        buyerId: normalizedBuyerId,
+        buyerMainName: normalizedBuyerMainName,
+        buyerBusinessName: normalizedBuyerBusinessName,
+        buyerAddress: normalizedBuyerAddress,
+        buyerProvince: normalizedBuyerProvince,
+        buyerNTNCNIC: normalizedBuyerNTN,
+      });
 
-        if (seenNTN.has(ntnCnic)) {
-          results.errors.push({
-            index: buyer.index,
-            row: buyer.index + 1,
-            error: `Duplicate NTN/CNIC "${ntnCnic}" found in upload file`,
-          });
-          return;
-        }
-
-        seenNTN.add(ntnCnic);
+      // Check for duplicates within the batch
+      if (seenCompositeKeys.has(compositeKey)) {
+        results.errors.push({
+          index: buyer.index,
+          row: buyer.index + 1,
+          buyerId: buyer.buyerId,
+          buyerName: buyer.buyerBusinessName,
+          ntn: buyer.normalizedNTN,
+          error: "Duplicate buyer found in upload file (all fields match)",
+        });
+        return;
       }
 
+      // Check against existing buyers in database
+      const duplicateBuyer = existingBuyers.find((existing) => {
+        const existingBuyerId = normalizeForComparison(existing.buyerId);
+        const existingBuyerMainName = normalizeForComparison(existing.buyerMainName);
+        const existingBuyerBusinessName = normalizeForComparison(existing.buyerBusinessName);
+        const existingBuyerAddress = normalizeForComparison(existing.buyerAddress);
+        const existingBuyerProvince = normalizeForComparison(existing.buyerProvince);
+        const existingBuyerNTN = normalizeForComparison(existing.buyerNTNCNIC);
+
+        // Check if all provided fields match
+        const idMatch = !normalizedBuyerId || existingBuyerId === normalizedBuyerId;
+        const mainNameMatch = !normalizedBuyerMainName || existingBuyerMainName === normalizedBuyerMainName;
+        const businessNameMatch = !normalizedBuyerBusinessName || existingBuyerBusinessName === normalizedBuyerBusinessName;
+        const addressMatch = !normalizedBuyerAddress || existingBuyerAddress === normalizedBuyerAddress;
+        const provinceMatch = !normalizedBuyerProvince || existingBuyerProvince === normalizedBuyerProvince;
+        const ntnMatch = !normalizedBuyerNTN || existingBuyerNTN === normalizedBuyerNTN;
+
+        return idMatch && mainNameMatch && businessNameMatch && addressMatch && provinceMatch && ntnMatch;
+      });
+
+      if (duplicateBuyer) {
+        results.errors.push({
+          index: buyer.index,
+          row: buyer.index + 1,
+          buyerId: buyer.buyerId,
+          buyerName: buyer.buyerBusinessName,
+          ntn: buyer.normalizedNTN,
+          error: "Duplicate buyer: A buyer with the same details already exists in database",
+        });
+        return;
+      }
+
+      // Add to seen set and final buyers list
+      seenCompositeKeys.add(compositeKey);
+
       finalBuyers.push({
-        buyerNTNCNIC: ntnCnic || null,
+        buyerId: buyer.buyerId?.trim() || null,
+        buyerMainName: buyer.buyerMainName?.trim() || null,
+        buyerNTNCNIC: buyer.normalizedNTN || null, // Use normalized NTN (no dashes, 7 digits)
         buyerBusinessName: buyer.buyerBusinessName?.trim() || null,
         buyerProvince: buyer.normalizedProvince,
         buyerAddress: buyer.buyerAddress?.trim() || null,
@@ -726,18 +880,54 @@ export const bulkCreateBuyers = async (req, res) => {
     console.log(`🚀 Phase 3: Bulk inserting ${finalBuyers.length} buyers...`);
 
     if (finalBuyers.length > 0) {
-      // Use bulkCreate with optimized settings
-      const createdBuyers = await Buyer.bulkCreate(finalBuyers, {
-        validate: false, // Skip validation since we already did it
-        ignoreDuplicates: true,
-        benchmark: false,
-        logging: false,
-        returning: true,
-        // Process in chunks for optimal performance
-        chunkSize: 1000, // Larger chunks for better performance
-      });
+      try {
+        // Use bulkCreate with optimized settings
+        const createdBuyers = await Buyer.bulkCreate(finalBuyers, {
+          validate: false, // Skip validation since we already did it
+          ignoreDuplicates: false, // We handle duplicates manually, don't ignore them
+          benchmark: false,
+          logging: false,
+          returning: true,
+          // Process in chunks for optimal performance
+          chunkSize: 1000, // Larger chunks for better performance
+        });
 
-      results.created = createdBuyers;
+        // Filter out records that weren't actually inserted (have null ID)
+        const successfullyCreated = createdBuyers.filter(buyer => buyer.id !== null);
+        const failedToCreate = createdBuyers.filter(buyer => buyer.id === null);
+
+        // Add failed insertions to errors
+        failedToCreate.forEach((buyer, idx) => {
+          // Find the original index in the buyers array
+          const originalBuyer = finalBuyers.find(fb => 
+            fb.buyerId === buyer.buyerId && 
+            fb.buyerNTNCNIC === buyer.buyerNTNCNIC
+          );
+          
+          if (originalBuyer) {
+            results.errors.push({
+              row: "Unknown",
+              buyerId: buyer.buyerId,
+              buyerName: buyer.buyerBusinessName,
+              error: "Failed to insert into database - possible unique constraint violation",
+            });
+          }
+        });
+
+        results.created = successfullyCreated;
+      } catch (error) {
+        console.error("Error during bulk insert:", error);
+        
+        // If bulk insert fails completely, add all as errors
+        finalBuyers.forEach((buyer, idx) => {
+          results.errors.push({
+            row: "Unknown",
+            buyerId: buyer.buyerId,
+            buyerName: buyer.buyerBusinessName,
+            error: `Database error: ${error.message}`,
+          });
+        });
+      }
     }
 
     // Add validation errors
@@ -773,28 +963,6 @@ export const bulkCreateBuyers = async (req, res) => {
       error: error.message,
     });
   }
-};
-
-// Helper function for province normalization
-const normalizeProvince = (province) => {
-  const provinceMap = {
-    Punjab: "PUNJAB",
-    Sindh: "SINDH",
-    "Khyber Pakhtunkhwa": "KHYBER PAKHTUNKHWA",
-    Balochistan: "BALOCHISTAN",
-    "Capital Territory": "CAPITAL TERRITORY",
-    "Gilgit Baltistan": "GILGIT BALTISTAN",
-    "Azad Jammu and Kashmir": "AZAD JAMMU AND KASHMIR",
-    punjab: "PUNJAB",
-    sindh: "SINDH",
-    "khyber pakhtunkhwa": "KHYBER PAKHTUNKHWA",
-    balochistan: "BALOCHISTAN",
-    "capital territory": "CAPITAL TERRITORY",
-    "gilgit baltistan": "GILGIT BALTISTAN",
-    "azad jammu and kashmir": "AZAD JAMMU AND KASHMIR",
-  };
-  const trimmedProvince = province.trim();
-  return provinceMap[trimmedProvince] || trimmedProvince.toUpperCase();
 };
 
 // Check existing buyers for preview

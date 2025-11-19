@@ -29,6 +29,7 @@ export default function BuyerTable({
   onDelete,
   onAdd,
   onUpload,
+  onSync,
   selectedTenant,
   onBulkDeleted,
 }) {
@@ -44,6 +45,8 @@ export default function BuyerTable({
   const filteredBuyers = buyers.filter((buyer) => {
     const searchLower = search.trim().toLowerCase();
     return (
+      (buyer.buyerId || "").toLowerCase().includes(searchLower) ||
+      (buyer.buyerMainName || "").toLowerCase().includes(searchLower) ||
       (buyer.buyerNTNCNIC || "").toLowerCase().includes(searchLower) ||
       (buyer.buyerBusinessName || "").toLowerCase().includes(searchLower) ||
       (buyer.buyerProvince || "").toLowerCase().includes(searchLower) ||
@@ -167,6 +170,16 @@ export default function BuyerTable({
               Buyer Management
             </Typography>
             <Box sx={{ flexGrow: 1 }} />
+            {onSync && (
+              <Button
+                variant="outlined"
+                color="secondary"
+                onClick={() => onSync()}
+                sx={{ mr: 1 }}
+              >
+                Sync
+              </Button>
+            )}
             <PermissionGate permission="buyer_uploader">
               <Button
                 variant="outlined"
@@ -385,6 +398,8 @@ export default function BuyerTable({
                       )}
                       {[
                         "S.No",
+                        "Buyer ID",
+                        "Main Name",
                         "NTN/CNIC",
                         "Business Name",
                         "Province",
@@ -445,6 +460,12 @@ export default function BuyerTable({
                           sx={{ fontWeight: 700, fontSize: 13 }}
                         >
                           {rowsPerPage === "All" ? index + 1 : (page - 1) * rowsPerPage + index + 1}
+                        </TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 500 }}>
+                          {buyer.buyerId || "-"}
+                        </TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 500 }}>
+                          {buyer.buyerMainName || "-"}
                         </TableCell>
                         <TableCell
                           component="th"

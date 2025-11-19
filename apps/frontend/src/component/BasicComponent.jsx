@@ -25,6 +25,7 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 import PrintIcon from "@mui/icons-material/Print";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
+import SyncIcon from "@mui/icons-material/Sync";
 
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
@@ -32,6 +33,7 @@ import PermissionGate from "./PermissionGate";
 
 import { api, API_CONFIG } from "../API/Api";
 import { postData } from "../API/GetApi";
+import { checkRegistrationStatusWithDate } from "../API/FBRService";
 import SearchIcon from "@mui/icons-material/Search";
 import SentimentDissatisfiedIcon from "@mui/icons-material/SentimentDissatisfied";
 import Tooltip from "@mui/material/Tooltip";
@@ -60,6 +62,9 @@ export default function BasicTable() {
   const [submitLoading, setSubmitLoading] = useState(false);
   const [isSubmitVisible, setIsSubmitVisible] = useState(false);
   const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
+  const [atlSyncLoading, setAtlSyncLoading] = useState({});
+  const [atlSyncStatus, setAtlSyncStatus] = useState({});
+  const [bulkAtlSyncLoading, setBulkAtlSyncLoading] = useState(false);
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -379,6 +384,133 @@ export default function BasicTable() {
     }
   };
 
+  const handleSyncAtlStatus = async (
+    invoice,
+    { silent = false, applySelectionUpdates = true } = {}
+  ) => {
+    const invoiceId = invoice._id || invoice.id;
+
+    if (!selectedTenant) {
+      toast.error("No Company selected");
+      return { status: "error", message: "No Company selected" };
+    }
+
+    if (!invoiceId) {
+      toast.error("Unable to identify invoice");
+      return { status: "error", message: "Invoice ID missing" };
+    }
+
+    if (!invoice.buyerNTNCNIC) {
+      if (!silent) {
+        Swal.fire({
+          icon: "warning",
+          title: "Buyer NTN/CNIC Missing",
+          text: "Cannot check ATL status without buyer NTN/CNIC.",
+          confirmButtonColor: "#f57c00",
+        });
+      }
+      return { status: "missingBuyer", message: "Buyer NTN/CNIC missing" };
+    }
+
+    const invoiceDateForSync = invoice.invoiceDate
+      ? dayjs(invoice.invoiceDate).format("YYYY-MM-DD")
+      : dayjs().format("YYYY-MM-DD");
+
+    setAtlSyncLoading((prev) => ({ ...prev, [invoiceId]: true }));
+
+    try {
+      const atlResult = await checkRegistrationStatusWithDate(
+        invoice.buyerNTNCNIC,
+        invoiceDateForSync
+      );
+
+      setAtlSyncStatus((prev) => ({
+        ...prev,
+        [invoiceId]: {
+          ...atlResult,
+          checkedAt: new Date().toISOString(),
+          invoiceDateUsed: invoiceDateForSync,
+        },
+      }));
+
+      setIsSubmitVisible(false);
+
+      if (atlResult.isActive) {
+        if (applySelectionUpdates) {
+          if (!selectMode) {
+            setSelectMode(true);
+          }
+          setSelectedInvoices((prev) => {
+            const updated = new Set(prev);
+            updated.add(invoiceId);
+            return updated;
+          });
+        }
+
+        if (!silent) {
+          Swal.fire({
+            icon: "success",
+            title: "Buyer ATL Active",
+            text: `Invoice ${invoice.invoiceNumber} is ready for validation.`,
+            confirmButtonColor: "#28a745",
+          });
+        }
+        return { status: "active", atlResult };
+      } else {
+        if (applySelectionUpdates) {
+          setSelectedInvoices((prev) => {
+            const updated = new Set(prev);
+            updated.delete(invoiceId);
+            return updated;
+          });
+        }
+
+        if (!silent) {
+          Swal.fire({
+            icon: "info",
+            title: atlResult.status || "Buyer Not ATL Active",
+            text:
+              atlResult.message ||
+              `Invoice ${invoice.invoiceNumber} cannot be validated because the buyer is not ATL Active.`,
+            confirmButtonColor: "#1976d2",
+          });
+        }
+        return {
+          status: "inactive",
+          atlResult,
+          message: atlResult.message,
+        };
+      }
+    } catch (error) {
+      console.error("Error syncing ATL status:", error);
+      setAtlSyncStatus((prev) => ({
+        ...prev,
+        [invoiceId]: {
+          error: error.message || "Unable to fetch ATL status",
+          checkedAt: new Date().toISOString(),
+          invoiceDateUsed: invoiceDateForSync,
+        },
+      }));
+
+      if (!silent) {
+        Swal.fire({
+          icon: "error",
+          title: "ATL Sync Failed",
+          text:
+            error.message || "Unable to fetch ATL status. Please try again.",
+          confirmButtonColor: "#d33",
+        });
+      }
+
+      return {
+        status: "error",
+        message: error.message || "Unable to fetch ATL status",
+      };
+    } finally {
+      setAtlSyncLoading((prev) => ({ ...prev, [invoiceId]: false }));
+    }
+  };
+
   // Product creation removed - only use existing products
 
   const handleBulkUpload = async (invoicesData, options = {}) => {
@@ -487,6 +619,95 @@ export default function BasicTable() {
       toast.error(errorMessage);
       throw error;
     }
+  };
+
+  const handleBulkAtlSync = async () => {
+    if (!selectedTenant) {
+      toast.error("No Company selected");
+      return;
+    }
+
+    const eligibleInvoices = (filteredInvoices || []).filter((invoice) =>
+      ["draft", "saved"].includes(invoice.status)
+    );
+
+    if (eligibleInvoices.length === 0) {
+      Swal.fire({
+        icon: "info",
+        title: "No Draft/Saved Invoices",
+        text: "Only draft or saved invoices can be synced with ATL.",
+        confirmButtonColor: "#1976d2",
+      });
+      return;
+    }
+
+    setBulkAtlSyncLoading(true);
+
+    const summary = {
+      active: [],
+      inactive: [],
+      missingBuyer: [],
+      errors: [],
+    };
+
+    for (const invoice of eligibleInvoices) {
+      const result = await handleSyncAtlStatus(invoice, {
+        silent: true,
+        applySelectionUpdates: false,
+      });
+
+      if (!result) {
+        summary.errors.push({
+          invoice,
+          message: "Unknown error",
+        });
+        continue;
+      }
+
+      switch (result.status) {
+        case "active":
+          summary.active.push(invoice);
+          break;
+        case "inactive":
+          summary.inactive.push(invoice);
+          break;
+        case "missingBuyer":
+          summary.missingBuyer.push(invoice);
+          break;
+        case "error":
+        default:
+          summary.errors.push({
+            invoice,
+            message: result.message || "ATL sync failed",
+          });
+          break;
+      }
+    }
+
+    const activeIds = summary.active.map((inv) => inv._id || inv.id);
+    if (activeIds.length > 0) {
+      setSelectMode(true);
+      setSelectedInvoices(new Set(activeIds));
+    } else {
+      setSelectedInvoices(new Set());
+    }
+    setIsSubmitVisible(false);
+
+    setBulkAtlSyncLoading(false);
+
+    const summaryLines = [
+      `${summary.active.length} ATL Active`,
+      `${summary.inactive.length} Not Active`,
+      `${summary.missingBuyer.length} Missing NTN/CNIC`,
+      `${summary.errors.length} Failed`,
+    ];
+
+    Swal.fire({
+      icon: summary.active.length > 0 ? "success" : "info",
+      title: "ATL Sync Complete",
+      html: summaryLines.join("<br/>"),
+      confirmButtonColor: summary.active.length > 0 ? "#28a745" : "#1976d2",
+    });
   };
 
   const handleDeleteClick = async (invoice) => {
@@ -1150,6 +1371,15 @@ export default function BasicTable() {
   // Since we're using server-side pagination, we don't need client-side filtering
   // The server handles all filtering and pagination
   const filteredInvoices = invoices || [];
+  const getInvoiceId = (invoice) => invoice?._id || invoice?.id;
+  const selectedInvoiceDetails = filteredInvoices.filter((invoice) =>
+    selectedInvoices.has(getInvoiceId(invoice))
+  );
+  const allSelectedAtlActive =
+    selectedInvoiceDetails.length > 0 &&
+    selectedInvoiceDetails.every(
+      (invoice) => atlSyncStatus[getInvoiceId(invoice)]?.isActive === true
+    );
 
   // Handle individual checkbox selection
   const handleRowSelection = (invoiceId) => {
@@ -1448,8 +1678,17 @@ export default function BasicTable() {
               >
                 {selectMode ? "Cancel" : "Select"}
               </Button>
-
-
+              <PermissionGate permission="invoice_validate">
+                <Button
+                  variant="outlined"
+                  color="secondary"
+                  startIcon={<SyncIcon />}
+                  onClick={handleBulkAtlSync}
+                  disabled={bulkAtlSyncLoading}
+                >
+                  {bulkAtlSyncLoading ? "Syncing ATL..." : "Sync ATL"}
+                </Button>
+              </PermissionGate>
               <PermissionGate permission="invoice_uploader">
                 <Button
                   variant="outlined"
@@ -1591,61 +1830,63 @@ export default function BasicTable() {
                               </span>
                             </Tooltip>
                           </PermissionGate>
-                          <PermissionGate permission="invoice_validate">
-                            <Tooltip
-                              title={
-                                hasPostedInvoices
-                                  ? "You have selected posted invoices. Unselect them to proceed."
-                                  : ""
-                              }
-                              placement="top"
-                              arrow
-                            >
-                              <span>
-                                <Button
-                                  onClick={handleSaveAndValidate}
-                                  variant="outlined"
-                                  color="warning"
-                                  size="small"
-                                  sx={{
-                                    borderRadius: 1.5,
-                                    fontWeight: 600,
-                                    px: 1.5,
-                                    py: 0.3,
-                                    fontSize: 11,
-                                    letterSpacing: 0.3,
-                                    boxShadow: 1,
-                                    transition: "all 0.2s",
-                                    minWidth: "auto",
-                                    bgcolor: "white",
-                                    color: hasPostedInvoices ? "#ccc" : "#f57c00",
-                                    borderColor: hasPostedInvoices
-                                      ? "#ccc"
-                                      : "#f57c00",
-                                    "&:hover": {
-                                      background: hasPostedInvoices
-                                        ? "transparent"
-                                        : "#f57c00",
-                                      color: hasPostedInvoices ? "#ccc" : "white",
-                                      boxShadow: hasPostedInvoices ? 1 : 2,
+                          {allSelectedAtlActive && (
+                            <PermissionGate permission="invoice_validate">
+                              <Tooltip
+                                title={
+                                  hasPostedInvoices
+                                    ? "You have selected posted invoices. Unselect them to proceed."
+                                    : ""
+                                }
+                                placement="top"
+                                arrow
+                              >
+                                <span>
+                                  <Button
+                                    onClick={handleSaveAndValidate}
+                                    variant="outlined"
+                                    color="warning"
+                                    size="small"
+                                    sx={{
+                                      borderRadius: 1.5,
+                                      fontWeight: 600,
+                                      px: 1.5,
+                                      py: 0.3,
+                                      fontSize: 11,
+                                      letterSpacing: 0.3,
+                                      boxShadow: 1,
+                                      transition: "all 0.2s",
+                                      minWidth: "auto",
+                                      bgcolor: "white",
+                                      color: hasPostedInvoices ? "#ccc" : "#f57c00",
                                       borderColor: hasPostedInvoices
                                         ? "#ccc"
                                         : "#f57c00",
-                                    },
-                                  }}
-                                  disabled={
-                                    saveValidateLoading || hasPostedInvoices
-                                  }
-                                >
-                                  {saveValidateLoading ? (
-                                    <CircularProgress size={16} color="inherit" />
-                                  ) : (
-                                    "Save & Validate"
-                                  )}
-                                </Button>
-                              </span>
-                            </Tooltip>
-                          </PermissionGate>
+                                      "&:hover": {
+                                        background: hasPostedInvoices
+                                          ? "transparent"
+                                          : "#f57c00",
+                                        color: hasPostedInvoices ? "#ccc" : "white",
+                                        boxShadow: hasPostedInvoices ? 1 : 2,
+                                        borderColor: hasPostedInvoices
+                                          ? "#ccc"
+                                          : "#f57c00",
+                                      },
+                                    }}
+                                    disabled={
+                                      saveValidateLoading || hasPostedInvoices
+                                    }
+                                  >
+                                    {saveValidateLoading ? (
+                                      <CircularProgress size={16} color="inherit" />
+                                    ) : (
+                                      "Save & Validate"
+                                    )}
+                                  </Button>
+                                </span>
+                              </Tooltip>
+                            </PermissionGate>
+                          )}
                           {isSubmitVisible && (
                             <Tooltip
                               title={
@@ -1977,16 +2218,39 @@ export default function BasicTable() {
                   </TableHead>
 
                   <TableBody>
-                    {filteredInvoices.map((row, index) => (
-                      <TableRow
-                        key={row._id || index}
-                        sx={{
-                          "&:hover": {
-                            backgroundColor: "#EDEDED",
-                            transition: "background-color 0.3s",
-                          },
-                        }}
-                      >
+                    {filteredInvoices.map((row, index) => {
+                      const invoiceId = row._id || row.id;
+                      const atlStatusForInvoice = atlSyncStatus[invoiceId];
+                      const atlStatusError = atlStatusForInvoice?.error;
+                      const atlLoading = atlSyncLoading[invoiceId];
+                      const syncButtonColor = atlStatusError
+                        ? "error"
+                        : atlStatusForInvoice
+                        ? atlStatusForInvoice.isActive
+                          ? "success"
+                          : "warning"
+                        : "secondary";
+                      const syncTooltip = atlLoading
+                        ? "Syncing ATL status..."
+                        : atlStatusError
+                        ? `ATL sync failed: ${atlStatusError}`
+                        : atlStatusForInvoice
+                        ? atlStatusForInvoice.isActive
+                          ? "Buyer ATL Active"
+                          : atlStatusForInvoice.message ||
+                            "Buyer is not ATL Active. Validation disabled."
+                        : "Sync ATL status with FBR";
+
+                      return (
+                        <TableRow
+                          key={invoiceId || index}
+                          sx={{
+                            "&:hover": {
+                              backgroundColor: "#EDEDED",
+                              transition: "background-color 0.3s",
+                            },
+                          }}
+                        >
                         {selectMode && (
                           <TableCell
                             align="center"
@@ -2206,6 +2470,38 @@ export default function BasicTable() {
                             {(row.status === "draft" ||
                               row.status === "saved") && (
                               <>
+                                <PermissionGate permission="invoice_validate">
+                                  <Tooltip
+                                    title={syncTooltip}
+                                    placement="top"
+                                    arrow
+                                  >
+                                    <span>
+                                      <Button
+                                        variant="outlined"
+                                        color={syncButtonColor}
+                                        size="small"
+                                        onClick={() => handleSyncAtlStatus(row)}
+                                        disabled={atlLoading}
+                                        sx={{
+                                          minWidth: "32px",
+                                          width: "32px",
+                                          height: "32px",
+                                          p: 0,
+                                        }}
+                                      >
+                                        {atlLoading ? (
+                                          <CircularProgress
+                                            size={16}
+                                            color="inherit"
+                                          />
+                                        ) : (
+                                          <SyncIcon fontSize="small" />
+                                        )}
+                                      </Button>
+                                    </span>
+                                  </Tooltip>
+                                </PermissionGate>
                                 <PermissionGate permission="invoice.update">
                                   <Tooltip
                                     title={`Edit ${row.status === "draft" ? "Draft" : "Saved"} Invoice`}
@@ -2259,7 +2555,8 @@ export default function BasicTable() {
                           </Box>
                         </TableCell>
                       </TableRow>
-                    ))}
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </TableContainer>

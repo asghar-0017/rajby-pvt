@@ -8,10 +8,26 @@ export const createBuyerModel = (sequelize) => {
       primaryKey: true,
       autoIncrement: true
     },
+    buyerId: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+      field: 'buyer_id',
+      validate: {
+        len: [0, 50]
+      }
+    },
+    buyerMainName: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+      field: 'buyer_main_name',
+      validate: {
+        len: [0, 255]
+      }
+    },
     buyerNTNCNIC: {
       type: DataTypes.STRING(50),
       allowNull: true,
-      unique: true, // Add unique constraint to prevent duplicate NTN
+      // Removed unique constraint - using composite key check in controller instead
       validate: {
         len: [0, 50]
       }
@@ -82,9 +98,12 @@ export const createBuyerModel = (sequelize) => {
       {
         name: 'idx_buyer_business_name',
         fields: ['buyerBusinessName']
+      },
+      // Composite index for duplicate checking (all fields must match)
+      {
+        name: 'idx_buyer_composite',
+        fields: ['buyerId', 'buyerMainName', 'buyerBusinessName', 'buyerNTNCNIC', 'buyerProvince', 'buyerAddress']
       }
-      // Note: buyerNTNCNIC already has unique constraint from column definition
-      // Note: Composite indexes can be added later if needed for performance
     ]
   });
 

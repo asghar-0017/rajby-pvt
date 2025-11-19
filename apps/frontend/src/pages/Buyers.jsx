@@ -40,6 +40,8 @@ const Buyers = () => {
   const handleSave = async (buyerData) => {
     try {
       const transformedData = {
+        buyerId: buyerData.buyerId,
+        buyerMainName: buyerData.buyerMainName,
         buyerNTNCNIC: buyerData.buyerNTNCNIC,
         buyerBusinessName: buyerData.buyerBusinessName,
         buyerProvince: buyerData.buyerProvince,
@@ -223,6 +225,93 @@ const Buyers = () => {
       ? buyers
       : buyers.filter((b) => b.buyerRegistrationType === filter);
 
+  const handleSync = async () => {
+    try {
+      const rajbyToken = localStorage.getItem("Rajbytoken");
+      
+      if (!rajbyToken) {
+        Swal.fire({
+          icon: "error",
+          title: "Token Not Found",
+          text: "Rajby token not found. Please login again.",
+        });
+        return;
+      }
+
+      if (!selectedTenant) {
+        Swal.fire({
+          icon: "warning",
+          title: "No Company Selected",
+          text: "Please select a company first.",
+        });
+        return;
+      }
+
+      // Show loading
+      Swal.fire({
+        title: "Syncing Buyers...",
+        text: "Please wait while we fetch buyers from Rajby API",
+        allowOutsideClick: false,
+        didOpen: () => {
+          Swal.showLoading();
+        },
+      });
+
+      // Fetch buyers from external API
+      // Note: The API interceptor will automatically add the Rajbytoken from localStorage
+      const response = await api.get("/rajby-buyers");
+
+      if (!response.data || !Array.isArray(response.data)) {
+        throw new Error("Invalid response from API");
+      }
+
+      // Map external API data to internal format
+      const buyersToSync = response.data.map((buyer) => ({
+        buyerId: buyer.buyerId || "",
+        buyerMainName: buyer.buyerMainName || "",
+        buyerNTNCNIC: buyer.ntnno || "",
+        buyerBusinessName: buyer.buyerName || "",
+        buyerProvince: buyer.province || "",
+        buyerAddress: buyer.address || "",
+        buyerRegistrationType: "Registered", // Default value
+        buyerTelephone: "", // Not available in external API
+      }));
+
+      if (buyersToSync.length === 0) {
+        Swal.fire({
+          icon: "info",
+          title: "No Buyers Found",
+          text: "No buyers found in the external system.",
+        });
+        return;
+      }
+
+      // Use bulk upload to save buyers
+      const bulkResponse = await handleBulkUpload(buyersToSync);
+
+      Swal.fire({
+        icon: "success",
+        title: "Sync Complete",
+        text: `Successfully synced ${bulkResponse.data.summary.successful} buyer(s).`,
+      });
+
+      // Refresh buyers list
+      const refreshResponse = await api.get(
+        `/tenant/${selectedTenant.tenant_id}/buyers/all`
+      );
+      if (refreshResponse.data.success) {
+        setBuyers(refreshResponse.data.data.buyers || []);
+      }
+    } catch (error) {
+      console.error("Error syncing buyers:", error);
+      Swal.fire({
+        icon: "error",
+        title: "Sync Failed",
+        text: error.response?.data?.error || error.message || "Failed to sync buyers. Please try again.",
+      });
+    }
+  };
+
   return (
     <TenantSelectionPrompt>
       <div>
@@ -240,6 +329,7 @@ const Buyers = () => {
           onDelete={handleDelete}
           onAdd={openModal}
           onUpload={openUploader}
+          onSync={handleSync}
           selectedTenant={selectedTenant}
           onBulkDeleted={(ids) =>
             setBuyers((prev) => prev.filter((b) => !ids.includes(b.id)))

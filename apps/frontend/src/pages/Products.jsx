@@ -106,6 +106,9 @@ const Products = () => {
         const response = await api.put(
           `/tenant/${selectedTenant.tenant_id}/products/${editingProduct.id}`,
           {
+            itemId: productData.itemId,
+            itemCode: productData.itemCode,
+            type: productData.type,
             name: productData.name,
             description: productData.description,
             hsCode: productData.hsCode,
@@ -135,6 +138,9 @@ const Products = () => {
         const response = await api.post(
           `/tenant/${selectedTenant.tenant_id}/products`,
           {
+            itemId: productData.itemId,
+            itemCode: productData.itemCode,
+            type: productData.type,
             name: productData.name,
             description: productData.description,
             hsCode: productData.hsCode,
@@ -218,6 +224,9 @@ const Products = () => {
         `/tenant/${selectedTenant.tenant_id}/products/bulk`,
         {
           products: productsData.map(product => ({
+            itemId: product.itemId,
+            itemCode: product.itemCode,
+            type: product.type,
             name: product.productName || product.name,
             description: product.productDescription || product.description,
             hsCode: product.hsCode,
@@ -281,6 +290,9 @@ const Products = () => {
           const response = await api.post(
             `/tenant/${selectedTenant.tenant_id}/products`,
             {
+              itemId: product.itemId,
+              itemCode: product.itemCode,
+              type: product.type,
               name: product.productName || product.name,
               description: product.productDescription || product.description,
               hsCode: product.hsCode,
@@ -328,6 +340,87 @@ const Products = () => {
     }
   };
 
+  const handleSync = async () => {
+    try {
+      const rajbyToken = localStorage.getItem("Rajbytoken");
+      
+      if (!rajbyToken) {
+        Swal.fire({
+          icon: "error",
+          title: "Token Not Found",
+          text: "Rajby token not found. Please login again.",
+        });
+        return;
+      }
+
+      if (!selectedTenant) {
+        Swal.fire({
+          icon: "warning",
+          title: "No Company Selected",
+          text: "Please select a company first.",
+        });
+        return;
+      }
+
+      // Show loading
+      Swal.fire({
+        title: "Syncing Products...",
+        text: "Please wait while we fetch products from Rajby API",
+        allowOutsideClick: false,
+        didOpen: () => {
+          Swal.showLoading();
+        },
+      });
+
+      // Fetch products from external API
+      // Note: The API interceptor will automatically add the Rajbytoken from localStorage
+      const response = await api.get("/rajby-products");
+
+      if (!response.data || !Array.isArray(response.data)) {
+        throw new Error("Invalid response from API");
+      }
+
+      // Map external API data to internal format
+      const productsToSync = response.data.map((product) => ({
+        itemId: product.itemId || "",
+        itemCode: product.itemCode || "",
+        type: product.type || "",
+        name: product.itemDescr || product.itemCode || "",
+        description: product.itemDescr || "",
+        hsCode: product.hsCode || "",
+        uom: "PCS", // Default value as not available in external API
+      }));
+
+      if (productsToSync.length === 0) {
+        Swal.fire({
+          icon: "info",
+          title: "No Products Found",
+          text: "No products found in the external system.",
+        });
+        return;
+      }
+
+      // Use bulk upload to save products
+      const bulkResponse = await handleBulkUpload(productsToSync);
+
+      Swal.fire({
+        icon: "success",
+        title: "Sync Complete",
+        text: `Successfully synced ${bulkResponse.data.data.summary.successful} product(s).`,
+      });
+
+      // Refresh products list
+      await fetchProducts();
+    } catch (error) {
+      console.error("Error syncing products:", error);
+      Swal.fire({
+        icon: "error",
+        title: "Sync Failed",
+        text: error.response?.data?.error || error.message || "Failed to sync products. Please try again.",
+      });
+    }
+  };
+
   if (!selectedTenant) {
     return (
       <Container maxWidth="lg" sx={{ mt: 10, mb: 4 }}>
@@ -347,6 +440,7 @@ const Products = () => {
         onDelete={handleDeleteProduct}
         onAdd={handleAddProduct}
         onUpload={openUploader}
+        onSync={handleSync}
         selectedTenant={selectedTenant}
         onBulkDeleted={(ids) =>
           setProducts((prev) => prev.filter((p) => !ids.includes(p.id)))

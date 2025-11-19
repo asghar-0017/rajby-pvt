@@ -46,7 +46,7 @@ const API_CONFIG = {
 
 const api = axios.create({
   // baseURL: "https://fbrtestcase.inplsoftwares.online/api",
-  baseURL: "https://rajbytextilepvt.inplsoftwares.online/api",
+  baseURL: "http://localhost:5150/api",
   // You can add headers or other config here if needed
 });
 
@@ -58,14 +58,23 @@ api.interceptors.request.use(
     const tenantId = localStorage.getItem("tenantId");
     const selectedTenant = localStorage.getItem("selectedTenant");
 
-    // Use tenant token if available, otherwise use admin token
-    if (tenantToken) {
-      config.headers.Authorization = `Bearer ${tenantToken}`;
-    } else if (adminToken) {
-      config.headers.Authorization = `Bearer ${adminToken}`;
+    // Check if this is a Rajby API endpoint - use Rajbytoken instead
+    const isRajbyEndpoint = config.url.includes("/rajby-");
+    if (isRajbyEndpoint) {
+      const rajbyToken = localStorage.getItem("Rajbytoken");
+      if (rajbyToken) {
+        config.headers.Authorization = `Bearer ${rajbyToken}`;
+      }
+    } else {
+      // Use tenant token if available, otherwise use admin token
+      if (tenantToken) {
+        config.headers.Authorization = `Bearer ${tenantToken}`;
+      } else if (adminToken) {
+        config.headers.Authorization = `Bearer ${adminToken}`;
+      }
     }
 
-    // Skip tenant ID for authentication endpoints
+    // Skip tenant ID for authentication endpoints and Rajby endpoints
     const isAuthEndpoint =
       config.url.includes("/auth/") ||
       config.url.includes("/tenant-auth/") ||
@@ -73,7 +82,8 @@ api.interceptors.request.use(
       config.url === "/auth/forgot-password" ||
       config.url === "/auth/verify-reset-code" ||
       config.url === "/auth/reset-password" ||
-      config.url === "/auth/refresh-token";
+      config.url === "/auth/refresh-token" ||
+      isRajbyEndpoint;
 
     if (!isAuthEndpoint) {
       // For admin users, use selected tenant ID if available

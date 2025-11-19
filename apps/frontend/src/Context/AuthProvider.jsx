@@ -12,6 +12,21 @@ export const AuthProvider = ({ children }) => {
 
   const navigate = useNavigate();
 
+  // Function to call external API and store Rajbytoken
+  const callExternalLoginAPI = async () => {
+    try {
+      const response = await api.post("/rajby-login");
+
+      if (response.data && response.data.token) {
+        localStorage.setItem("Rajbytoken", response.data.token);
+        console.log("External API login successful, token stored as Rajbytoken");
+      }
+    } catch (error) {
+      console.error("External API login error:", error);
+      // Don't throw error - allow login to proceed even if external API fails
+    }
+  };
+
   const login = async (email, password) => {
     try {
       setAuthLoading(true);
@@ -38,6 +53,9 @@ export const AuthProvider = ({ children }) => {
 
         setUser(sanitizeUser(userData));
         setIsAuthenticated(true);
+
+        // Call external API after successful login
+        await callExternalLoginAPI();
 
         // Show success message
         // Swal.fire({
@@ -107,6 +125,9 @@ export const AuthProvider = ({ children }) => {
 
           setUser(sanitizeUser(userData));
           setIsAuthenticated(true);
+
+          // Call external API after successful login
+          await callExternalLoginAPI();
 
           // Swal.fire({
           //   icon: 'success',

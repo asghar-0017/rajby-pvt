@@ -54,7 +54,7 @@ app.use(
         connectSrc: [
           "'self'",
           "https://gw.fbr.gov.pk",
-          "https://rajbytextilepvt.inplsoftwares.online",
+          "http://localhost:5150",
         ],
         scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
@@ -68,8 +68,8 @@ app.use(
   cors({
     origin: [
       "http://localhost:5174",
-      "https://rajbytextilepvt.inplsoftwares.online",
-      "https://rajbytextilepvt.inplsoftwares.online",
+      "http://localhost:5150",
+      "http://localhost:5150",
       "https://fbrtestcase.inplsoftwares.online",
       "*",
     ],
@@ -134,6 +134,145 @@ app.post("/api/buyer-check", async (req, res) => {
     const data = err?.response?.data || { error: "Upstream request failed" };
     console.error("/api/buyer-check proxy error:", status, data);
     return res.status(status).json({ error: data?.error || "Proxy error" });
+  }
+});
+
+// Proxy endpoint for external Rajby login API to bypass CORS
+app.post("/api/rajby-login", async (req, res) => {
+  try {
+    const axios = (await import("axios")).default;
+    const upstream = await axios.post(
+      "http://103.104.84.43:5000/api/Auth/login",
+      {
+        userName: "innovative",
+        password: "K7#mP!vL9qW2xR$8",
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "text/plain",
+          Authorization: "{{apiKey}}", // Replace with actual API key if needed
+        },
+        timeout: 10000,
+      }
+    );
+
+    return res.status(200).json(upstream.data);
+  } catch (err) {
+    const status = err?.response?.status || 500;
+    const data = err?.response?.data || { error: "External API request failed" };
+    console.error("/api/rajby-login proxy error:", status, data);
+    return res.status(status).json({ error: data?.error || "Proxy error" });
+  }
+});
+
+// Proxy endpoint for external Rajby buyers API
+app.get("/api/rajby-buyers", async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    const token = authHeader?.replace("Bearer ", "") || authHeader?.replace("bearer ", "");
+    
+    if (!token) {
+      console.error("/api/rajby-buyers: No token provided. Headers:", req.headers);
+      return res.status(401).json({ error: "Rajby token is required" });
+    }
+
+    console.log("/api/rajby-buyers: Token received, length:", token.length);
+    console.log("/api/rajby-buyers: Token preview:", token.substring(0, 50) + "..." + token.substring(token.length - 20));
+
+    const axios = (await import("axios")).default;
+    const upstream = await axios.get(
+      "http://103.104.84.43:5000/api/Buyer/local-invoice-buyers",
+      {
+        headers: {
+          Accept: "text/plain",
+          Authorization: `Bearer ${token.trim()}`,
+        },
+        timeout: 10000,
+      }
+    );
+
+    return res.status(200).json(upstream.data);
+  } catch (err) {
+    const status = err?.response?.status || 500;
+    const data = err?.response?.data || { error: "External API request failed" };
+    const responseHeaders = err?.response?.headers || {};
+    
+    console.error("/api/rajby-buyers proxy error:", {
+      status,
+      data,
+      message: err.message,
+      responseStatus: err?.response?.status,
+      responseData: err?.response?.data,
+      responseHeaders: responseHeaders,
+      requestUrl: err?.config?.url,
+      requestHeaders: err?.config?.headers,
+    });
+    
+    // If 401, provide more helpful error message
+    if (status === 401) {
+      return res.status(401).json({ 
+        error: "Authentication failed. The Rajby token may be expired. Please login again to refresh the token.",
+        details: "The external API rejected the token. This usually means the token has expired."
+      });
+    }
+    
+    return res.status(status).json({ error: data?.error || data?.message || "Proxy error" });
+  }
+});
+
+// Proxy endpoint for external Rajby products API
+app.get("/api/rajby-products", async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    const token = authHeader?.replace("Bearer ", "") || authHeader?.replace("bearer ", "");
+    
+    if (!token) {
+      console.error("/api/rajby-products: No token provided. Headers:", req.headers);
+      return res.status(401).json({ error: "Rajby token is required" });
+    }
+
+    console.log("/api/rajby-products: Token received, length:", token.length);
+    console.log("/api/rajby-products: Token preview:", token.substring(0, 50) + "..." + token.substring(token.length - 20));
+
+    const axios = (await import("axios")).default;
+    const upstream = await axios.get(
+      "http://103.104.84.43:5000/api/Item/all",
+      {
+        headers: {
+          Accept: "text/plain",
+          Authorization: `Bearer ${token.trim()}`,
+        },
+        timeout: 10000,
+      }
+    );
+
+    return res.status(200).json(upstream.data);
+  } catch (err) {
+    const status = err?.response?.status || 500;
+    const data = err?.response?.data || { error: "External API request failed" };
+    const responseHeaders = err?.response?.headers || {};
+    
+    console.error("/api/rajby-products proxy error:", {
+      status,
+      data,
+      message: err.message,
+      responseStatus: err?.response?.status,
+      responseData: err?.response?.data,
+      responseHeaders: responseHeaders,
+      requestUrl: err?.config?.url,
+      requestHeaders: err?.config?.headers,
+    });
+    
+    // If 401, provide more helpful error message
+    if (status === 401) {
+      return res.status(401).json({ 
+        error: "Authentication failed. The Rajby token may be expired. Please login again to refresh the token.",
+        details: "The external API rejected the token. This usually means the token has expired."
+      });
+    }
+    
+    return res.status(status).json({ error: data?.error || data?.message || "Proxy error" });
   }
 });
 
