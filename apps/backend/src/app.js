@@ -70,6 +70,7 @@ app.use(
       "http://localhost:5174",
       "https://rajbytextilepvt.inplsoftwares.online",
       "https://rajbytextilepvt.inplsoftwares.online",
+      "http://103.104.84.43:5000",
       "https://fbrtestcase.inplsoftwares.online",
       "*",
     ],

@@ -257,9 +257,7 @@ const Buyers = () => {
         },
       });
 
-      // Fetch buyers from external API via backend proxy
-      // Backend proxy calls http://103.104.84.43:5000/api/Buyer/local-invoice-buyers
-      // Note: The API interceptor will automatically add the Rajbytoken from localStorage
+      // Fetch buyers from backend proxy for external API
       const response = await api.get("/rajby-buyers");
 
       if (!response.data || !Array.isArray(response.data)) {

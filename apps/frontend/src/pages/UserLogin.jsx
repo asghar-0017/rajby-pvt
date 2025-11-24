@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../Context/AuthProvider";
-import { api } from "../API/Api";
+import { api, performRajbyLogin } from "../API/Api";
 import Swal from "sweetalert2";
 import {
   Box,
@@ -37,13 +37,12 @@ const UserLogin = () => {
   const { login } = useAuth();
 
   // Function to call external API and store Rajbytoken
-  // Uses backend proxy which calls http://103.104.84.43:5000/api/Auth/login
   const callExternalLoginAPI = async () => {
     try {
-      const response = await api.post("/rajby-login");
+      const data = await performRajbyLogin();
 
-      if (response.data && response.data.token) {
-        localStorage.setItem("Rajbytoken", response.data.token);
+      if (data?.token) {
+        localStorage.setItem("Rajbytoken", data.token);
         console.log("External API login successful, token stored as Rajbytoken");
       }
     } catch (error) {
