@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import Swal from "sweetalert2";
 import { useNavigate } from "react-router-dom";
-import { api, performRajbyLogin } from "../API/Api";
+import { api } from "../API/Api";
 
 const AuthContext = createContext();
 
@@ -15,10 +15,10 @@ export const AuthProvider = ({ children }) => {
   // Function to call external API and store Rajbytoken
   const callExternalLoginAPI = async () => {
     try {
-      const data = await performRajbyLogin();
+      const response = await api.post("/rajby-login");
 
-      if (data?.token) {
-        localStorage.setItem("Rajbytoken", data.token);
+      if (response.data && response.data.token) {
+        localStorage.setItem("Rajbytoken", response.data.token);
         console.log("External API login successful, token stored as Rajbytoken");
       }
     } catch (error) {

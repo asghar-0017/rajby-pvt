@@ -50,41 +50,8 @@ const api = axios.create({
   // You can add headers or other config here if needed
 });
 
-// Rajby API base URL routed through our backend proxy to avoid browser CORS
-export const RAJBY_API_BASE_URL =
-  import.meta.env.VITE_RAJBY_PROXY_BASE_URL || "/api";
-
-const RAJBY_LOGIN_URL =
-  import.meta.env.VITE_RAJBY_LOGIN_URL ||
-  "http://103.104.84.43:5000/api/Auth/login";
-
-const RAJBY_LOGIN_PAYLOAD = {
-  userName: import.meta.env.VITE_RAJBY_USERNAME || "innovative",
-  password: import.meta.env.VITE_RAJBY_PASSWORD || "K7#mP!vL9qW2xR$8",
-};
-
-const buildRajbyHeaders = () => {
-  const headers = {
-    "Content-Type": "application/json",
-    Accept: "text/plain",
-  };
-
-  const apiKey = import.meta.env.VITE_RAJBY_API_KEY;
-  if (apiKey) {
-    headers.Authorization = apiKey;
-  }
-
-  return headers;
-};
-
-export const performRajbyLogin = async () => {
-  const response = await axios.post(RAJBY_LOGIN_URL, RAJBY_LOGIN_PAYLOAD, {
-    headers: buildRajbyHeaders(),
-    timeout: 10000,
-  });
-
-  return response.data;
-};
+// Rajby API base URL - direct connection
+export const RAJBY_API_BASE_URL = "http://103.104.84.43:5000";
 
 // Add request interceptor to include auth token and tenant ID
 api.interceptors.request.use(
