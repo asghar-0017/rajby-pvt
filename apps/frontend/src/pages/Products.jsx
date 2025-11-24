@@ -372,7 +372,8 @@ const Products = () => {
         },
       });
 
-      // Fetch products from external API
+      // Fetch products from external API via backend proxy
+      // Backend proxy calls http://103.104.84.43:5000/api/Item/all
       // Note: The API interceptor will automatically add the Rajbytoken from localStorage
       const response = await api.get("/rajby-products");
 

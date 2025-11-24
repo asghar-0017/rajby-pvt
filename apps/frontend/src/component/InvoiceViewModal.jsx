@@ -434,6 +434,30 @@ const InvoiceViewModal = ({ open, onClose, invoice, onPrint }) => {
                       p: 1,
                     }}
                   >
+                    DC Doc Id
+                  </TableCell>
+                  <TableCell
+                    sx={{
+                      bgcolor: "#2c7c93",
+                      color: "white",
+                      fontWeight: "bold",
+                      textAlign: "center",
+                      fontSize: "11px",
+                      p: 1,
+                    }}
+                  >
+                    DC Doc Date
+                  </TableCell>
+                  <TableCell
+                    sx={{
+                      bgcolor: "#2c7c93",
+                      color: "white",
+                      fontWeight: "bold",
+                      textAlign: "center",
+                      fontSize: "11px",
+                      p: 1,
+                    }}
+                  >
                     Quantity
                   </TableCell>
                   <TableCell
@@ -602,6 +626,28 @@ const InvoiceViewModal = ({ open, onClose, invoice, onPrint }) => {
                       }}
                     >
                       {item.productDescription || "N/A"}
+                    </TableCell>
+                    <TableCell
+                      sx={{
+                        border: "1px solid #157492",
+                        textAlign: "center",
+                        fontSize: "11px",
+                        p: 1,
+                      }}
+                    >
+                      {item.dcDocId || item.item_dcDocId || "N/A"}
+                    </TableCell>
+                    <TableCell
+                      sx={{
+                        border: "1px solid #157492",
+                        textAlign: "center",
+                        fontSize: "11px",
+                        p: 1,
+                      }}
+                    >
+                      {item.dcDocDate || item.item_dcDocDate
+                        ? formatDate(item.dcDocDate || item.item_dcDocDate)
+                        : "N/A"}
                     </TableCell>
                     <TableCell
                       sx={{

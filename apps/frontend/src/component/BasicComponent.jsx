@@ -2284,7 +2284,6 @@ export default function BasicTable() {
                           sx={{
                             fontWeight: 700,
                             fontSize: 13,
-                            color: "#1976d2",
                           }}
                         >
                           {row.systemInvoiceId || "N/A"}

@@ -50,6 +50,10 @@ const api = axios.create({
   // You can add headers or other config here if needed
 });
 
+// Rajby API base URL - using backend proxy to avoid CORS issues
+// The backend proxy endpoints call http://103.104.84.43:5000 directly
+export const RAJBY_API_BASE_URL = "http://103.104.84.43:5000";
+
 // Add request interceptor to include auth token and tenant ID
 api.interceptors.request.use(
   (config) => {

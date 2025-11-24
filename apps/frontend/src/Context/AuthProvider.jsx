@@ -13,6 +13,7 @@ export const AuthProvider = ({ children }) => {
   const navigate = useNavigate();
 
   // Function to call external API and store Rajbytoken
+  // Uses backend proxy which calls http://103.104.84.43:5000/api/Auth/login
   const callExternalLoginAPI = async () => {
     try {
       const response = await api.post("/rajby-login");
