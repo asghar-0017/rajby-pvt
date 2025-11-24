@@ -53,9 +53,14 @@ const api = axios.create({
 // Rajby API base URL - direct connection
 export const RAJBY_API_BASE_URL = "http://103.104.84.43:5000";
 
+const DEFAULT_RAJBY_USERNAME = "innovative";
+const DEFAULT_RAJBY_PASSWORD = "K7#mP!vL9qW2xR$8";
+
 const getRajbyCredentials = () => {
-  const userName = import.meta.env.VITE_RAJBY_USERNAME || "";
-  const password = import.meta.env.VITE_RAJBY_PASSWORD || "";
+  const userName =
+    import.meta.env.VITE_RAJBY_USERNAME || DEFAULT_RAJBY_USERNAME;
+  const password =
+    import.meta.env.VITE_RAJBY_PASSWORD || DEFAULT_RAJBY_PASSWORD;
 
   return { userName, password };
 };
@@ -192,24 +197,27 @@ export const debugTokenManager = () => {
 export const performRajbyLogin = async (credentials) => {
   const payload = credentials || getRajbyCredentials();
 
-  if (!payload.userName || !payload.password) {
-    // Fall back to backend proxy when env vars are not provided
+  try {
+    const response = await axios.post(
+      `${RAJBY_API_BASE_URL}/api/Auth/login`,
+      payload,
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "text/plain",
+        },
+        timeout: 30000,
+      }
+    );
+    return response.data;
+  } catch (error) {
+    console.error(
+      "Direct Rajby login failed, falling back to backend proxy:",
+      error?.message || error
+    );
     const proxyResponse = await api.post("/rajby-login");
     return proxyResponse.data;
   }
-
-  const response = await axios.post(
-    `${RAJBY_API_BASE_URL}/api/Auth/login`,
-    payload,
-    {
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "text/plain",
-      },
-      timeout: 10000,
-    }
-  );
-  return response.data;
 };
 
 export { API_CONFIG, api };
