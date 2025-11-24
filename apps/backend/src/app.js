@@ -55,6 +55,8 @@ app.use(
           "'self'",
           "https://gw.fbr.gov.pk",
           "https://rajbytextilepvt.inplsoftwares.online",
+          "http://103.104.84.43:5000",
+          "https://103.104.84.43:5000",
         ],
         scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
