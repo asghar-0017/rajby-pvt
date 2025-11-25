@@ -79,6 +79,8 @@ app.use(
       "https://rajbytextilepvt.inplsoftwares.online",
       "https://rajbytextilepvt.inplsoftwares.online",
       "https://fbrtestcase.inplsoftwares.online",
+      "http://103.104.84.43:5000",
+      "https://103.104.84.43:5000"
       "*",
     ],
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
