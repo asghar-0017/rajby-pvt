@@ -29,6 +29,10 @@ import performanceRoutes from "./routes/performanceRoutes.js";
 
 dotenv.config();
 
+const RAJBY_USERNAME = process.env.RAJBY_USERNAME || "innovative";
+const RAJBY_PASSWORD = process.env.RAJBY_PASSWORD || "K7#mP!vL9qW2xR$8";
+const RAJBY_API_KEY = process.env.RAJBY_API_KEY || "";
+
 const app = express();
 
 const __filename = fileURLToPath(import.meta.url);
@@ -143,19 +147,24 @@ app.post("/api/buyer-check", async (req, res) => {
 app.post("/api/rajby-login", async (req, res) => {
   try {
     const axios = (await import("axios")).default;
+    if (!RAJBY_API_KEY) {
+      console.warn(
+        "RAJBY_API_KEY not configured; external Rajby login may fail authentication."
+      );
+    }
     const upstream = await axios.post(
       "http://103.104.84.43:5000/api/Auth/login",
       {
-        userName: "innovative",
-        password: "K7#mP!vL9qW2xR$8",
+        userName: RAJBY_USERNAME,
+        password: RAJBY_PASSWORD,
       },
       {
         headers: {
           "Content-Type": "application/json",
           Accept: "text/plain",
-          Authorization: "{{apiKey}}", // Replace with actual API key if needed
+          Authorization: RAJBY_API_KEY,
         },
-        timeout: 10000,
+        timeout: 30000,
       }
     );
 

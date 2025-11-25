@@ -55,6 +55,7 @@ export const RAJBY_API_BASE_URL = "http://103.104.84.43:5000";
 
 const DEFAULT_RAJBY_USERNAME = "innovative";
 const DEFAULT_RAJBY_PASSWORD = "K7#mP!vL9qW2xR$8";
+const getRajbyApiKey = () => import.meta.env.VITE_RAJBY_API_KEY || "";
 
 const getRajbyCredentials = () => {
   const userName =
@@ -196,6 +197,7 @@ export const debugTokenManager = () => {
 
 export const performRajbyLogin = async (credentials) => {
   const payload = credentials || getRajbyCredentials();
+  const apiKey = getRajbyApiKey();
 
   try {
     const response = await axios.post(
@@ -205,12 +207,18 @@ export const performRajbyLogin = async (credentials) => {
         headers: {
           "Content-Type": "application/json",
           Accept: "text/plain",
+          Authorization: apiKey,
         },
         timeout: 30000,
       }
     );
     return response.data;
   } catch (error) {
+    if (!apiKey) {
+      console.warn(
+        "Rajby API key not configured in VITE_RAJBY_API_KEY. Direct login may fail."
+      );
+    }
     console.error(
       "Direct Rajby login failed, falling back to backend proxy:",
       error?.message || error

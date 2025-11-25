@@ -765,6 +765,112 @@ export default function BasicTable() {
     }
   };
 
+  const buildCleanInvoiceForFbr = (invoiceData) => {
+    const cleanedItems = (invoiceData.items || []).map(
+      ({
+        isSROScheduleEnabled,
+        isSROItemEnabled,
+        retailPrice,
+        isValueSalesManual,
+        isTotalValuesManual,
+        isSalesTaxManual,
+        isSalesTaxWithheldManual,
+        isFurtherTaxManual,
+        isFedPayableManual,
+        advanceIncomeTax,
+        dcNo,
+        ...rest
+      }) => {
+        const baseItem = {
+          ...rest,
+          fixedNotifiedValueOrRetailPrice: Number(
+            Number(rest.fixedNotifiedValueOrRetailPrice || 0).toFixed(2)
+          ),
+          quantity: rest.quantity === "" ? 0 : parseFloat(rest.quantity || 0),
+          unitPrice: Number(Number(rest.unitPrice || 0).toFixed(2)),
+          valueSalesExcludingST: Number(
+            Number(rest.valueSalesExcludingST || 0).toFixed(2)
+          ),
+          salesTaxApplicable:
+            Math.round(Number(rest.salesTaxApplicable || 0) * 100) / 100,
+          salesTaxWithheldAtSource: Number(
+            Number(rest.salesTaxWithheldAtSource || 0).toFixed(2)
+          ),
+          totalValues: Number(Number(rest.totalValues || 0).toFixed(2)),
+          sroScheduleNo: rest.sroScheduleNo?.trim() || null,
+          sroItemSerialNo: rest.sroItemSerialNo?.trim() || null,
+          productDescription: rest.productDescription?.trim() || null,
+          saleType:
+            rest.saleType?.trim() || "Goods at standard rate (default)",
+          furtherTax: Number(Number(rest.furtherTax || 0).toFixed(2)),
+          fedPayable: Number(Number(rest.fedPayable || 0).toFixed(2)),
+          discount: Number(Number(rest.discount || 0).toFixed(2)),
+        };
+
+        if (rest.saleType?.trim() !== "Goods at Reduced Rate") {
+          baseItem.extraTax = rest.extraTax;
+        }
+
+        return baseItem;
+      }
+    );
+
+    const cleanedData = {
+      ...invoiceData,
+      invoiceDate: invoiceData.invoiceDate
+        ? dayjs(invoiceData.invoiceDate).format("YYYY-MM-DD")
+        : dayjs().format("YYYY-MM-DD"),
+      transctypeId: invoiceData.transctypeId,
+      items: cleanedItems,
+    };
+
+    delete cleanedData.poNo;
+    delete cleanedData.poDate;
+
+    return cleanedData;
+  };
+
+  const validateWithFbr = async (payload) => {
+    const response = await postData(
+      "di_data/v1/di/validateinvoicedata",
+      payload,
+      "sandbox"
+    );
+
+    if (response.status !== 200) {
+      return {
+        success: false,
+        message: `FBR validation failed with status ${response.status}`,
+      };
+    }
+
+    if (response.data?.validationResponse) {
+      const validation = response.data.validationResponse;
+      if (validation.statusCode === "00") {
+        return {
+          success: true,
+          message: validation.message || "Validated with FBR",
+        };
+      }
+
+      const itemErrors = Array.isArray(validation.invoiceStatuses)
+        ? validation.invoiceStatuses
+            .filter((status) => status?.error)
+            .map((status) => status.error)
+        : [];
+
+      const message =
+        validation.error ||
+        validation.message ||
+        itemErrors.join(", ") ||
+        "FBR validation failed";
+
+      return { success: false, message };
+    }
+
+    return { success: true, message: "Validated with FBR" };
+  };
+
   // Handle Save and Validate for selected invoices
   const handleSaveAndValidate = async () => {
     setSaveValidateLoading(true);
@@ -808,6 +914,18 @@ export default function BasicTable() {
           if (response.data.success) {
             const invoiceData = response.data.data;
 
+            const cleanedData = buildCleanInvoiceForFbr(invoiceData);
+            const fbrResult = await validateWithFbr(cleanedData);
+
+            if (!fbrResult.success) {
+              results.push({
+                invoiceNumber: invoice.invoiceNumber,
+                status: "error",
+                message: fbrResult.message,
+              });
+              continue;
+            }
+
             // Save and validate the invoice
             const saveResponse = await api.post(
               `/tenant/${selectedTenant.tenant_id}/invoices/save-validate`,
@@ -817,13 +935,15 @@ export default function BasicTable() {
             if (saveResponse.status === 201) {
               const fbrValidation = saveResponse.data.data.fbrValidation;
               let message = `Invoice ${invoice.invoiceNumber} saved successfully`;
-              
+
               if (fbrValidation && fbrValidation.success) {
                 message += " and validated with FBR";
               } else if (fbrValidation && !fbrValidation.success) {
                 message += ` (FBR validation skipped: ${fbrValidation.reason})`;
+              } else {
+                message += " and validated with FBR";
               }
-              
+
               results.push({
                 invoiceNumber: invoice.invoiceNumber,
                 status: "success",

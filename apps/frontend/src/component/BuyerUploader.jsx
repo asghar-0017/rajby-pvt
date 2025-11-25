@@ -55,6 +55,7 @@ import {
 import { toast } from "react-toastify";
 import { api } from "../API/Api";
 import * as XLSX from "xlsx";
+import { showBulkErrorModal } from "../utils/showBulkErrorModal";
 
 const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
   const [file, setFile] = useState(null);
@@ -748,19 +749,9 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
         const { summary, errors } = result.data.data;
 
         if (summary.failed > 0) {
-          // Show detailed error information
-          let errorDetails = errors
-            .slice(0, 10)
-            .map((err) => `Row ${err.row}: ${err.error}`)
-            .join("\n");
-
-          if (errors.length > 10) {
-            errorDetails += `\n... and ${errors.length - 10} more errors`;
-          }
-
-          // Show error details in a toast instead of alert
+          // Show error summary toast + modal with actual reasons
           toast.warning(
-            `Upload completed with issues: ${summary.successful} buyers added successfully, ${summary.failed} buyers failed. Check console for error details.`,
+            `Upload completed with issues: ${summary.successful} buyers added successfully, ${summary.failed} buyers failed.`,
             {
               autoClose: 8000,
               closeOnClick: false,
@@ -768,6 +759,10 @@ const BuyerUploader = ({ onUpload, onClose, isOpen, selectedTenant }) => {
             }
           );
           console.error("Upload errors:", errors);
+          showBulkErrorModal(summary, errors, {
+            title: "Upload completed with issues",
+            entityLabel: "buyers",
+          });
         } else {
           toast.success(`Successfully uploaded ${summary.successful} buyers!`);
         }

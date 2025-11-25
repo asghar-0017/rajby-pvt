@@ -12,6 +12,7 @@ class TenantDatabaseService {
   constructor() {
     this.tenantConnections = new Map();
     this.tenantModels = new Map();
+    this.tenantBuyerIndexSynced = new Set();
   }
 
   // Create a new tenant database
@@ -166,6 +167,9 @@ class TenantDatabaseService {
         `✅ Tables created successfully in database: ${databaseName}`
       );
 
+      // Ensure buyer indexes are in the expected non-unique state
+      await this.ensureBuyerIndexes(databaseName, sequelize);
+
       // Store connection and models
       this.tenantConnections.set(databaseName, sequelize);
       this.tenantModels.set(databaseName, {
@@ -260,6 +264,9 @@ class TenantDatabaseService {
       Invoice.hasOne(InvoiceBackupSummary, { foreignKey: "original_invoice_id" });
       InvoiceBackupSummary.belongsTo(Invoice, { foreignKey: "original_invoice_id" });
 
+      // Ensure buyer indexes are in the expected non-unique state
+      await this.ensureBuyerIndexes(databaseName, sequelize);
+
       // Store connection and models
       this.tenantConnections.set(databaseName, sequelize);
       this.tenantModels.set(databaseName, {
@@ -286,6 +293,105 @@ class TenantDatabaseService {
     } catch (error) {
       console.error("Error getting tenant database:", error);
       throw error;
+    }
+  }
+
+  /**
+   * Ensure buyer table uses non-unique NTN/CNIC indexes so duplicate buyers can sync
+   */
+  async ensureBuyerIndexes(databaseName, sequelize) {
+    if (this.tenantBuyerIndexSynced.has(databaseName)) {
+      return;
+    }
+
+    try {
+      const [tables] = await sequelize.query(
+        "SHOW TABLES LIKE 'buyers'"
+      );
+
+      if (tables.length === 0) {
+        return;
+      }
+
+      const [indexes] = await sequelize.query(
+        "SHOW INDEX FROM buyers WHERE Column_name = 'buyerNTNCNIC'"
+      );
+
+      for (const index of indexes) {
+        if (!index.Non_unique) {
+          const indexName = index.Key_name;
+          try {
+            await sequelize.query(
+              `ALTER TABLE buyers DROP INDEX \`${indexName}\``
+            );
+            console.log(
+              `🔧 Dropped unique index '${indexName}' on buyers.buyerNTNCNIC for ${databaseName}`
+            );
+          } catch (error) {
+            if (!error.message.includes("check that column/key exists")) {
+              console.warn(
+                `⚠️ Failed to drop index ${indexName} on ${databaseName}: ${error.message}`
+              );
+            }
+          }
+        }
+      }
+
+      const possibleConstraintNames = [
+        "buyerNTNCNIC",
+        "buyerNTNCNIC_2",
+        "buyerNTNCNIC_3",
+        "buyers_buyerNTNCNIC_key",
+        "buyers_buyerNTNCNIC_unique",
+        "idx_buyerNTNCNIC",
+        "buyerNTNCNIC_unique",
+      ];
+
+      for (const constraintName of possibleConstraintNames) {
+        try {
+          await sequelize.query(
+            `ALTER TABLE buyers DROP INDEX \`${constraintName}\``
+          );
+        } catch (_) {
+          // Ignore - index simply does not exist
+        }
+      }
+
+      await this.ensureIndexExists(
+        sequelize,
+        "idx_buyer_ntn_lookup",
+        "CREATE INDEX idx_buyer_ntn_lookup ON buyers (buyerNTNCNIC)"
+      );
+
+      await this.ensureIndexExists(
+        sequelize,
+        "idx_buyer_composite",
+        `CREATE INDEX idx_buyer_composite ON buyers (
+          buyer_id,
+          buyer_main_name,
+          buyerBusinessName,
+          buyerNTNCNIC,
+          buyerProvince,
+          buyerAddress(255)
+        )`
+      );
+
+      this.tenantBuyerIndexSynced.add(databaseName);
+    } catch (error) {
+      console.warn(
+        `⚠️ Unable to ensure buyer indexes for ${databaseName}: ${error.message}`
+      );
+    }
+  }
+
+  async ensureIndexExists(sequelize, indexName, createSql) {
+    const [existing] = await sequelize.query(
+      `SHOW INDEX FROM buyers WHERE Key_name = '${indexName}'`
+    );
+
+    if (existing.length === 0) {
+      await sequelize.query(createSql);
+      console.log(`🔧 Created index '${indexName}' on buyers`);
     }
   }
 

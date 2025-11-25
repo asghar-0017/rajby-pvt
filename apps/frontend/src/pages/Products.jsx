@@ -13,6 +13,30 @@ import ProductUploader from "../component/ProductUploader";
 import { api } from "../API/Api";
 import Swal from "sweetalert2";
 import { toast } from "react-toastify";
+import { showBulkErrorModal } from "../utils/showBulkErrorModal";
+
+const productErrorColumns = [
+  {
+    header: "Row",
+    getValue: (error, idx) => error.row ?? error.index ?? idx + 1,
+  },
+  {
+    header: "Item ID",
+    getValue: (error) => error.itemId || error.itemID || error.productId || "—",
+  },
+  {
+    header: "Item Code",
+    getValue: (error) =>
+      error.itemCode || error.item_code || error.productCode || "—",
+  },
+  {
+    header: "Error",
+    getValue: (error) =>
+      error.error ||
+      error.message ||
+      (Array.isArray(error.errors) ? error.errors.join(", ") : "Unknown"),
+  },
+];
 
 const Products = () => {
   const { selectedTenant } = useTenantSelection();
@@ -252,6 +276,12 @@ const Products = () => {
             pauseOnHover: true,
             draggable: true,
           });
+          
+          showBulkErrorModal(summary, errors || [], {
+            title: "Upload completed with issues",
+            entityLabel: "products",
+            columns: productErrorColumns,
+          });
         } else {
           toast.success(`${summary.successful} products have been uploaded successfully.`, {
             autoClose: 3000,
@@ -402,11 +432,25 @@ const Products = () => {
       // Use bulk upload to save products
       const bulkResponse = await handleBulkUpload(productsToSync);
 
+      const syncSummary = bulkResponse.data.data.summary;
+      const syncErrors = bulkResponse.data.data.errors || [];
+      const hasFailures = syncSummary.failed > 0;
+
       Swal.fire({
-        icon: "success",
-        title: "Sync Complete",
-        text: `Successfully synced ${bulkResponse.data.data.summary.successful} product(s).`,
+        icon: hasFailures ? "warning" : "success",
+        title: hasFailures ? "Sync completed with issues" : "Sync Complete",
+        text: hasFailures
+          ? `${syncSummary.successful} product(s) added, ${syncSummary.failed} skipped. You can review the detailed reasons above.`
+          : `Successfully synced ${syncSummary.successful} product(s).`,
       });
+
+      if (hasFailures) {
+        showBulkErrorModal(syncSummary, syncErrors, {
+          title: "Products skipped during sync",
+          entityLabel: "products",
+          columns: productErrorColumns,
+        });
+      }
 
       // Refresh products list
       await fetchProducts();

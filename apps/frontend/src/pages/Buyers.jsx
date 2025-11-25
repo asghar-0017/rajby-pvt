@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { api } from "../API/Api";
+import { api, performRajbyLogin } from "../API/Api";
 import BuyerModal from "../component/BuyerModal";
 import BuyerUploader from "../component/BuyerUploader";
 import { toast } from "react-toastify";
@@ -9,6 +9,7 @@ import { Button } from "@mui/material";
 import TenantSelectionPrompt from "../component/TenantSelectionPrompt";
 import { useTenantSelection } from "../Context/TenantSelectionProvider";
 import PermissionGate from "../component/PermissionGate";
+import { showBulkErrorModal } from "../utils/showBulkErrorModal";
 
 const Buyers = () => {
   const { selectedTenant } = useTenantSelection();
@@ -131,6 +132,10 @@ const Buyers = () => {
           }
         );
         console.error("Upload errors:", errors);
+        showBulkErrorModal(summary, errors, {
+          title: "Upload completed with issues",
+          entityLabel: "buyers",
+        });
       } else {
         toast.success(
           `Successfully uploaded ${summary.successful} buyers! All buyers have been added to your system.`
@@ -227,16 +232,26 @@ const Buyers = () => {
 
   const handleSync = async () => {
     try {
-      const rajbyToken = localStorage.getItem("Rajbytoken");
-      
-      if (!rajbyToken) {
-        Swal.fire({
-          icon: "error",
-          title: "Token Not Found",
-          text: "Rajby token not found. Please login again.",
-        });
-        return;
-      }
+      const ensureToken = async () => {
+        const newToken = await performRajbyLogin();
+        if (newToken?.token) {
+          localStorage.setItem("Rajbytoken", newToken.token);
+          return newToken.token;
+        }
+        throw new Error("Unable to refresh Rajby token.");
+      };
+
+      const getBuyersWithRetry = async () => {
+        try {
+          return await api.get("/rajby-buyers");
+        } catch (error) {
+          if (error.response?.status === 401) {
+            await ensureToken();
+            return await api.get("/rajby-buyers");
+          }
+          throw error;
+        }
+      };
 
       if (!selectedTenant) {
         Swal.fire({
@@ -258,7 +273,11 @@ const Buyers = () => {
       });
 
       // Fetch buyers from backend proxy for external API
-      const response = await api.get("/rajby-buyers");
+      if (!localStorage.getItem("Rajbytoken")) {
+        await ensureToken();
+      }
+
+      const response = await getBuyersWithRetry();
 
       if (!response.data || !Array.isArray(response.data)) {
         throw new Error("Invalid response from API");
@@ -288,11 +307,25 @@ const Buyers = () => {
       // Use bulk upload to save buyers
       const bulkResponse = await handleBulkUpload(buyersToSync);
 
+      const syncSummary = bulkResponse.data.summary;
+      const syncErrors = bulkResponse.data.errors || [];
+      const hasFailures = syncSummary.failed > 0;
+
       Swal.fire({
-        icon: "success",
-        title: "Sync Complete",
-        text: `Successfully synced ${bulkResponse.data.summary.successful} buyer(s).`,
+        icon: hasFailures ? "warning" : "success",
+        title: hasFailures ? "Sync completed with issues" : "Sync Complete",
+        text: hasFailures
+          ? `${syncSummary.successful} buyer(s) added, ${syncSummary.failed} skipped. You can review the detailed reasons above.`
+          : `Successfully synced ${syncSummary.successful} buyer(s).`,
       });
+
+      if (hasFailures) {
+        showBulkErrorModal(syncSummary, syncErrors, {
+          title: "Buyers skipped during sync",
+          entityLabel: "buyers",
+        });
+      }
+
 
       // Refresh buyers list
       const refreshResponse = await api.get(
