@@ -52,22 +52,24 @@ app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 app.use(requestIdMiddleware);
 app.use(
   helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        connectSrc: [
-          "'self'",
-          "https://gw.fbr.gov.pk",
-          "https://rajbytextilepvt.inplsoftwares.online",
-          "http://103.104.84.43:5000",
-          "https://103.104.84.43:5000",
-        ],
-        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-        imgSrc: ["'self'", "data:", "https:"],
-        fontSrc: ["'self'", "https:"],
-      },
-    },
+    // contentSecurityPolicy:{
+    //   directives: {
+    //     defaultSrc: ["'self'"],
+    //     connectSrc: [
+    //       "'self'",
+    //       "https://gw.fbr.gov.pk",
+    //       "https://rajbytextilepvt.inplsoftwares.online",
+    //       "http://103.104.84.43:5000",
+    //       "https://103.104.84.43:5000",
+    //     ],
+    //     scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+    //     styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+    //     imgSrc: ["'self'", "data:", "https:"],
+    //     fontSrc: ["'self'", "https:"],
+    //   },
+    // },
+    contentSecurityPolicy: false,
+
   })
 );
 app.use(
