@@ -212,8 +212,10 @@ async function getRajbyToken() {
     }
   );
 
-  const token = loginResponse.data?.token || loginResponse.data?.accessToken || loginResponse.data;
+  console.log("Rajby login response:", JSON.stringify(loginResponse.data));
+  const token = loginResponse.data?.token || loginResponse.data?.accessToken || loginResponse.data?.data?.token || loginResponse.data;
   if (!token || typeof token !== "string") {
+    console.error("Token extraction failed. Response data:", loginResponse.data);
     throw new Error("Failed to get token from Rajby login API");
   }
 
