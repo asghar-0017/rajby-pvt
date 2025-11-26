@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { api, performRajbyLogin } from "../API/Api";
+import { api, performRajbyLogin, fetchRajbyBuyers } from "../API/Api";
 import BuyerModal from "../component/BuyerModal";
 import BuyerUploader from "../component/BuyerUploader";
 import { toast } from "react-toastify";
@@ -243,11 +243,11 @@ const Buyers = () => {
 
       const getBuyersWithRetry = async () => {
         try {
-          return await api.get("/rajby-buyers");
+          return await fetchRajbyBuyers();
         } catch (error) {
           if (error.response?.status === 401) {
             await ensureToken();
-            return await api.get("/rajby-buyers");
+            return await fetchRajbyBuyers();
           }
           throw error;
         }

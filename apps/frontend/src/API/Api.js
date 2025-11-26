@@ -228,4 +228,42 @@ export const performRajbyLogin = async (credentials) => {
   }
 };
 
+// Direct Rajby API call for buyers
+export const fetchRajbyBuyers = async () => {
+  const token = localStorage.getItem("Rajbytoken");
+  if (!token) {
+    throw new Error("Rajby token not available. Please login first.");
+  }
+  const response = await axios.get(
+    `${RAJBY_API_BASE_URL}/api/Buyer/local-invoice-buyers`,
+    {
+      headers: {
+        Accept: "text/plain",
+        Authorization: `Bearer ${token}`,
+      },
+      timeout: 30000,
+    }
+  );
+  return response;
+};
+
+// Direct Rajby API call for products
+export const fetchRajbyProducts = async () => {
+  const token = localStorage.getItem("Rajbytoken");
+  if (!token) {
+    throw new Error("Rajby token not available. Please login first.");
+  }
+  const response = await axios.get(
+    `${RAJBY_API_BASE_URL}/api/Item/all`,
+    {
+      headers: {
+        Accept: "text/plain",
+        Authorization: `Bearer ${token}`,
+      },
+      timeout: 30000,
+    }
+  );
+  return response;
+};
+
 export { API_CONFIG, api };

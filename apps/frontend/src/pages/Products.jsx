@@ -10,7 +10,7 @@ import { useTenantSelection } from "../Context/TenantSelectionProvider";
 import ProductTable from "../component/ProductTable";
 import ProductModal from "../component/ProductModal";
 import ProductUploader from "../component/ProductUploader";
-import { api } from "../API/Api";
+import { api, fetchRajbyProducts, performRajbyLogin } from "../API/Api";
 import Swal from "sweetalert2";
 import { toast } from "react-toastify";
 import { showBulkErrorModal } from "../utils/showBulkErrorModal";
@@ -402,8 +402,16 @@ const Products = () => {
         },
       });
 
-      // Fetch products from backend proxy for external API
-      const response = await api.get("/rajby-products");
+      // Ensure Rajby token exists
+      if (!localStorage.getItem("Rajbytoken")) {
+        const loginData = await performRajbyLogin();
+        if (loginData?.token) {
+          localStorage.setItem("Rajbytoken", loginData.token);
+        }
+      }
+
+      // Fetch products directly from Rajby API
+      const response = await fetchRajbyProducts();
 
       if (!response.data || !Array.isArray(response.data)) {
         throw new Error("Invalid response from API");
