@@ -342,7 +342,7 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
       setBuyerRegistrationHint("");
 
       const response = await fetch(
-        "http://45.55.137.96/api/buyer-check",
+        "http://157.245.150.54/api/buyer-check",
         {
           method: "POST",
           headers: {

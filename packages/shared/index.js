@@ -1,7 +1,7 @@
 // Shared utilities and constants
 export const API_BASE_URL =
   process.env.NODE_ENV === "production"
-    ? "http://45.55.137.96"
+    ? "http://157.245.150.54"
     : "http://localhost:3004";
 
 export const FBR_API_URL = "https://gw.fbr.gov.pk";
