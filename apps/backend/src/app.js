@@ -58,7 +58,7 @@ app.use(
     //     connectSrc: [
     //       "'self'",
     //       "https://gw.fbr.gov.pk",
-    //       "https://rajbytextilepvt.inplsoftwares.online",
+    //       "http://45.55.137.96",
     //       "http://103.104.84.43:5000",
     //       "https://103.104.84.43:5000",
     //     ],
@@ -76,8 +76,8 @@ app.use(
   cors({
     origin: [
       "http://localhost:5174",
-      "https://rajbytextilepvt.inplsoftwares.online",
-      "https://rajbytextilepvt.inplsoftwares.online",
+      "http://45.55.137.96",
+      "http://45.55.137.96",
       "https://fbrtestcase.inplsoftwares.online",
       "http://103.104.84.43:5000",
       "https://103.104.84.43:5000",

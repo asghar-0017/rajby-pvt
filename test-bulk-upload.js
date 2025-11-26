@@ -52,7 +52,7 @@ const testBulkUpload = async () => {
     });
 
     const response = await fetch(
-      "https://rajbytextilepvt.inplsoftwares.online/api/tenant/tenant_1756409312403_uo1hmt4tz/invoices/bulk",
+      "http://45.55.137.96/api/tenant/tenant_1756409312403_uo1hmt4tz/invoices/bulk",
       {
         method: "POST",
         headers: {

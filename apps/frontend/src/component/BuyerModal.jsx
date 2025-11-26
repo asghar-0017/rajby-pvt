@@ -342,7 +342,7 @@ const BuyerModal = ({ isOpen, onClose, onSave, buyer }) => {
       setBuyerRegistrationHint("");
 
       const response = await fetch(
-        "https://rajbytextilepvt.inplsoftwares.online/api/buyer-check",
+        "http://45.55.137.96/api/buyer-check",
         {
           method: "POST",
           headers: {

@@ -17,7 +17,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       "/api": {
-        target: "https://rajbytextilepvt.inplsoftwares.online",
+        target: "http://45.55.137.96",
         changeOrigin: true,
         secure: false,
       },
