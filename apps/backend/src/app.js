@@ -181,19 +181,54 @@ app.post("/api/rajby-login", async (req, res) => {
   }
 });
 
+// Rajby API token cache
+let rajbyTokenCache = {
+  token: null,
+  expiresAt: null,
+};
+
+// Helper to get fresh Rajby token
+async function getRajbyToken() {
+  const axios = (await import("axios")).default;
+  
+  // Return cached token if still valid (with 5 min buffer)
+  if (rajbyTokenCache.token && rajbyTokenCache.expiresAt && Date.now() < rajbyTokenCache.expiresAt - 300000) {
+    return rajbyTokenCache.token;
+  }
+
+  console.log("Fetching new Rajby token...");
+  const loginResponse = await axios.post(
+    "http://103.104.84.43:5000/api/Auth/login",
+    {
+      userName: "innovative",
+      password: "K7#mP!vL9qW2xR$8",
+    },
+    {
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "text/plain",
+      },
+      timeout: 10000,
+    }
+  );
+
+  const token = loginResponse.data?.token || loginResponse.data?.accessToken || loginResponse.data;
+  if (!token || typeof token !== "string") {
+    throw new Error("Failed to get token from Rajby login API");
+  }
+
+  // Cache token for 24 hours (or parse exp from JWT if needed)
+  rajbyTokenCache.token = token;
+  rajbyTokenCache.expiresAt = Date.now() + 24 * 60 * 60 * 1000;
+  console.log("Rajby token refreshed successfully");
+  
+  return token;
+}
+
 // Proxy endpoint for external Rajby buyers API
 app.get("/api/rajby-buyers", async (req, res) => {
   try {
-    const authHeader = req.headers.authorization;
-    const token = authHeader?.replace("Bearer ", "") || authHeader?.replace("bearer ", "");
-    
-    if (!token) {
-      console.error("/api/rajby-buyers: No token provided. Headers:", req.headers);
-      return res.status(401).json({ error: "Rajby token is required" });
-    }
-
-    console.log("/api/rajby-buyers: Token received, length:", token.length);
-    console.log("/api/rajby-buyers: Token preview:", token.substring(0, 50) + "..." + token.substring(token.length - 20));
+    const token = await getRajbyToken();
 
     const axios = (await import("axios")).default;
     const upstream = await axios.get(
@@ -201,7 +236,7 @@ app.get("/api/rajby-buyers", async (req, res) => {
       {
         headers: {
           Accept: "text/plain",
-          Authorization: `Bearer ${token.trim()}`,
+          Authorization: `Bearer ${token}`,
         },
         timeout: 10000,
       }
@@ -211,25 +246,17 @@ app.get("/api/rajby-buyers", async (req, res) => {
   } catch (err) {
     const status = err?.response?.status || 500;
     const data = err?.response?.data || { error: "External API request failed" };
-    const responseHeaders = err?.response?.headers || {};
     
     console.error("/api/rajby-buyers proxy error:", {
       status,
       data,
       message: err.message,
-      responseStatus: err?.response?.status,
-      responseData: err?.response?.data,
-      responseHeaders: responseHeaders,
-      requestUrl: err?.config?.url,
-      requestHeaders: err?.config?.headers,
     });
     
-    // If 401, provide more helpful error message
+    // Clear token cache on auth failure
     if (status === 401) {
-      return res.status(401).json({ 
-        error: "Authentication failed. The Rajby token may be expired. Please login again to refresh the token.",
-        details: "The external API rejected the token. This usually means the token has expired."
-      });
+      rajbyTokenCache.token = null;
+      rajbyTokenCache.expiresAt = null;
     }
     
     return res.status(status).json({ error: data?.error || data?.message || "Proxy error" });
@@ -239,16 +266,7 @@ app.get("/api/rajby-buyers", async (req, res) => {
 // Proxy endpoint for external Rajby products API
 app.get("/api/rajby-products", async (req, res) => {
   try {
-    const authHeader = req.headers.authorization;
-    const token = authHeader?.replace("Bearer ", "") || authHeader?.replace("bearer ", "");
-    
-    if (!token) {
-      console.error("/api/rajby-products: No token provided. Headers:", req.headers);
-      return res.status(401).json({ error: "Rajby token is required" });
-    }
-
-    console.log("/api/rajby-products: Token received, length:", token.length);
-    console.log("/api/rajby-products: Token preview:", token.substring(0, 50) + "..." + token.substring(token.length - 20));
+    const token = await getRajbyToken();
 
     const axios = (await import("axios")).default;
     const upstream = await axios.get(
@@ -256,7 +274,7 @@ app.get("/api/rajby-products", async (req, res) => {
       {
         headers: {
           Accept: "text/plain",
-          Authorization: `Bearer ${token.trim()}`,
+          Authorization: `Bearer ${token}`,
         },
         timeout: 10000,
       }
@@ -266,25 +284,17 @@ app.get("/api/rajby-products", async (req, res) => {
   } catch (err) {
     const status = err?.response?.status || 500;
     const data = err?.response?.data || { error: "External API request failed" };
-    const responseHeaders = err?.response?.headers || {};
     
     console.error("/api/rajby-products proxy error:", {
       status,
       data,
       message: err.message,
-      responseStatus: err?.response?.status,
-      responseData: err?.response?.data,
-      responseHeaders: responseHeaders,
-      requestUrl: err?.config?.url,
-      requestHeaders: err?.config?.headers,
     });
     
-    // If 401, provide more helpful error message
+    // Clear token cache on auth failure
     if (status === 401) {
-      return res.status(401).json({ 
-        error: "Authentication failed. The Rajby token may be expired. Please login again to refresh the token.",
-        details: "The external API rejected the token. This usually means the token has expired."
-      });
+      rajbyTokenCache.token = null;
+      rajbyTokenCache.expiresAt = null;
     }
     
     return res.status(status).json({ error: data?.error || data?.message || "Proxy error" });
