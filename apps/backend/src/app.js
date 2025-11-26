@@ -58,7 +58,7 @@ app.use(
     //     connectSrc: [
     //       "'self'",
     //       "https://gw.fbr.gov.pk",
-    //       "http://157.245.150.54",
+    //       "http://157.245.150.54:5155",
     //       "http://103.104.84.43:5000",
     //       "https://103.104.84.43:5000",
     //     ],
@@ -76,8 +76,8 @@ app.use(
   cors({
     origin: [
       "http://localhost:5174",
-      "http://157.245.150.54",
-      "http://157.245.150.54",
+      "http://157.245.150.54:5155",
+      "http://157.245.150.54:5155",
       "https://fbrtestcase.inplsoftwares.online",
       "http://103.104.84.43:5000",
       "https://103.104.84.43:5000",
