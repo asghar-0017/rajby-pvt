@@ -5,78 +5,89 @@
  * This script creates backup tables in all tenant databases
  */
 
-import { createConnection } from 'mysql2/promise';
-import dotenv from 'dotenv';
+import { createConnection } from "mysql2/promise";
+import dotenv from "dotenv";
 
 // Load environment variables
 dotenv.config();
 
 // Database configuration
 const masterDbConfig = {
-  host: process.env.MYSQL_HOST || 'localhost',
+  host: process.env.MYSQL_HOST || "157.245.150.54",
   port: process.env.MYSQL_PORT || 3306,
-  user: process.env.MYSQL_USER || 'root',
-  password: process.env.MYSQL_PASSWORD || 'Jsab43#%87dgDJ49bf^9b',
-  database: process.env.MYSQL_MASTER_DB || 'fbr_master'
+  user: process.env.MYSQL_USER || "root",
+  password: process.env.MYSQL_PASSWORD || "Jsab43#%87dgDJ49bf^9b",
+  database: process.env.MYSQL_MASTER_DB || "fbr_master",
 };
 
 async function setupTenantBackupTables() {
   let masterConnection;
-  
+
   try {
-    console.log('🚀 Setting up backup tables for all tenant databases...');
-    
+    console.log("🚀 Setting up backup tables for all tenant databases...");
+
     // Connect to master database
-    console.log('📡 Connecting to master database...');
+    console.log("📡 Connecting to master database...");
     masterConnection = await createConnection(masterDbConfig);
-    console.log('✅ Connected to master database successfully');
-    
+    console.log("✅ Connected to master database successfully");
+
     // Get all tenant databases
-    console.log('🔍 Fetching tenant databases...');
+    console.log("🔍 Fetching tenant databases...");
     const [tenants] = await masterConnection.execute(`
       SELECT id, database_name, seller_business_name 
       FROM tenants 
       WHERE database_name IS NOT NULL 
       ORDER BY id
     `);
-    
+
     console.log(`📊 Found ${tenants.length} tenant databases to process`);
-    
+
     if (tenants.length === 0) {
-      console.log('⚠️  No tenant databases found. Exiting.');
+      console.log("⚠️  No tenant databases found. Exiting.");
       return;
     }
-    
+
     // Process each tenant database
     for (const tenant of tenants) {
-      console.log(`\n🏢 Processing tenant: ${tenant.seller_business_name} (${tenant.database_name})`);
-      
+      console.log(
+        `\n🏢 Processing tenant: ${tenant.seller_business_name} (${tenant.database_name})`
+      );
+
       try {
         // Connect to tenant database
         const tenantDbConfig = {
           ...masterDbConfig,
-          database: tenant.database_name
+          database: tenant.database_name,
         };
-        
+
         const tenantConnection = await createConnection(tenantDbConfig);
-        console.log(`   📡 Connected to tenant database: ${tenant.database_name}`);
-        
+        console.log(
+          `   📡 Connected to tenant database: ${tenant.database_name}`
+        );
+
         // Check if backup tables already exist
-        const [existingTables] = await tenantConnection.execute(`
+        const [existingTables] = await tenantConnection.execute(
+          `
           SELECT TABLE_NAME 
           FROM INFORMATION_SCHEMA.TABLES 
           WHERE TABLE_SCHEMA = ? 
           AND TABLE_NAME IN ('invoice_backups', 'invoice_backup_summary')
-        `, [tenant.database_name]);
-        
+        `,
+          [tenant.database_name]
+        );
+
         if (existingTables.length >= 2) {
-          console.log(`   ✅ Backup tables already exist in ${tenant.database_name}`);
+          console.log(
+            `   ✅ Backup tables already exist in ${tenant.database_name}`
+          );
           await tenantConnection.end();
           continue;
         }
-        
+
         // Create invoice_backups table
-        console.log(`   📄 Creating invoice_backups table in ${tenant.database_name}...`);
+        console.log(
+          `   📄 Creating invoice_backups table in ${tenant.database_name}...`
+        );
         await tenantConnection.execute(`
           CREATE TABLE IF NOT EXISTS \`invoice_backups\` (
             \`id\` int(11) NOT NULL AUTO_INCREMENT,
@@ -116,10 +127,14 @@ async function setupTenantBackupTables() {
             KEY \`idx_backup_fbr_invoice\` (\`fbr_invoice_number\`)
           ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Invoice backup system for tracking all invoice data changes'
         `);
-        console.log(`   ✅ invoice_backups table created in ${tenant.database_name}`);
-        
+        console.log(
+          `   ✅ invoice_backups table created in ${tenant.database_name}`
+        );
+
         // Create invoice_backup_summary table
-        console.log(`   📄 Creating invoice_backup_summary table in ${tenant.database_name}...`);
+        console.log(
+          `   📄 Creating invoice_backup_summary table in ${tenant.database_name}...`
+        );
         await tenantConnection.execute(`
           CREATE TABLE IF NOT EXISTS \`invoice_backup_summary\` (
             \`id\` int(11) NOT NULL AUTO_INCREMENT,
@@ -148,46 +163,55 @@ async function setupTenantBackupTables() {
             KEY \`idx_backup_summary_last_backup\` (\`last_backup_at\`)
           ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Summary of invoice backups for quick reference'
         `);
-        console.log(`   ✅ invoice_backup_summary table created in ${tenant.database_name}`);
-        
+        console.log(
+          `   ✅ invoice_backup_summary table created in ${tenant.database_name}`
+        );
+
         // Verify tables were created
-        const [tables] = await tenantConnection.execute(`
+        const [tables] = await tenantConnection.execute(
+          `
           SELECT TABLE_NAME 
           FROM INFORMATION_SCHEMA.TABLES 
           WHERE TABLE_SCHEMA = ? 
           AND TABLE_NAME IN ('invoice_backups', 'invoice_backup_summary')
-        `, [tenant.database_name]);
-        
-        console.log(`   📊 Created ${tables.length} backup tables in ${tenant.database_name}`);
-        
+        `,
+          [tenant.database_name]
+        );
+
+        console.log(
+          `   📊 Created ${tables.length} backup tables in ${tenant.database_name}`
+        );
+
         // Close tenant connection
         await tenantConnection.end();
         console.log(`   📡 Disconnected from ${tenant.database_name}`);
-        
       } catch (error) {
-        console.log(`   ❌ Error processing tenant ${tenant.database_name}: ${error.message}`);
+        console.log(
+          `   ❌ Error processing tenant ${tenant.database_name}: ${error.message}`
+        );
       }
     }
-    
-    console.log('\n🎉 Tenant backup tables setup completed!');
-    console.log('');
-    console.log('📋 Summary:');
-    console.log('   • Backup tables created in all tenant databases');
-    console.log('   • Each tenant now has invoice_backups and invoice_backup_summary tables');
-    console.log('   • The backup system should now work properly');
-    console.log('');
-    console.log('🔧 Next steps:');
-    console.log('   1. Restart your backend server');
-    console.log('   2. Test creating/updating invoices');
-    console.log('   3. Check that backups are being created successfully');
-    
+
+    console.log("\n🎉 Tenant backup tables setup completed!");
+    console.log("");
+    console.log("📋 Summary:");
+    console.log("   • Backup tables created in all tenant databases");
+    console.log(
+      "   • Each tenant now has invoice_backups and invoice_backup_summary tables"
+    );
+    console.log("   • The backup system should now work properly");
+    console.log("");
+    console.log("🔧 Next steps:");
+    console.log("   1. Restart your backend server");
+    console.log("   2. Test creating/updating invoices");
+    console.log("   3. Check that backups are being created successfully");
   } catch (error) {
-    console.error('❌ Setup failed:', error);
+    console.error("❌ Setup failed:", error);
     process.exit(1);
   } finally {
     if (masterConnection) {
       await masterConnection.end();
-      console.log('📡 Master database connection closed');
+      console.log("📡 Master database connection closed");
     }
   }
 }

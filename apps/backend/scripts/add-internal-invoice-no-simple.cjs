@@ -7,7 +7,7 @@ const mysql = require("mysql2/promise");
 
 // Database configuration - update these values as needed
 const config = {
-  host: process.env.DB_HOST || "localhost",
+  host: process.env.DB_HOST || "157.245.150.54",
   user: process.env.DB_USER || "root",
   password: process.env.DB_PASSWORD || "",
   database: process.env.DB_NAME || "fbr_aqms",

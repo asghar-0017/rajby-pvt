@@ -5,7 +5,7 @@ import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
-import ejs from "ejs"
+import ejs from "ejs";
 
 // Import MySQL connector instead of MongoDB
 import mysqlConnector from "./dbConnector/mysqlConnector.js";
@@ -69,13 +69,12 @@ app.use(
     //   },
     // },
     contentSecurityPolicy: false,
-
   })
 );
 app.use(
   cors({
     origin: [
-      "http://localhost:5174",
+      "http://157.245.150.54:5174",
       "http://157.245.150.54:5155",
       "http://157.245.150.54:5155",
       "https://fbrtestcase.inplsoftwares.online",
@@ -175,7 +174,9 @@ app.post("/api/rajby-login", async (req, res) => {
     return res.status(200).json(upstream.data);
   } catch (err) {
     const status = err?.response?.status || 500;
-    const data = err?.response?.data || { error: "External API request failed" };
+    const data = err?.response?.data || {
+      error: "External API request failed",
+    };
     console.error("/api/rajby-login proxy error:", status, data);
     return res.status(status).json({ error: data?.error || "Proxy error" });
   }
@@ -190,9 +191,13 @@ let rajbyTokenCache = {
 // Helper to get fresh Rajby token
 async function getRajbyToken() {
   const axios = (await import("axios")).default;
-  
+
   // Return cached token if still valid (with 5 min buffer)
-  if (rajbyTokenCache.token && rajbyTokenCache.expiresAt && Date.now() < rajbyTokenCache.expiresAt - 300000) {
+  if (
+    rajbyTokenCache.token &&
+    rajbyTokenCache.expiresAt &&
+    Date.now() < rajbyTokenCache.expiresAt - 300000
+  ) {
     return rajbyTokenCache.token;
   }
 
@@ -213,9 +218,16 @@ async function getRajbyToken() {
   );
 
   console.log("Rajby login response:", JSON.stringify(loginResponse.data));
-  const token = loginResponse.data?.token || loginResponse.data?.accessToken || loginResponse.data?.data?.token || loginResponse.data;
+  const token =
+    loginResponse.data?.token ||
+    loginResponse.data?.accessToken ||
+    loginResponse.data?.data?.token ||
+    loginResponse.data;
   if (!token || typeof token !== "string") {
-    console.error("Token extraction failed. Response data:", loginResponse.data);
+    console.error(
+      "Token extraction failed. Response data:",
+      loginResponse.data
+    );
     throw new Error("Failed to get token from Rajby login API");
   }
 
@@ -223,7 +235,7 @@ async function getRajbyToken() {
   rajbyTokenCache.token = token;
   rajbyTokenCache.expiresAt = Date.now() + 24 * 60 * 60 * 1000;
   console.log("Rajby token refreshed successfully");
-  
+
   return token;
 }
 
@@ -247,21 +259,25 @@ app.get("/api/rajby-buyers", async (req, res) => {
     return res.status(200).json(upstream.data);
   } catch (err) {
     const status = err?.response?.status || 500;
-    const data = err?.response?.data || { error: "External API request failed" };
-    
+    const data = err?.response?.data || {
+      error: "External API request failed",
+    };
+
     console.error("/api/rajby-buyers proxy error:", {
       status,
       data,
       message: err.message,
     });
-    
+
     // Clear token cache on auth failure
     if (status === 401) {
       rajbyTokenCache.token = null;
       rajbyTokenCache.expiresAt = null;
     }
-    
-    return res.status(status).json({ error: data?.error || data?.message || "Proxy error" });
+
+    return res
+      .status(status)
+      .json({ error: data?.error || data?.message || "Proxy error" });
   }
 });
 
@@ -271,60 +287,65 @@ app.get("/api/rajby-products", async (req, res) => {
     const token = await getRajbyToken();
 
     const axios = (await import("axios")).default;
-    const upstream = await axios.get(
-      "http://103.104.84.43:5000/api/Item/all",
-      {
-        headers: {
-          Accept: "text/plain",
-          Authorization: `Bearer ${token}`,
-        },
-        timeout: 10000,
-      }
-    );
+    const upstream = await axios.get("http://103.104.84.43:5000/api/Item/all", {
+      headers: {
+        Accept: "text/plain",
+        Authorization: `Bearer ${token}`,
+      },
+      timeout: 10000,
+    });
 
     return res.status(200).json(upstream.data);
   } catch (err) {
     const status = err?.response?.status || 500;
-    const data = err?.response?.data || { error: "External API request failed" };
-    
+    const data = err?.response?.data || {
+      error: "External API request failed",
+    };
+
     console.error("/api/rajby-products proxy error:", {
       status,
       data,
       message: err.message,
     });
-    
+
     // Clear token cache on auth failure
     if (status === 401) {
       rajbyTokenCache.token = null;
       rajbyTokenCache.expiresAt = null;
     }
-    
-    return res.status(status).json({ error: data?.error || data?.message || "Proxy error" });
+
+    return res
+      .status(status)
+      .json({ error: data?.error || data?.message || "Proxy error" });
   }
 });
 
 // Serve static files from frontend build with proper MIME types
-app.use(express.static(path.join(__dirname, "dist"), {
-  setHeaders: (res, path) => {
-    if (path.endsWith('.css')) {
-      res.setHeader('Content-Type', 'text/css');
-    } else if (path.endsWith('.js')) {
-      res.setHeader('Content-Type', 'application/javascript');
-    } else if (path.endsWith('.html')) {
-      res.setHeader('Content-Type', 'text/html');
-    }
-  }
-}));
+app.use(
+  express.static(path.join(__dirname, "dist"), {
+    setHeaders: (res, path) => {
+      if (path.endsWith(".css")) {
+        res.setHeader("Content-Type", "text/css");
+      } else if (path.endsWith(".js")) {
+        res.setHeader("Content-Type", "application/javascript");
+      } else if (path.endsWith(".html")) {
+        res.setHeader("Content-Type", "text/html");
+      }
+    },
+  })
+);
 
 // Catch-all route for SPA - must be last (exclude API routes and static assets)
 app.get("*", (req, res) => {
   // Skip API routes and static assets
-  if (req.path.startsWith("/api/") || 
-      req.path.startsWith("/assets/") || 
-      req.path.includes(".")) {
+  if (
+    req.path.startsWith("/api/") ||
+    req.path.startsWith("/assets/") ||
+    req.path.includes(".")
+  ) {
     return res.status(404).json({ error: "Not found" });
   }
-  
+
   res.sendFile(path.join(__dirname, "dist", "index.html"));
 });
 

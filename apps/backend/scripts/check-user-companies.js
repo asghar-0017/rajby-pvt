@@ -1,22 +1,22 @@
-import mysql from 'mysql2/promise';
-import dotenv from 'dotenv';
+import mysql from "mysql2/promise";
+import dotenv from "dotenv";
 
 dotenv.config();
 
 const connectionConfig = {
-  host: process.env.MYSQL_HOST || 'localhost',
-  user: process.env.MYSQL_USER || 'root',
-  password: process.env.MYSQL_PASSWORD || 'Jsab43#%87dgDJ49bf^9b',
-  database: process.env.MYSQL_MASTER_DB || 'fbr_integration',
-  port: process.env.MYSQL_PORT || 3306
+  host: process.env.MYSQL_HOST || "157.245.150.54",
+  user: process.env.MYSQL_USER || "root",
+  password: process.env.MYSQL_PASSWORD || "Jsab43#%87dgDJ49bf^9b",
+  database: process.env.MYSQL_MASTER_DB || "fbr_integration",
+  port: process.env.MYSQL_PORT || 3306,
 };
 
 async function checkUserCompanies() {
   let connection;
   try {
-    console.log('🔍 Checking user company assignments...');
+    console.log("🔍 Checking user company assignments...");
     connection = await mysql.createConnection(connectionConfig);
-    console.log('Connected to database');
+    console.log("Connected to database");
 
     // Check user's company assignments
     const [userAssignments] = await connection.execute(`
@@ -38,23 +38,31 @@ async function checkUserCompanies() {
       ORDER BY u.id, t.seller_business_name
     `);
 
-    console.log('\n=== USER COMPANY ASSIGNMENTS ===');
+    console.log("\n=== USER COMPANY ASSIGNMENTS ===");
     if (userAssignments.length > 0) {
       console.table(userAssignments);
-      
+
       // Count assignments
-      const assignmentCount = userAssignments.filter(row => row.tenant_id !== null).length;
+      const assignmentCount = userAssignments.filter(
+        (row) => row.tenant_id !== null
+      ).length;
       console.log(`\n📊 Total company assignments: ${assignmentCount}`);
-      
+
       if (assignmentCount > 1) {
-        console.log('✅ User has multiple company assignments - should see "Select Company" in sidebar');
+        console.log(
+          '✅ User has multiple company assignments - should see "Select Company" in sidebar'
+        );
       } else if (assignmentCount === 1) {
-        console.log('ℹ️  User has single company assignment - should auto-select company');
+        console.log(
+          "ℹ️  User has single company assignment - should auto-select company"
+        );
       } else {
-        console.log('❌ User has no company assignments - this is the problem!');
+        console.log(
+          "❌ User has no company assignments - this is the problem!"
+        );
       }
     } else {
-      console.log('❌ No user found or no company assignments');
+      console.log("❌ No user found or no company assignments");
     }
 
     // Also check all available tenants
@@ -69,15 +77,14 @@ async function checkUserCompanies() {
       ORDER BY seller_business_name
     `);
 
-    console.log('\n=== ALL AVAILABLE TENANTS ===');
+    console.log("\n=== ALL AVAILABLE TENANTS ===");
     console.table(tenants);
-
   } catch (error) {
-    console.error('❌ Error:', error);
+    console.error("❌ Error:", error);
   } finally {
     if (connection) {
       await connection.end();
-      console.log('Database connection closed');
+      console.log("Database connection closed");
     }
   }
 }

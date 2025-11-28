@@ -5,34 +5,34 @@
  * This script creates the backup tables directly using Sequelize models
  */
 
-import { createConnection } from 'mysql2/promise';
-import dotenv from 'dotenv';
+import { createConnection } from "mysql2/promise";
+import dotenv from "dotenv";
 
 // Load environment variables
 dotenv.config();
 
 // Database configuration - use same config as the main app
 const dbConfig = {
-  host: process.env.MYSQL_HOST || 'localhost',
+  host: process.env.MYSQL_HOST || "157.245.150.54",
   port: process.env.MYSQL_PORT || 3306,
-  user: process.env.MYSQL_USER || 'root',
-  password: process.env.MYSQL_PASSWORD || 'Jsab43#%87dgDJ49bf^9b',
-  database: process.env.MYSQL_MASTER_DB || 'fbr_master'
+  user: process.env.MYSQL_USER || "root",
+  password: process.env.MYSQL_PASSWORD || "Jsab43#%87dgDJ49bf^9b",
+  database: process.env.MYSQL_MASTER_DB || "fbr_master",
 };
 
 async function setupBackupTables() {
   let connection;
-  
+
   try {
-    console.log('🚀 Starting Invoice Backup Tables Setup...');
-    
+    console.log("🚀 Starting Invoice Backup Tables Setup...");
+
     // Connect to database
-    console.log('📡 Connecting to database...');
+    console.log("📡 Connecting to database...");
     connection = await createConnection(dbConfig);
-    console.log('✅ Connected to database successfully');
-    
+    console.log("✅ Connected to database successfully");
+
     // Create invoice_backups table
-    console.log('📄 Creating invoice_backups table...');
+    console.log("📄 Creating invoice_backups table...");
     const createInvoiceBackupsTable = `
       CREATE TABLE IF NOT EXISTS \`invoice_backups\` (
         \`id\` int(11) NOT NULL AUTO_INCREMENT,
@@ -72,12 +72,12 @@ async function setupBackupTables() {
         KEY \`idx_backup_fbr_invoice\` (\`fbr_invoice_number\`)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Invoice backup system for tracking all invoice data changes'
     `;
-    
+
     await connection.execute(createInvoiceBackupsTable);
-    console.log('✅ invoice_backups table created successfully');
-    
+    console.log("✅ invoice_backups table created successfully");
+
     // Create invoice_backup_summary table
-    console.log('📄 Creating invoice_backup_summary table...');
+    console.log("📄 Creating invoice_backup_summary table...");
     const createInvoiceBackupSummaryTable = `
       CREATE TABLE IF NOT EXISTS \`invoice_backup_summary\` (
         \`id\` int(11) NOT NULL AUTO_INCREMENT,
@@ -111,18 +111,15 @@ async function setupBackupTables() {
         KEY \`idx_backup_summary_last_backup\` (\`last_backup_at\`)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Summary of invoice backups for quick reference'
     `;
-    
+
     await connection.execute(createInvoiceBackupSummaryTable);
-    console.log('✅ invoice_backup_summary table created successfully');
-    
+    console.log("✅ invoice_backup_summary table created successfully");
+
     // Verify tables were created
-    console.log('🔍 Verifying backup tables...');
-    
-    const tables = [
-      'invoice_backups',
-      'invoice_backup_summary'
-    ];
-    
+    console.log("🔍 Verifying backup tables...");
+
+    const tables = ["invoice_backups", "invoice_backup_summary"];
+
     for (const table of tables) {
       try {
         const [rows] = await connection.execute(`SHOW TABLES LIKE '${table}'`);
@@ -135,25 +132,24 @@ async function setupBackupTables() {
         console.error(`   ❌ Error checking table '${table}':`, error.message);
       }
     }
-    
-    console.log('🎉 Invoice Backup Tables setup completed successfully!');
-    console.log('');
-    console.log('📋 Summary:');
-    console.log('   • Backup tables created');
-    console.log('   • System ready for invoice backups');
-    console.log('');
-    console.log('🔧 Next steps:');
-    console.log('   1. Restart your backend server to load the new models');
-    console.log('   2. The backup system will automatically start working');
-    console.log('   3. Check logs for backup creation messages');
-    
+
+    console.log("🎉 Invoice Backup Tables setup completed successfully!");
+    console.log("");
+    console.log("📋 Summary:");
+    console.log("   • Backup tables created");
+    console.log("   • System ready for invoice backups");
+    console.log("");
+    console.log("🔧 Next steps:");
+    console.log("   1. Restart your backend server to load the new models");
+    console.log("   2. The backup system will automatically start working");
+    console.log("   3. Check logs for backup creation messages");
   } catch (error) {
-    console.error('❌ Setup failed:', error);
+    console.error("❌ Setup failed:", error);
     process.exit(1);
   } finally {
     if (connection) {
       await connection.end();
-      console.log('📡 Database connection closed');
+      console.log("📡 Database connection closed");
     }
   }
 }

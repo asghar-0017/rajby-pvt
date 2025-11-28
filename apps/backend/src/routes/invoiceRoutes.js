@@ -29,10 +29,16 @@ router.post(
 );
 
 router.get("/invoices", requirePermission("invoice.view"), invoiceController.getAllInvoices);
+router.get("/invoices/deleted", requirePermission("invoice.view"), invoiceController.getDeletedInvoices);
 router.get(
   "/invoices/number/:invoiceNumber",
   requirePermission("invoice.view"),
   invoiceController.getInvoiceByNumber
+);
+router.get(
+  "/invoices/by-company-ref",
+  requirePermission("invoice.view"),
+  invoiceController.getInvoiceByCompanyRefNo
 );
 router.get("/invoices/stats/summary", requirePermission("invoice.view"), invoiceController.getInvoiceStats);
 router.get("/dashboard/summary", requirePermission("dashboard.view"), invoiceController.getDashboardSummary);

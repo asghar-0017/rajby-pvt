@@ -5,9 +5,11 @@ This directory contains scripts to automatically check and create missing databa
 ## Scripts Overview
 
 ### 1. `check-and-create-missing-schema.js` (Comprehensive)
+
 A full-featured script that performs detailed schema checking and creation.
 
 **Features:**
+
 - Checks master database tables, columns, and indexes
 - Checks tenant-specific database schemas
 - Creates missing tables with proper structure
@@ -17,9 +19,11 @@ A full-featured script that performs detailed schema checking and creation.
 - Detailed logging and error reporting
 
 ### 2. `schema-checker-simple.js` (Simple)
+
 A simplified version that focuses on the most common missing schema issues.
 
 **Features:**
+
 - Quick schema synchronization using Sequelize sync
 - Checks for commonly missing columns
 - Works with both master and tenant databases
@@ -28,6 +32,7 @@ A simplified version that focuses on the most common missing schema issues.
 ## Usage
 
 ### Quick Start (Recommended)
+
 ```bash
 # Navigate to the backend directory
 cd apps/backend
@@ -37,6 +42,7 @@ node scripts/schema-checker-simple.js
 ```
 
 ### Advanced Usage
+
 ```bash
 # Check master database only
 node scripts/check-and-create-missing-schema.js --master-only
@@ -54,6 +60,7 @@ node scripts/check-and-create-missing-schema.js
 ## What the Scripts Check and Create
 
 ### Master Database Tables
+
 - `tenants` - Tenant/company information
 - `users` - User accounts and authentication
 - `roles` - User roles
@@ -63,29 +70,35 @@ node scripts/check-and-create-missing-schema.js
 - `audit_permissions` - Audit-specific permissions
 
 ### Tenant Database Tables
+
 - `buyers` - Buyer information
 - `products` - Product catalog
 - `invoices` - Invoice records
 - `invoice_items` - Invoice line items
 
 ### Common Missing Columns
+
 The scripts automatically check for and create these commonly missing columns:
 
 **Users Table:**
+
 - `role_id` - Foreign key to roles table
 
 **Invoices Table:**
+
 - `internal_invoice_no` - Internal invoice reference number
 - `created_by_user_id` - User who created the invoice
 - `created_by_email` - Email of creator
 - `created_by_name` - Name of creator
 
 **Buyers Table:**
+
 - `created_by_user_id` - User who created the buyer
 - `created_by_email` - Email of creator
 - `created_by_name` - Name of creator
 
 **Products Table:**
+
 - `created_by_user_id` - User who created the product
 - `created_by_email` - Email of creator
 - `created_by_name` - Name of creator
@@ -95,7 +108,7 @@ The scripts automatically check for and create these commonly missing columns:
 Make sure your environment variables are properly configured:
 
 ```env
-MYSQL_HOST=localhost
+MYSQL_HOST=157.245.150.54
 MYSQL_PORT=3306
 MYSQL_USER=your_username
 MYSQL_PASSWORD=your_password
@@ -105,6 +118,7 @@ MYSQL_MASTER_DB=your_master_database
 ## Output Examples
 
 ### Successful Run
+
 ```
 🚀 Simple Database Schema Checker
 ========================================
@@ -137,6 +151,7 @@ MYSQL_MASTER_DB=your_master_database
 ```
 
 ### Error Handling
+
 ```
 ❌ Error creating table users: ER_DUP_ENTRY: Duplicate entry 'admin' for key 'users.email'
 ❌ Error adding column invoices.internal_invoice_no: ER_DUP_FIELDNAME: Duplicate column name 'internal_invoice_no'
@@ -175,7 +190,7 @@ ALTER TABLE invoices ADD COLUMN internal_invoice_no VARCHAR(100) NULL;
 CREATE INDEX idx_user_email ON users (email);
 
 -- Add foreign key constraint
-ALTER TABLE users ADD CONSTRAINT fk_users_role 
+ALTER TABLE users ADD CONSTRAINT fk_users_role
 FOREIGN KEY (role_id) REFERENCES roles (id) ON DELETE SET NULL;
 ```
 

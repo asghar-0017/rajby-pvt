@@ -1,24 +1,24 @@
-import { createConnection } from 'mysql2/promise';
-import dotenv from 'dotenv';
+import { createConnection } from "mysql2/promise";
+import dotenv from "dotenv";
 
 dotenv.config();
 
 const dbConfig = {
-  host: process.env.MYSQL_HOST || 'localhost',
+  host: process.env.MYSQL_HOST || "157.245.150.54",
   port: process.env.MYSQL_PORT || 3306,
-  user: process.env.MYSQL_USER || 'root',
-  password: process.env.MYSQL_PASSWORD || '',
-  database: process.env.MYSQL_MASTER_DB || 'fbr_master'
+  user: process.env.MYSQL_USER || "root",
+  password: process.env.MYSQL_PASSWORD || "",
+  database: process.env.MYSQL_MASTER_DB || "fbr_master",
 };
 
 async function checkSpecificAuditLog() {
   let connection;
   try {
     connection = await createConnection(dbConfig);
-    console.log('✅ Connected to database successfully');
+    console.log("✅ Connected to database successfully");
 
-    console.log('\n🔍 Checking specific audit log...');
-    
+    console.log("\n🔍 Checking specific audit log...");
+
     // Get audit log ID 34
     const [auditLogs] = await connection.execute(`
       SELECT 
@@ -31,27 +31,28 @@ async function checkSpecificAuditLog() {
       FROM audit_logs 
       WHERE id = 34
     `);
-    
+
     if (auditLogs.length === 0) {
-      console.log('❌ Audit log ID 34 not found');
+      console.log("❌ Audit log ID 34 not found");
       return;
     }
-    
+
     const log = auditLogs[0];
     console.log(`📋 Audit Log ID: ${log.id}`);
     console.log(`   Operation: ${log.operation}`);
     console.log(`   Entity ID: ${log.entity_id}`);
     console.log(`   Created: ${log.created_at}`);
-    
-    const newValues = typeof log.new_values === 'string' 
-      ? JSON.parse(log.new_values) 
-      : log.new_values;
-    
-    console.log('\n📊 Complete new_values data:');
+
+    const newValues =
+      typeof log.new_values === "string"
+        ? JSON.parse(log.new_values)
+        : log.new_values;
+
+    console.log("\n📊 Complete new_values data:");
     console.log(JSON.stringify(newValues, null, 2));
-    
+
     if (newValues.invoice_items && newValues.invoice_items.length > 0) {
-      console.log('\n📦 Invoice Items Details:');
+      console.log("\n📦 Invoice Items Details:");
       newValues.invoice_items.forEach((item, index) => {
         console.log(`\n   Item ${index + 1}:`);
         console.log(`     id: ${item.id}`);
@@ -63,9 +64,8 @@ async function checkSpecificAuditLog() {
         console.log(`     product_description: "${item.product_description}"`);
       });
     }
-    
   } catch (error) {
-    console.error('❌ Error checking specific audit log:', error);
+    console.error("❌ Error checking specific audit log:", error);
   } finally {
     if (connection) await connection.end();
   }

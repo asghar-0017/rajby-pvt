@@ -1,24 +1,24 @@
-import { createConnection } from 'mysql2/promise';
-import dotenv from 'dotenv';
+import { createConnection } from "mysql2/promise";
+import dotenv from "dotenv";
 
 dotenv.config();
 
 const dbConfig = {
-  host: process.env.MYSQL_HOST || 'localhost',
+  host: process.env.MYSQL_HOST || "157.245.150.54",
   port: process.env.MYSQL_PORT || 3306,
-  user: process.env.MYSQL_USER || 'root',
-  password: process.env.MYSQL_PASSWORD || '',
-  database: process.env.MYSQL_MASTER_DB || 'fbr_master'
+  user: process.env.MYSQL_USER || "root",
+  password: process.env.MYSQL_PASSWORD || "",
+  database: process.env.MYSQL_MASTER_DB || "fbr_master",
 };
 
 async function checkAuditLog33() {
   let connection;
   try {
     connection = await createConnection(dbConfig);
-    console.log('✅ Connected to database successfully');
+    console.log("✅ Connected to database successfully");
 
-    console.log('\n🔍 Checking audit log ID 33...');
-    
+    console.log("\n🔍 Checking audit log ID 33...");
+
     // Get audit log ID 33
     const [auditLogs] = await connection.execute(`
       SELECT 
@@ -31,23 +31,24 @@ async function checkAuditLog33() {
       FROM audit_logs 
       WHERE id = 33
     `);
-    
+
     if (auditLogs.length === 0) {
-      console.log('❌ Audit log ID 33 not found');
+      console.log("❌ Audit log ID 33 not found");
       return;
     }
-    
+
     const log = auditLogs[0];
     console.log(`📋 Audit Log ID: ${log.id}`);
     console.log(`   Operation: ${log.operation}`);
     console.log(`   Entity ID: ${log.entity_id}`);
     console.log(`   Created: ${log.created_at}`);
-    
-    const newValues = typeof log.new_values === 'string' 
-      ? JSON.parse(log.new_values) 
-      : log.new_values;
-    
-    console.log('\n📊 Invoice Items from audit log 33:');
+
+    const newValues =
+      typeof log.new_values === "string"
+        ? JSON.parse(log.new_values)
+        : log.new_values;
+
+    console.log("\n📊 Invoice Items from audit log 33:");
     if (newValues.invoice_items && newValues.invoice_items.length > 0) {
       newValues.invoice_items.forEach((item, index) => {
         console.log(`\n   Item ${index + 1}:`);
@@ -60,11 +61,10 @@ async function checkAuditLog33() {
         console.log(`     product_description: "${item.product_description}"`);
       });
     } else {
-      console.log('   No invoice items found');
+      console.log("   No invoice items found");
     }
-    
   } catch (error) {
-    console.error('❌ Error checking audit log 33:', error);
+    console.error("❌ Error checking audit log 33:", error);
   } finally {
     if (connection) await connection.end();
   }

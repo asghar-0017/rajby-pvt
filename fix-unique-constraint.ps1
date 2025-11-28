@@ -8,7 +8,7 @@ Write-Host ""
 
 # Get database credentials
 $dbHost = $env:DB_HOST
-if (-not $dbHost) { $dbHost = "localhost" }
+if (-not $dbHost) { $dbHost = "157.245.150.54" }
 
 $dbName = $env:DB_NAME
 if (-not $dbName) {

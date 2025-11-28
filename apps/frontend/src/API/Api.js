@@ -253,16 +253,13 @@ export const fetchRajbyProducts = async () => {
   if (!token) {
     throw new Error("Rajby token not available. Please login first.");
   }
-  const response = await axios.get(
-    `${RAJBY_API_BASE_URL}/api/Item/all`,
-    {
-      headers: {
-        Accept: "text/plain",
-        Authorization: `Bearer ${token}`,
-      },
-      timeout: 30000,
-    }
-  );
+  const response = await axios.get(`${RAJBY_API_BASE_URL}/api/Item/all`, {
+    headers: {
+      Accept: "text/plain",
+      Authorization: `Bearer ${token}`,
+    },
+    timeout: 30000,
+  });
   return response;
 };
 

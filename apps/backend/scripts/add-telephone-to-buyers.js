@@ -14,7 +14,7 @@ async function addTelephoneToBuyers() {
 
     // Connect to MySQL
     connection = await mysql.createConnection({
-      host: "localhost",
+      host: "157.245.150.54",
       port: 3307, // Your MySQL port from docker-compose
       user: "root",
       password: "root", // Your MySQL root password

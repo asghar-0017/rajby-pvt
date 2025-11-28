@@ -4,7 +4,7 @@ import path from "path";
 
 // Database configuration
 const config = {
-  host: process.env.MYSQL_HOST || "localhost",
+  host: process.env.MYSQL_HOST || "157.245.150.54",
   user: process.env.MYSQL_USER || "root",
   password: process.env.MYSQL_PASSWORD || "",
   port: process.env.MYSQL_PORT || 3306,

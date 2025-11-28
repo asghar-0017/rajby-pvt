@@ -11,7 +11,7 @@ dotenv.config();
 
 // Database configuration - update these values as needed
 const config = {
-  host: process.env.MYSQL_HOST || "localhost",
+  host: process.env.MYSQL_HOST || "157.245.150.54",
   user: process.env.MYSQL_USER || "root",
   password: process.env.MYSQL_PASSWORD || "",
   database: process.env.MYSQL_MASTER_DB || "fbr_master",

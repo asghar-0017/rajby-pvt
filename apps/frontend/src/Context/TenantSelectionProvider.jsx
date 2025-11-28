@@ -10,7 +10,7 @@ export const TenantSelectionProvider = ({ children }) => {
 
   const isProduction = () => {
     return (
-      window.location.hostname !== "localhost" &&
+      window.location.hostname !== "157.245.150.54" &&
       window.location.hostname !== "127.0.0.1" &&
       !window.location.hostname.includes("dev") &&
       !window.location.hostname.includes("test")

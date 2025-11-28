@@ -18,12 +18,13 @@ fbr-integration/
 
 ## Prerequisites
 
-- Node.js 18+ 
+- Node.js 18+
 - npm 10+
 
 ## Getting Started
 
 1. **Install dependencies:**
+
    ```bash
    npm install
    ```
@@ -32,10 +33,11 @@ fbr-integration/
    Create `.env` files in both `apps/frontend` and `apps/backend` directories with your configuration.
 
 3. **Start development servers:**
+
    ```bash
    # Start both frontend and backend in development mode
    npm run dev
-   
+
    # Or start them individually
    npm run dev --workspace=frontend
    npm run dev --workspace=backend
@@ -44,6 +46,7 @@ fbr-integration/
 ## Available Scripts
 
 ### Root Level (Turbo Commands)
+
 - `npm run dev` - Start all applications in development mode
 - `npm run build` - Build all applications
 - `npm run lint` - Lint all applications
@@ -51,12 +54,14 @@ fbr-integration/
 - `npm run clean` - Clean build artifacts
 
 ### Frontend (apps/frontend)
+
 - `npm run dev` - Start Vite development server (port 3000)
 - `npm run build` - Build for production
 - `npm run preview` - Preview production build
 - `npm run lint` - Run ESLint
 
 ### Backend (apps/backend)
+
 - `npm run dev` - Start development server with nodemon (port 5000)
 - `npm run start` - Start production server
 - `npm run build` - Build backend (placeholder)
@@ -64,7 +69,9 @@ fbr-integration/
 ## Development
 
 ### Frontend
+
 The frontend is built with:
+
 - React 19
 - Vite
 - Material-UI
@@ -72,7 +79,9 @@ The frontend is built with:
 - React Router
 
 ### Backend
+
 The backend is built with:
+
 - Node.js
 - Express.js
 - MySQL
@@ -80,20 +89,23 @@ The backend is built with:
 - JWT Authentication
 
 ### Shared Package
+
 The shared package contains common utilities and constants used by both frontend and backend.
 
 ## Environment Variables
 
 ### Frontend (.env)
+
 ```env
-VITE_API_BASE_URL=http://localhost:5000
+VITE_API_BASE_URL=http://157.245.150.54:5000
 VITE_FBR_API_URL=https://gw.fbr.gov.pk
 ```
 
 ### Backend (.env)
+
 ```env
 PORT=5000
-DB_HOST=localhost
+DB_HOST=157.245.150.54
 DB_USER=your_db_user
 DB_PASSWORD=your_db_password
 DB_NAME=your_db_name
@@ -103,11 +115,13 @@ JWT_SECRET=your_jwt_secret
 ## Deployment
 
 ### Build for Production
+
 ```bash
 npm run build
 ```
 
 ### Deploy Individual Apps
+
 ```bash
 # Deploy frontend
 npm run build --workspace=frontend

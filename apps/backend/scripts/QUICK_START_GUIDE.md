@@ -3,6 +3,7 @@
 ## 🚀 Quick Start
 
 ### 1. Test the Schema Checker (No Database Required)
+
 ```bash
 cd apps/backend
 node scripts/test-schema-checker.js
@@ -11,12 +12,14 @@ node scripts/test-schema-checker.js
 This will show you what tables, columns, and indexes the script would check/create without connecting to the database.
 
 ### 2. Run the Simple Schema Checker
+
 ```bash
 cd apps/backend
 node scripts/schema-checker-simple.js
 ```
 
 This will:
+
 - Connect to your master database
 - Check and create missing master tables
 - Check and add missing columns
@@ -24,6 +27,7 @@ This will:
 - Add missing columns to tenant tables
 
 ### 3. Run the Comprehensive Schema Checker
+
 ```bash
 cd apps/backend
 
@@ -43,6 +47,7 @@ node scripts/check-and-create-missing-schema.js --tenant-only
 ## 📋 What Gets Checked/Created
 
 ### Master Database Tables
+
 - `tenants` - Company/tenant information
 - `users` - User accounts
 - `roles` - User roles
@@ -52,12 +57,14 @@ node scripts/check-and-create-missing-schema.js --tenant-only
 - `audit_permissions` - Audit permissions
 
 ### Tenant Database Tables
+
 - `buyers` - Buyer information
 - `products` - Product catalog
 - `invoices` - Invoice records
 - `invoice_items` - Invoice line items
 
 ### Common Missing Columns
+
 - `users.role_id` - Links users to roles
 - `invoices.internal_invoice_no` - Internal invoice reference
 - `buyers.created_by_*` - Creator tracking fields
@@ -69,7 +76,7 @@ node scripts/check-and-create-missing-schema.js --tenant-only
 Make sure these environment variables are set in your `.env` file:
 
 ```env
-MYSQL_HOST=localhost
+MYSQL_HOST=157.245.150.54
 MYSQL_PORT=3306
 MYSQL_USER=your_username
 MYSQL_PASSWORD=your_password
@@ -79,13 +86,17 @@ MYSQL_MASTER_DB=your_master_database
 ## 🔧 Troubleshooting
 
 ### Database Connection Issues
+
 If you get connection errors:
+
 1. Check your MySQL server is running
 2. Verify your credentials in `.env`
 3. Ensure the database user has CREATE/ALTER permissions
 
 ### Permission Errors
+
 Make sure your database user has these privileges:
+
 - CREATE
 - ALTER
 - INDEX
@@ -94,6 +105,7 @@ Make sure your database user has these privileges:
 - UPDATE
 
 ### Common Errors
+
 - **Duplicate column errors**: Safe to ignore - column already exists
 - **Foreign key errors**: Usually means referenced table doesn't exist yet
 - **Access denied**: Check database user permissions

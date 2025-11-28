@@ -14,7 +14,7 @@ async function addTelephoneFinal() {
 
     // Connect to MySQL without specifying a database
     connection = await mysql.createConnection({
-      host: "localhost",
+      host: "157.245.150.54",
       port: 3307,
       user: "root",
       password: "root",

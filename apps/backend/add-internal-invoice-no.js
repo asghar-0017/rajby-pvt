@@ -6,7 +6,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const masterDbConfig = {
-  host: process.env.MYSQL_HOST || "localhost",
+  host: process.env.MYSQL_HOST || "157.245.150.54",
   user: process.env.MYSQL_USER || "root",
   password: process.env.MYSQL_PASSWORD || "root",
   port: process.env.MYSQL_PORT || 3306,
@@ -14,7 +14,7 @@ const masterDbConfig = {
 };
 
 const tenantDbConfig = {
-  host: process.env.MYSQL_HOST || "localhost",
+  host: process.env.MYSQL_HOST || "157.245.150.54",
   user: process.env.MYSQL_USER || "root",
   password: process.env.MYSQL_PASSWORD || "root",
   port: process.env.MYSQL_PORT || 3306,

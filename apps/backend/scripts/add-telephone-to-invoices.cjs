@@ -4,7 +4,7 @@ const path = require("path");
 
 // Database configuration
 const dbConfig = {
-  host: "localhost",
+  host: "157.245.150.54",
   port: 3307,
   user: "root",
   password: "root",
